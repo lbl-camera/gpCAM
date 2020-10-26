@@ -33,7 +33,7 @@ Credits
 
 Main Developer: Marcus Noack (MarcusNoack@lbl.gov)
 Several people from across the DOE national labs have given insights
-that led the code in it;s current form
+that led the code in it's current form
 
 
 
