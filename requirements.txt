@@ -1,0 +1,13 @@
+wheel
+numpy
+scipy
+matplotlib
+numba
+torch
+#bluesky-adaptive
+bluesky
+pandas
+PyQt5
+ophyd
+dask
+distributed
