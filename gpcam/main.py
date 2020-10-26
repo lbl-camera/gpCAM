@@ -24,14 +24,13 @@ def main(init_data_files = None, init_hyperparameter_files = None):
     path_new_experiment_result : Path
         Full path to where to write new commands
     """
-
     #########################################
     ######Prepare first set of Experiments###
     #########################################
     print("################################################")
     print("#gpCAM####powered by CAMERA @ LBNL##############")
     print("################################################")
-    print("#########Version: 5.0exp(i1)####################")
+    print("#########Version: 6.0###########################")
     print("################################################")
     print("")
     start_time = time.time()
