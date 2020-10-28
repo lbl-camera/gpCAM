@@ -1,6 +1,9 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.npy
+scripts/errors.log
+*.py.un*
 
 # C extensions
 *.so
