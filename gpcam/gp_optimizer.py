@@ -28,9 +28,12 @@ class GPOptimizer():
 
     Example:
         obj = GPOptimizer(3,1,2,[[0,10],[0,10],[0,10]])
+        obj.tell(x,y)
+        obj.train(...)
+        prediction = obj.gp.posterior_mean(x0)
     ------------------------------------------------------------
     """
-
+##############################################################
     def __init__(
         self,
         input_space_dimension,
@@ -55,6 +58,7 @@ class GPOptimizer():
         self.cost_function_parameters = None
 
 
+##############################################################
     def get_data(self):
         """
         this provides a way to see the current class varibles
@@ -76,6 +80,7 @@ class GPOptimizer():
             res = {}
         return res
 
+##############################################################
     def evaluate_objective_function(self, x, objective_function,origin = None,
             cost_function = None,
             cost_function_parameters = None):
@@ -99,6 +104,7 @@ class GPOptimizer():
         except:
             print("Evaluating the objective function was not successful.")
 
+##############################################################
     def tell(self, x, y,
             variances = None,
             value_positions = None,
@@ -138,6 +144,7 @@ class GPOptimizer():
             self.value_positions = value_positions
         if self.gp_initialized is True: self.update_gp()
 
+##############################################################
     def update_cost_function(self,
             measurement_costs,
             cost_update_function,
@@ -171,6 +178,7 @@ class GPOptimizer():
         cost_function_parameters)
         print("cost parameters changed to: ", self.cost_function_parameters)
 
+##############################################################
     def init_gp(self,init_hyperparameters, compute_device = "cpu",gp_kernel_function = None,
             gp_mean_function = None, sparse = False):
         """
@@ -203,6 +211,7 @@ class GPOptimizer():
             self.gp_initialized = True
             self.hyperparameters = init_hyperparameters
 
+##############################################################
     def update_gp(self):
         """
         This function updates the data in the GP, tell(...) will call this function automatically if
@@ -217,6 +226,7 @@ class GPOptimizer():
             value_positions = self.value_positions,
             variances = self.variances)
 
+##############################################################
     def async_train(self, hyperparameter_bounds,
             likelihood_optimization_pop_size,
             likelihood_optimization_tolerance,
@@ -245,7 +255,7 @@ class GPOptimizer():
                 )
         self.hyperparameters = self.gp.hyperparameters
 
-
+##############################################################
     def train(self,hyperparameter_bounds,
             likelihood_optimization_method,likelihood_optimization_pop_size,
             likelihood_optimization_tolerance,likelihood_optimization_max_iter):
@@ -273,6 +283,7 @@ class GPOptimizer():
                 )
         self.hyperparameters = self.gp.hyperparameters
 
+##############################################################
     def stop_async_train(self):
         """
         function to stop vfGP async training
@@ -282,10 +293,12 @@ class GPOptimizer():
         """
         self.gp.stop_training()
 
+##############################################################
     def update_hyperparameters(self):
         self.gp.update_hyperparameters()
         self.hyperparameters = self.gp.hyperparameters
 
+##############################################################
     def ask(self, position = None, n = 1,
             objective_function = "covariance",
             cost_function = None,
@@ -331,6 +344,7 @@ class GPOptimizer():
                 dask_client = dask_client)
         return {'x':np.array(maxima), "f(x)" : np.array(func_evals)}
 
+##############################################################
     def simulate(self, points, cost_function = None, cost_function_parameters = None, origin = None):
         """
         this function simulates a measurement:

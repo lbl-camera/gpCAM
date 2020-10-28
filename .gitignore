@@ -3,7 +3,7 @@ __pycache__/
 *$py.class
 *.npy
 scripts/errors.log
-*.py.un*
+*.py.un~
 
 # C extensions
 *.so
