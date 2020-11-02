@@ -134,7 +134,7 @@ class FVGP:
             self.mean_function = gp_mean_function
 
         ##########################################
-        #######prepare hyper parameters###########
+        #######prepare hyperparameters###########
         ##########################################
         self.hyperparameters = init_hyperparameters
         ##########################################
@@ -314,7 +314,7 @@ class FVGP:
                 self.log_likelihood(hyperparameters))
         elif optimization_method == "local":
             hyperparameters = np.array(starting_hps)
-            print("Performing a local update of the hyper parameters.")
+            print("Performing a local update of the hyperparameters.")
             print("starting hyper-parameters: ", hyperparameters)
             print("Attempting a BFGS optimization.")
             print("maximum number of iterations: ", optimization_max_iter)
@@ -382,7 +382,7 @@ class FVGP:
         """
         computes the marginal log-likelihood
         input:
-            hyper parameters
+            hyperparameters
         output:
             negative marginal log-likelihood (scalar)
         """
@@ -406,7 +406,7 @@ class FVGP:
         """
         computes the gradient of the negative marginal log-likelihood
         input:
-            hyper parameters
+            hyperparameters
         output:
             gradient of the negative marginal log-likelihood (vector)
         """
@@ -443,7 +443,7 @@ class FVGP:
         """
         computes the hessian of the negative  marginal  log-likelihood
         input:
-            hyper parameters
+            hyperparameters
         output:
             hessian of the negative marginal log-likelihood (matrix)
         """
@@ -963,7 +963,7 @@ class FVGP:
                 print(self.data_x)
                 print("prediction points:")
                 print(p)
-                print("hyper parameters")
+                print("hyperparameters")
                 print(self.hyperparameters)
                 print(np.linalg.matrix_rank(prior), len(prior))
                 print("===============")

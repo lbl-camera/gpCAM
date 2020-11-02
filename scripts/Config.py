@@ -30,8 +30,8 @@ gaussian_processes = {
     "model_1": {
         "kernel function": None,
         #"kernel function": kernel_l2_multi_task,
-        "hyper parameters": [1.0,1.0,1.0],
-        "hyper parameter bounds": [[1.0,100.0],[0.10,100.0],[0.10,100.0]],
+        "hyperparameters": [1.0,1.0,1.0],
+        "hyperparameter bounds": [[1.0,100.0],[0.10,100.0],[0.10,100.0]],
         "number of returns": 1,
         "dimensionality of return": 1,
         "objective function optimization tolerance": 0.001,
@@ -39,8 +39,8 @@ gaussian_processes = {
         "run function in every iteration": None,
         #"data acquisition function": send_data_as_files,
         "data acquisition function": synthetic_function,
-        #"objective function": "covariance",
-        "objective function": "shannon_ig",
+        "objective function": "covariance",
+        #"objective function": "shannon_ig",
         "mean function": None,
         "cost function": None,
         "cost update function": None,
@@ -53,6 +53,7 @@ gaussian_processes = {
 }
 
 breaking_error = 1e-12
+automatic_signal_variance_range_determination = True
 ########################################
 ###Variance Optimization################
 ########################################

@@ -12,15 +12,6 @@ from .gp_optimizer import GPOptimizer
 import dask.distributed
 
 
-__author__ = "Marcus Noack"
-__copyright__ = "not clear yet"
-__credits__ = ["Marcus Noack", "others"]
-__license__ = "..."
-__version__ = "v5ei1"
-__maintainer__ = ["Marcus Noack", "Ron and so on"]
-__email__ = "MarcusNoack@lbl.gov"
-__status__ = "Research"
-
 
 def main(data_path = None, hyperparameter_path = None):
     """
@@ -30,7 +21,7 @@ def main(data_path = None, hyperparameter_path = None):
     ----------
     you have the option to specify paths by calling "python Run_Visualization.py path_to_data path_to_hyperparameters"
     If the command line options are gives but set to "None" the data will be read from the file specified in the configuration file
-    "Config_Visualization.py" and the hyper parameters will be recomputed. If you want to specify one path to data or hyper parameters, set the other one 
+    "Config_Visualization.py" and the hyperparameters will be recomputed. If you want to specify one path to data or hyperparameters, set the other one 
     to "None". If both file paths are specified in the configuration file, you can call Run_Visualization without command line parameters
     """
     #########################################
@@ -73,17 +64,17 @@ def main(data_path = None, hyperparameter_path = None):
     data[gp_idx] = Data(gp_idx,1.0,conf,d)
     print("Length of data to be plotted: ", len(d))
     if hyperparameter_path is None:
-        print("You have chosen to recompute the hyper parameters.")
-        hps =  conf.gaussian_processes[gp_idx]["hyper parameters"]
+        print("You have chosen to recompute the hyperparameters.")
+        hps =  conf.gaussian_processes[gp_idx]["hyperparameters"]
         training = "global"
     elif hyperparameter_path is not None:
-        print("You have chosen to specify your path for the hyper parameters as command line option.")
+        print("You have chosen to specify your path for the hyperparameters as command line option.")
         print("Hyper parameters will be read from",hyperparameter_path,".")
         hps = list(np.load(hyperparameter_path, allow_pickle = True))
         training = None
     else:
-        print("Not sure where to get the hyper parameters from")
-    print("hyper parameters: ", hps)
+        print("Not sure where to get the hyperparameters from")
+    print("hyperparameters: ", hps)
 
     error[gp_idx] = np.inf
     gp_optimizers[gp_idx] = GPOptimizer(
@@ -107,14 +98,14 @@ def main(data_path = None, hyperparameter_path = None):
     if training is not None: 
         if training_dask_client is not False:
             gp_optimizers[gp_idx].async_train(
-                conf.gaussian_processes[gp_idx]["hyper parameter bounds"],
+                conf.gaussian_processes[gp_idx]["hyperparameter bounds"],
                 conf.likelihood_optimization_population_size,
                 conf.likelihood_optimization_tolerance,
                 conf.likelihood_optimization_max_iter,
                 training_dask_client
                 )
         else: gp_optimizers[gp_idx].train(
-                conf.gaussian_processes[gp_idx]["hyper parameter bounds"],
+                conf.gaussian_processes[gp_idx]["hyperparameter bounds"],
                 training, conf.likelihood_optimization_population_size,
                 conf.likelihood_optimization_tolerance,
                 conf.likelihood_optimization_max_iter

@@ -23,7 +23,7 @@ def main():
             data_files = sys.argv[data_index+1:hp_index]
             hp_files = sys.argv[hp_index+1:]
             print("data files given in command line:", data_files)
-            print("hyper parameter files given in command line:", hp_files)
+            print("hyperparameter files given in command line:", hp_files)
             main2(init_data_files = data_files, init_hyperparameter_files = hp_files)
         elif "-d" in sys.argv:
             data_index = sys.argv.index("-d")
@@ -33,7 +33,7 @@ def main():
         elif "-h" in sys.argv:
             hp_index = sys.argv.index("-h")
             hp_files = sys.argv[hp_index+1:]
-            print("hyper parameter files given in command line:", hp_files)
+            print("hyperparameter files given in command line:", hp_files)
             main2(init_data_files = None, init_hyperparameter_files = hp_files)
         else:
             exit("no valid file option given")

@@ -72,7 +72,7 @@ class GPOptimizer():
                 "y": self.values,
                 "measurement variances":self.variances,
                 "measurement value positions":self.value_positions,
-                "hyper parameters": self.hyperparameters,
+                "hyperparameters": self.hyperparameters,
                 "cost function parameters": self.cost_function_parameters,
                 }
         except:
@@ -328,7 +328,7 @@ class GPOptimizer():
             optimization_tol (float):                       default = 10e-6
             dask_client:                                    default = False
         """
-        print("aks() initiated with hyper parameters:",self.hyperparameters)
+        print("aks() initiated with hyperparameters:",self.hyperparameters)
         print("optimization method: ", optimization_method)
         print("bounds: ",optimization_bounds)
         if optimization_bounds is None: optimization_bounds = self.index_set_bounds

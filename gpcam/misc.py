@@ -104,7 +104,10 @@ def kl_divergence(m1, m2, C1, C1_Inv, C2, C2_Inv):
         + np.log(np.det(C2) / np.det(C1))
     )
 
-
+def determine_signal_variance_range(values):
+    v = np.var(values)
+    a = [v/100.0,v*100.0]
+    return a
 
 def delete_files():
     path_new_command = "../data/command/"

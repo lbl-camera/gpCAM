@@ -7,7 +7,8 @@ from random import randint
 import itertools
 import math
 import uuid
-
+import time
+import datetime
 
 
 
@@ -139,10 +140,11 @@ class Data:
             data[i]["measurement values"]["value positions"] = new_value_positions[i]
             data[i]["cost"] = new_measurement_costs[i]
             data[i]["id"] = str(uuid.uuid4())
-            data[i]["time stamp"] = None
+            data[i]["time stamp"] = time.time()
+            data[i]["date time"] = datetime.datetime.now()
             data[i]["measured"] = False
             data[i]["objective function evaluation"] = obj_func_eval
-            data[i]["hyper parameters"] = hps
+            data[i]["hyperparameters"] = hps
         return data
 
 
@@ -205,7 +207,8 @@ class Data:
             data[point_index]["measurement values"]["values"] = np.zeros((self.oput_num))
             data[point_index]["measurement values"]["variances"] = np.zeros((self.oput_num))
             data[point_index]["measurement values"]["value positions"] = np.zeros((self.oput_num, self.oput_dim))
-            data[point_index]["time stamp"] = None
+            data[point_index]["time stamp"] = time.time()
+            data[point_index]["date time"] = datetime.datetime.now()
             data[point_index]["measured"] = False
             data[point_index]["function name"] = self.gp_idx
             data[point_index]["metadata"] = None

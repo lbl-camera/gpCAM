@@ -37,7 +37,6 @@ def evaluate_gp_objective_function(x,objective_function,gp):
     if len(x.shape) == 1: x = np.array([x])
     if objective_function == "covariance":
         res = gp.compute_posterior_fvGP_pdf(x, gp.value_positions[-1],compute_means = False, compute_posterior_covariances = True)
-        a = res["posterior means"]
         b = res["posterior covariances"][0]
         sgn, logdet = np.linalg.slogdet(b)
         return np.sqrt(sgn * np.exp(logdet))
@@ -48,7 +47,7 @@ def evaluate_gp_objective_function(x,objective_function,gp):
         return res
     elif objective_function == "upper_confidence":
         x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
-        m = gp.posterior_mean(x)["f(x)"]
+        m = gp.posterior_mean(x)["f(x)"][0]
         v = gp.posterior_covariance(x)["v(x)"]
         return m + 3.0*v
     elif objective_function == "maximum":
@@ -122,13 +121,13 @@ def find_objective_function_maxima(gp,objective_function,
             options = {"maxiter": optimization_max_iter}
             )
         opti = np.array([a["x"]])
-        func_eval = a["fun"]
-        if a["success"] is False: 
+        func_eval = np.array([a["fun"]])
+        if a["success"] is False:
+            print("local objective function optimization not successful, solution replaced with random point.")
             opti = np.array([x0])
-            func_eval = evaluate_objective_function(x0,
+            func_eval = np.array([evaluate_objective_function(x0,
                     gp,objective_function,origin,
-                    cost_function,cost_function_parameters)
-
+                    cost_function,cost_function_parameters)])
     else:
         raise ValueError("Invalid number of requested measurements given")
     return opti,func_eval

@@ -18,50 +18,22 @@ def synthetic_function(data):
     for idx_data in range(len(data)):
         if data[idx_data]["measured"] == True: continue
         gp_idx = data[idx_data]["function name"]
-        #############################################################
-        ###example for time series experiments:######################
-        #############################################################
-        """
-        t_curve = [data[idx_data]['position']['temperature_0'],
-                   data[idx_data]['position']['temperature_6'],
-                   data[idx_data]['position']['temperature_12'],
-                   data[idx_data]['position']['temperature_18'],
-                   data[idx_data]['position']['temperature_24'],
-                   data[idx_data]['position']['temperature_30'],
-                   data[idx_data]['position']['temperature_36'],
-                   data[idx_data]['position']['temperature_42'],
-                   data[idx_data]['position']['temperature_48'],
-                   data[idx_data]['position']['temperature_54'],
-                   data[idx_data]['position']['temperature_60']]
-        a,b,c,d = res(t_curve)
-        data[idx_data]["measurement values"]["values"] = [d[-1]]
-        """
-        #############################################################
         x1 = data[idx_data]["position"]["x1"]
         x2 = data[idx_data]["position"]["x2"]
-        #x3 = data[idx_data]["position"]["x3"]
-        #x4 = data[idx_data]["position"]["x4"]
         data[idx_data]["measurement values"]["values"] = np.array(
-        [himmel_blau([x1, x2])]#, np.sin(x2),-np.sin(x2)]
+        [himmel_blau([x1, x2])]
         #[np.sin(x2)]
         #[Ackley([x1, x2]),himmel_blau([x1, x2])+np.sin(20.0*x1)]
         #[eggholder([x1, x2])]
         #[np.sin(x1)+np.sin(x2)+np.sin(x3)+np.sin(x4)]
         #[himmel_blau([x1,x2])+x3+x4]
         )
-        #if np.sqrt((x1-200.0)**2+(x2-200.0)**2) < 100.0:
-        #    data[idx_data]["measurement values"]["values"] = 100.0
 
         data[idx_data]["cost"] = {"origin": np.random.uniform(low=0.0, high=1.0, size = 2),
                                      "point": np.random.uniform(low=0.0, high=1.0, size = 2),
                                      "cost": np.random.uniform(low=0.0, high=1.0)}
         data[idx_data]["measurement values"]["variances"] = np.array([0.01])
         data[idx_data]["measurement values"]["value positions"] = np.array([[0]])
-        #data[idx_data]["measurement values"]["value positions"] = np.array([[0]])
-    
-        #############################################################
-        # data[idx][model] = np.sin(data[idx]['temperature'])
-        #############################################################
         data[idx_data]["measured"] = True
         data[idx_data]["time stamp"] = time.time()
     return data

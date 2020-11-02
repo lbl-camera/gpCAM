@@ -84,25 +84,25 @@ def main(init_data_files = None, init_hyperparameter_files = None):
         else:
             data[gp_idx] = Data(gp_idx,function,conf)
 
-        #####initializing hyper parameters
+        #####initializing hyperparameters
         if init_hyperparameter_files is not None:
             if isinstance(init_hyperparameter_files, str) and gp_idx in init_hyperparameter_files:
                 print("Hyper parameters will be read form ", init_hyperparameter_files,".")
                 hps = list(np.load(init_hyperparameter_files, allow_pickle = True))
-                print("hyper parameters:", hps)
+                print("hyperparameters:", hps)
                 training = None
             elif isinstance(init_hyperparameter_files, list):
                 for entry in init_hyperparameter_files:
                     if gp_idx in entry:
                         print("Hyper parameters for ", gp_idx," will be read form ", entry,".")
                         hps = list(np.load(entry, allow_pickle = True))
-                        print("hyper parameters:", hps)
+                        print("hyperparameters:", hps)
                 training = None
             else:
-                hps = conf.gaussian_processes[gp_idx]["hyper parameters"]
+                hps = conf.gaussian_processes[gp_idx]["hyperparameters"]
                 training = conf.likelihood_optimization_method
         else:
-            hps =  conf.gaussian_processes[gp_idx]["hyper parameters"]
+            hps =  conf.gaussian_processes[gp_idx]["hyperparameters"]
             training = conf.initial_likelihood_optimization_method
         #########################################
         error[gp_idx] = np.inf
@@ -127,14 +127,14 @@ def main(init_data_files = None, init_hyperparameter_files = None):
         if training is not None: 
             if training_dask_client is not False:
                 gp_optimizers[gp_idx].async_train(
-                    conf.gaussian_processes[gp_idx]["hyper parameter bounds"],
+                    conf.gaussian_processes[gp_idx]["hyperparameter bounds"],
                     conf.likelihood_optimization_population_size,
                     conf.likelihood_optimization_tolerance,
                     conf.likelihood_optimization_max_iter,
                     training_dask_client
                     )
             else: gp_optimizers[gp_idx].train(
-                    conf.gaussian_processes[gp_idx]["hyper parameter bounds"],
+                    conf.gaussian_processes[gp_idx]["hyperparameter bounds"],
                     training, conf.likelihood_optimization_population_size,
                     conf.likelihood_optimization_tolerance,
                     conf.likelihood_optimization_max_iter
@@ -148,7 +148,7 @@ def main(init_data_files = None, init_hyperparameter_files = None):
                 conf.gaussian_processes[gp_idx]["cost function parameters"]
                     )
 
-        # save the found hyper parameters for fast restart and faster plotting
+        # save the found hyperparameters for fast restart and faster plotting
         np.save('../data/historic_data/Data_'+ start_date_time+"_" + gp_idx, data[gp_idx].data_set)
         np.save('../data/historic_data/hyperparameters_'+ start_date_time+"_" + gp_idx, gp_optimizers[gp_idx].gp.hyperparameters)
         np.save('../data/current_data/Data_' + gp_idx, data[gp_idx].data_set)
@@ -158,6 +158,12 @@ def main(init_data_files = None, init_hyperparameter_files = None):
         current_position = data[gp_idx].points[np.argmax(data[gp_idx].times)]
         opt_tol[gp_idx] = conf.gaussian_processes[gp_idx]["objective function optimization tolerance"]
 
+
+    if conf.automatic_signal_variance_range_determination is True:
+        a = smc.determine_signal_variance_range(data[gp_idx].values)
+        print("automatic signal variance range determination activated")
+        print("new signal variance range: ", a)
+        conf.gaussian_processes[gp_idx]["hyperparameter bounds"][0] = a
 
     print("#############################################################")
     print("Initialization concluded, start of autonomous data collection")
@@ -255,7 +261,7 @@ def main(init_data_files = None, init_hyperparameter_files = None):
                 print("Fresh optimization from scratch via global optimization")
                 gp_optimizers[gp_idx].stop_async_train()
                 gp_optimizers[gp_idx].train(
-                conf.gaussian_processes[gp_idx]["hyper parameter bounds"],
+                conf.gaussian_processes[gp_idx]["hyperparameter bounds"],
                 "global", conf.likelihood_optimization_population_size,
                 conf.likelihood_optimization_tolerance,
                 conf.likelihood_optimization_max_iter
@@ -268,7 +274,7 @@ def main(init_data_files = None, init_hyperparameter_files = None):
                     print("Dask client for training specified; therefore, I will start")
                     print("an asynchronous hgdl training session")
                     gp_optimizers[gp_idx].async_train(
-                    conf.gaussian_processes[gp_idx]["hyper parameter bounds"],
+                    conf.gaussian_processes[gp_idx]["hyperparameter bounds"],
                     hyperparameter_update_mode, conf.likelihood_optimization_population_size,
                     conf.likelihood_optimization_tolerance,
                     conf.likelihood_optimization_max_iter,
@@ -278,7 +284,7 @@ def main(init_data_files = None, init_hyperparameter_files = None):
                     print("Dask client for training not specified; therefore, I will start")
                     print("a synchronous hgdl training")
                     gp_optimizers[gp_idx].train(
-                    conf.gaussian_processes[gp_idx]["hyper parameter bounds"],
+                    conf.gaussian_processes[gp_idx]["hyperparameter bounds"],
                     hyperparameter_update_mode, conf.likelihood_optimization_population_size,
                     conf.likelihood_optimization_tolerance,
                     conf.likelihood_optimization_max_iter
@@ -287,7 +293,7 @@ def main(init_data_files = None, init_hyperparameter_files = None):
                 print("Local training initiated")
                 gp_optimizers[gp_idx].stop_async_train()
                 gp_optimizers[gp_idx].train(
-                    conf.gaussian_processes[gp_idx]["hyper parameter bounds"],
+                    conf.gaussian_processes[gp_idx]["hyperparameter bounds"],
                     "local", conf.likelihood_optimization_population_size,
                     conf.likelihood_optimization_tolerance,
                     conf.likelihood_optimization_max_iter
