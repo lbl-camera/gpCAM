@@ -117,7 +117,7 @@ def delete_files():
     mypath = "../data/current_data/"
     for root, dirs, files in os.walk(mypath):
         for file in files:
-            if file == "README.txt": continue
+            if file == ".init": continue
             os.remove(os.path.join(root, file))
 
 def himmel_blau(x):

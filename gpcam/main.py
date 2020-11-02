@@ -103,7 +103,7 @@ def main(init_data_files = None, init_hyperparameter_files = None):
                 training = conf.likelihood_optimization_method
         else:
             hps =  conf.gaussian_processes[gp_idx]["hyper parameters"]
-            training = conf.likelihood_optimization_method
+            training = conf.initial_likelihood_optimization_method
         #########################################
         error[gp_idx] = np.inf
         gp_optimizers[gp_idx] = GPOptimizer(
@@ -155,8 +155,6 @@ def main(init_data_files = None, init_hyperparameter_files = None):
         np.save('../data/current_data/hyperparameters_' + gp_idx, gp_optimizers[gp_idx].gp.hyperparameters)
 
         number_of_measurements[gp_idx] = len(data[gp_idx].points)
-        GlobalUpdateKernelNumber[gp_idx] = number_of_measurements[gp_idx]
-        LocalUpdateKernelNumber[gp_idx] = number_of_measurements[gp_idx]
         current_position = data[gp_idx].points[np.argmax(data[gp_idx].times)]
         opt_tol[gp_idx] = conf.gaussian_processes[gp_idx]["objective function optimization tolerance"]
 
@@ -180,11 +178,13 @@ def main(init_data_files = None, init_hyperparameter_files = None):
         print("")
         print("")
         print("")
-        print("==========================================================")
-        print("Total Run Time: ", time.time() - start_time, "     seconds")
-        print("number of measurements performed: ", number_of_measurements)
-        print("==========================================================")
         for gp_idx in conf.gaussian_processes.keys():
+            number_of_measurements[gp_idx] = len(data[gp_idx].points)
+            print("==========================================================")
+            print("computing gp: ",gp_idx)
+            print("Total Run Time: ", time.time() - start_time, "     seconds")
+            print("number of measurements performed: ", number_of_measurements[gp_idx])
+            print("==========================================================")
             #########################################
             ###ask for new points:###################
             #########################################
@@ -209,7 +209,7 @@ def main(init_data_files = None, init_hyperparameter_files = None):
             next_measurement_points[gp_idx] = ask_res["x"]
             func_evals[gp_idx] = ask_res["f(x)"]
             post_var[gp_idx] = gp_optimizers[gp_idx].gp.posterior_covariance(next_measurement_points[gp_idx])
-            
+
             if conf.gaussian_processes[gp_idx]["adjust optimization threshold"][0] == True:
                 opt_tol[gp_idx] = abs(func_evals[gp_idx][0] * conf.gaussian_processes[gp_idx]\
                 ["adjust optimization threshold"][1])
@@ -239,7 +239,6 @@ def main(init_data_files = None, init_hyperparameter_files = None):
                 simulated_next_costs[gp_idx],
                 error[gp_idx],
                 gp_optimizers[gp_idx].hyperparameters)
-            number_of_measurements[gp_idx] = len(data[gp_idx].points)
 
             #########################################
             ###############preparing to tell()#######
@@ -251,16 +250,23 @@ def main(init_data_files = None, init_hyperparameter_files = None):
                     variances = data[gp_idx].variances,
                     value_positions = data[gp_idx].value_positions,
                     append = False)
-            print("Deciding on what training should be performed...")
-            if GlobalUpdateKernelNumber[gp_idx] / number_of_measurements[gp_idx] < \
-                    conf.global_kernel_optimization_frequency:
-                GlobalUpdateKernelNumber[gp_idx] = number_of_measurements[gp_idx]
-                hyperparameter_update_mode = conf.likelihood_optimization_method
-                print("fresh optimization from scratch via ",hyperparameter_update_mode," optimization")
+            print("Training...")
+            if number_of_measurements[gp_idx] in conf.global_likelihood_optimization_at:
+                print("Fresh optimization from scratch via global optimization")
+                gp_optimizers[gp_idx].stop_async_train()
+                gp_optimizers[gp_idx].train(
+                conf.gaussian_processes[gp_idx]["hyper parameter bounds"],
+                "global", conf.likelihood_optimization_population_size,
+                conf.likelihood_optimization_tolerance,
+                conf.likelihood_optimization_max_iter
+                )
+            if number_of_measurements[gp_idx] in conf.hgdl_likelihood_optimization_at:
+                hyperparameter_update_mode = "hgdl"
+                print("Fresh optimization from scratch via hgdl optimization")
+                gp_optimizers[gp_idx].stop_async_train()
                 if training_dask_client is not False:
-                    print("dask client for training specified; therefore, I will start")
-                    print("an asynchronous training session")
-                    gp_optimizers[gp_idx].stop_async_train()
+                    print("Dask client for training specified; therefore, I will start")
+                    print("an asynchronous hgdl training session")
                     gp_optimizers[gp_idx].async_train(
                     conf.gaussian_processes[gp_idx]["hyper parameter bounds"],
                     hyperparameter_update_mode, conf.likelihood_optimization_population_size,
@@ -268,32 +274,27 @@ def main(init_data_files = None, init_hyperparameter_files = None):
                     conf.likelihood_optimization_max_iter,
                     training_dask_client
                     )
-                else: 
-                    print("dask client for training not specified; therefore, I will start")
-                    print("a traditional training")
+                else:
+                    print("Dask client for training not specified; therefore, I will start")
+                    print("a synchronous hgdl training")
                     gp_optimizers[gp_idx].train(
                     conf.gaussian_processes[gp_idx]["hyper parameter bounds"],
                     hyperparameter_update_mode, conf.likelihood_optimization_population_size,
                     conf.likelihood_optimization_tolerance,
                     conf.likelihood_optimization_max_iter
                     )
-            elif LocalUpdateKernelNumber[gp_idx] / number_of_measurements[gp_idx] < \
-                    conf.local_kernel_optimization_frequency and training_dask_client is False:
-                print("dask client for training not specified; therefore, I will start")
-                print("a local training")
-                LocalUpdateKernelNumber[gp_idx] = number_of_measurements[gp_idx]
-                hyperparameter_update_mode = "local"
+            elif number_of_measurements[gp_idx] in conf.local_likelihood_optimization_at:
+                print("Local training initiated")
+                gp_optimizers[gp_idx].stop_async_train()
                 gp_optimizers[gp_idx].train(
                     conf.gaussian_processes[gp_idx]["hyper parameter bounds"],
-                    hyperparameter_update_mode, conf.likelihood_optimization_population_size,
+                    "local", conf.likelihood_optimization_population_size,
                     conf.likelihood_optimization_tolerance,
                     conf.likelihood_optimization_max_iter
                     )
-
             else:
                 print("No training was performed in this iteration.")
                 gp_optimizers[gp_idx].update_hyperparameters()
-
 
             if np.random.random() < conf.gaussian_processes[gp_idx]["cost optimization chance"]\
                     and conf.gaussian_processes[gp_idx]["cost function"] is not None \

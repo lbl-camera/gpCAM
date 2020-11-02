@@ -57,21 +57,21 @@ breaking_error = 1e-12
 ###Variance Optimization################
 ########################################
 objective_function_optimization_method = "global"
+chance_for_local_objective_function_optimization = 0.5 #\in [0,1], omly relevant of method is global
 objective_function_optimization_population_size = 10
 objective_function_optimization_max_iter = 20
 number_of_suggested_measurements = 1  ###only important for "hgdl" in objective_function_optimization_method
 
-likelihood_optimization_method = "global"
+initial_likelihood_optimization_method = "global"
+global_likelihood_optimization_at = [200]
+local_likelihood_optimization_at = [100,400,1000]
+hgdl_likelihood_optimization_at = []
 likelihood_optimization_population_size = 20
 likelihood_optimization_tolerance = 0.001
 likelihood_optimization_max_iter = 120
-
 ########################################
 ###Computation Parameters###############
 ########################################
-global_kernel_optimization_frequency = 0.1  # \in [0,1]
-local_kernel_optimization_frequency = 0.2  # \in [0,1]
-chance_for_local_objective_function_optimization = 0.5 #\in [0,1]
 compute_device = "cpu"
 sparse = False
 compute_inverse = False
@@ -81,7 +81,7 @@ prediction_dask_client = False  #None/False/client
 ###DATA ACQUISITION############
 ###############################
 initial_data_set_size = 20
-max_number_of_measurements = 1000
+max_number_of_measurements = 100
 
 animation = {
         'model': 'model',

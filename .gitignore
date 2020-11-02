@@ -4,7 +4,7 @@ __pycache__/
 *.npy
 scripts/errors.log
 *.py.un~
-
+*.pyc
 # C extensions
 *.so
 *.un~
