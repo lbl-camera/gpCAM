@@ -227,7 +227,7 @@ class GPOptimizer():
             variances = self.variances)
 
 ##############################################################
-    def async_train(self, hyperparameter_bounds,
+    def async_train_gp(self, hyperparameter_bounds,
             likelihood_optimization_pop_size,
             likelihood_optimization_tolerance,
             likelihood_optimization_max_iter,
@@ -256,7 +256,7 @@ class GPOptimizer():
         self.hyperparameters = self.gp.hyperparameters
 
 ##############################################################
-    def train(self,hyperparameter_bounds,
+    def train_gp(self,hyperparameter_bounds,
             likelihood_optimization_method,likelihood_optimization_pop_size,
             likelihood_optimization_tolerance,likelihood_optimization_max_iter):
         """

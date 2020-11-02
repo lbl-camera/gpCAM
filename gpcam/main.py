@@ -122,16 +122,16 @@ def main(init_data_files = None, init_hyperparameter_files = None):
             gp_mean_function = conf.gaussian_processes[gp_idx]["mean function"],
             sparse = conf.sparse
                 )
-        if training is not None: 
-            if training_dask_client is not False:
-                gp_optimizers[gp_idx].async_train(
+        if training is not None:
+            if training_dask_client is not False and training == "hgdl":
+                gp_optimizers[gp_idx].async_train_gp(
                     conf.gaussian_processes[gp_idx]["hyperparameter bounds"],
                     conf.likelihood_optimization_population_size,
                     conf.likelihood_optimization_tolerance,
                     conf.likelihood_optimization_max_iter,
                     training_dask_client
                     )
-            else: gp_optimizers[gp_idx].train(
+            else: gp_optimizers[gp_idx].train_gp(
                     conf.gaussian_processes[gp_idx]["hyperparameter bounds"],
                     training, conf.likelihood_optimization_population_size,
                     conf.likelihood_optimization_tolerance,
@@ -258,7 +258,7 @@ def main(init_data_files = None, init_hyperparameter_files = None):
             if number_of_measurements[gp_idx] in conf.global_likelihood_optimization_at:
                 print("Fresh optimization from scratch via global optimization")
                 gp_optimizers[gp_idx].stop_async_train()
-                gp_optimizers[gp_idx].train(
+                gp_optimizers[gp_idx].train_gp(
                 conf.gaussian_processes[gp_idx]["hyperparameter bounds"],
                 "global", conf.likelihood_optimization_population_size,
                 conf.likelihood_optimization_tolerance,
@@ -271,7 +271,7 @@ def main(init_data_files = None, init_hyperparameter_files = None):
                 if training_dask_client is not False:
                     print("Dask client for training specified; therefore, I will start")
                     print("an asynchronous hgdl training session")
-                    gp_optimizers[gp_idx].async_train(
+                    gp_optimizers[gp_idx].async_train_gp(
                     conf.gaussian_processes[gp_idx]["hyperparameter bounds"],
                     hyperparameter_update_mode, conf.likelihood_optimization_population_size,
                     conf.likelihood_optimization_tolerance,
@@ -281,7 +281,7 @@ def main(init_data_files = None, init_hyperparameter_files = None):
                 else:
                     print("Dask client for training not specified; therefore, I will start")
                     print("a synchronous hgdl training")
-                    gp_optimizers[gp_idx].train(
+                    gp_optimizers[gp_idx].train_gp(
                     conf.gaussian_processes[gp_idx]["hyperparameter bounds"],
                     hyperparameter_update_mode, conf.likelihood_optimization_population_size,
                     conf.likelihood_optimization_tolerance,
@@ -290,7 +290,7 @@ def main(init_data_files = None, init_hyperparameter_files = None):
             elif number_of_measurements[gp_idx] in conf.local_likelihood_optimization_at:
                 print("Local training initiated")
                 gp_optimizers[gp_idx].stop_async_train()
-                gp_optimizers[gp_idx].train(
+                gp_optimizers[gp_idx].train_gp(
                     conf.gaussian_processes[gp_idx]["hyperparameter bounds"],
                     "local", conf.likelihood_optimization_population_size,
                     conf.likelihood_optimization_tolerance,
