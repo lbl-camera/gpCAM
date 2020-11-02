@@ -5,8 +5,6 @@ import numpy as np
 from gpcam import global_config as conf
 
 from . import misc as smc
-from .fvgp import FVGP
-#from fvgp import FVGP
 from .data import Data
 from .gp_optimizer import GPOptimizer
 import dask.distributed

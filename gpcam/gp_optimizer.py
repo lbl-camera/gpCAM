@@ -1,5 +1,5 @@
 import numpy as np
-from .fvgp import FVGP
+from fvgp.fvgp import FVGP
 from . import surrogate_model as sm
 import time
 
