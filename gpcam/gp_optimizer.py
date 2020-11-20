@@ -29,7 +29,8 @@ class GPOptimizer():
     Example:
         obj = GPOptimizer(3,1,2,[[0,10],[0,10],[0,10]])
         obj.tell(x,y)
-        obj.train(...)
+        obj.init_gp(...)
+        obj.train_gp(...) #can be an async_train_gp()
         prediction = obj.gp.posterior_mean(x0)
     ------------------------------------------------------------
     """
@@ -254,6 +255,7 @@ class GPOptimizer():
                 dask_client = dask_client
                 )
         self.hyperparameters = self.gp.hyperparameters
+        return self.hyperparameters
 
 ##############################################################
     def train_gp(self,hyperparameter_bounds,
@@ -282,6 +284,7 @@ class GPOptimizer():
                 dask_client = False
                 )
         self.hyperparameters = self.gp.hyperparameters
+        return self.hyperparameters
 
 ##############################################################
     def stop_async_train(self):
@@ -297,6 +300,7 @@ class GPOptimizer():
     def update_hyperparameters(self):
         self.gp.update_hyperparameters()
         self.hyperparameters = self.gp.hyperparameters
+        return self.hyperparameters
 
 ##############################################################
     def ask(self, position = None, n = 1,

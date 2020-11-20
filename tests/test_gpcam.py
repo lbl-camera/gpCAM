@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 
 """Tests for `gpcam` package."""
+import numpy as np
+from gpcam.gp_optimizer import GPOptimizer
+import matplotlib.pyplot as plt
+
 
 
 import unittest
@@ -17,5 +21,75 @@ class TestGpcam(unittest.TestCase):
     def tearDown(self):
         """Tear down test fixtures, if any."""
 
-    def test_000_something(self):
+    def test_single_task(self,dim = 2, N = 100):
         """Test something."""
+        x = np.random.rand(100,dim)
+        y = np.empty((len(x),1))
+        y[:,0] = np.sin(x[:,0])
+        ######################################################
+        ######################################################
+        ######################################################
+        #y = y/np.max(y)
+        index_set_bounds = np.array([[0.,1.],[0.,1.]])
+        hyper_parameter_bounds = np.array([[0.001,1e9],[0.001,100],[0.001,100]])
+        hps_guess = np.ones((3))
+        ###################################################################################
+        gp = GPOptimizer(2,1,1, index_set_bounds, hyper_parameter_bounds,
+                gp_kernel_function=None)#,
+                #objective_function=obj_func)
+        gp.tell(x,y,likelihood_optimization_method = "global",
+                init_hyperparameters=hps_guess, likelihood_optimization_max_iter=120, 
+                likelihood_optimization_pop_size=100, likelihood_optimization_tolerance=0.000001, 
+                dask_client=False)
+        ######################################################
+        ######################################################
+        ######################################################
+        print("evaluating objective function at [0.5,0.5,0.5]")
+        print("=======================")
+        r = gp.evaluate_objective_function(np.array([[0.5,0.5]]))
+        print("result: ",r)
+        input("Continue with ENTER")
+        print("getting data from gp optimizer:")
+        print("=======================")
+        r = gp.get_data()
+        print(r)
+        input("Continue with ENTER")
+        print("ask()ing for new suggestions")
+        print("=======================")
+        r = gp.ask()
+        print(r)
+        input("Continue with ENTER")
+        print("getting the maximum (remember that this means getting the minimum of -f(x)):")
+        print("=======================")
+        r = gp.ask(objective_function = "maximum")
+        print(r)
+        print("getting the minimum:")
+        print("=======================")
+        r = gp.ask(objective_function = "minimum")
+        print(r)
+        input("Continue with ENTER")
+        print("Writing interpolation to file...")
+        print("=======================")
+
+
+        ar3d = np.empty((50,50))
+        l = np.empty((50*50,4))
+        x = np.linspace(0,1,50)
+        y = np.linspace(0,1,50)
+        counter = 0
+        for i in range(50):
+            print("done ",((i+1.0)/50.0)*100.," percent")
+            for j in range(50):
+                res = gp.gp.posterior_mean(np.array([[x[i],y[j]]]))
+                ar3d[i,j,k] = res["f(x)"]
+                l[counter,0] = x[i]
+                l[counter,1] = y[j]
+                l[counter,3] = res["f(x)"] / 10000.0
+                counter += 1
+
+        file_name = "data_list.csv"
+        np.savetxt(file_name,l, delimiter = ",",header = 'x coord, y coord, z_coord, scalar')
+        print("==================================================")
+        print("data cube written in 'data_list.csv'; you can use paraview to visualize it")
+        print("END")
+
