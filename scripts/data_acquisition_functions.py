@@ -10,8 +10,21 @@ import time
 from scipy.interpolate import griddata
 import sys
 from shutil import copyfile
-#from toy import res
+import zmq
+from zmq import ssh
+import pickle
+import zlib
 
+#for zmq communication, when gpCAM runs on a remote server##
+#port = "5555"
+#context = zmq.Context()
+#socket = context.socket(zmq.PAIR)
+#socket.bind("tcp://*:%s" % port)
+###other computer has to connect to the same port at my ip
+
+#################################################
+############test with synthetic function#########
+#################################################
 
 
 def synthetic_function(data):
@@ -22,11 +35,6 @@ def synthetic_function(data):
         x2 = data[idx_data]["position"]["x2"]
         data[idx_data]["measurement values"]["values"] = np.array(
         [himmel_blau([x1, x2])]
-        #[np.sin(x2)]
-        #[Ackley([x1, x2]),himmel_blau([x1, x2])+np.sin(20.0*x1)]
-        #[eggholder([x1, x2])]
-        #[np.sin(x1)+np.sin(x2)+np.sin(x3)+np.sin(x4)]
-        #[himmel_blau([x1,x2])+x3+x4]
         )
 
         data[idx_data]["cost"] = {"origin": np.random.uniform(low=0.0, high=1.0, size = 2),
@@ -38,6 +46,40 @@ def synthetic_function(data):
         data[idx_data]["time stamp"] = time.time()
     return data
 
+#################################################
+############use zmq##############################
+#################################################
+def send_zipped_pickle(obj, socket, flags=0, protocol=-1):
+        """pack and compress an object with pickle and zlib."""
+        pobj = pickle.dumps(obj, protocol)
+        zobj = zlib.compress(pobj)
+        print('zipped pickle is %i bytes' % len(zobj))
+        return socket.send(zobj,flags=flags)
+
+def recv_zipped_pickle(socket,flags = 0):
+        """reconstruct a Python object sent with zipped_pickle"""
+        zobj = socket.recv(flags)
+        pobj = zlib.decompress(zobj)
+        return pickle.loads(pobj)
+
+####the client has to send a starting message here
+msg = recv_zipped_pickle(socket)
+print(msg)
+
+def comm_via_zmq(data):
+        send_zipped_pickle(data,socket)
+        print("gpCAM has sent data of length: ", len(data))
+        #print(data)
+        print("=================================")
+        data = recv_zipped_pickle(socket)
+        print("gpCAM has received data of length: ", len(data))
+        #print(data)
+        #input()
+        return data
+
+#################################################
+############send data in files###################
+#################################################
 def send_data_as_files(data):
     path_new_command = "../data/command/"
     path_new_result = "../data/result/"
@@ -74,6 +116,10 @@ def send_data_as_files(data):
     return list(new_data)
 
 
+
+#################################################
+############interpolate existing data############
+#################################################
 def interpolate_experiment_data(data):
     space_dim = 4
     File = ""
@@ -99,13 +145,9 @@ def interpolate_experiment_data(data):
         data[idx_data]["meta data"] = None
     return data
 
-
-
-
 ###################################################
 ####predefined test function#######################
 ###################################################
-
 def himmel_blau(x):
     return (x[0] ** 2 + x[1] - 11.0) ** 2 + (x[0] + x[1] ** 2 - 7.0) ** 2
 
