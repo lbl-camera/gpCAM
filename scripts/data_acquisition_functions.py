@@ -63,8 +63,8 @@ def recv_zipped_pickle(socket,flags = 0):
         return pickle.loads(pobj)
 
 ####the client has to send a starting message here
-msg = recv_zipped_pickle(socket)
-print(msg)
+#msg = recv_zipped_pickle(socket)
+#print(msg)
 
 def comm_via_zmq(data):
         send_zipped_pickle(data,socket)

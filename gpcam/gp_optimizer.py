@@ -364,11 +364,9 @@ class GPOptimizer():
         --------
             return values, variances, value_positions, costs
         """
-        res = self.gp.compute_posterior_fvGP_pdf(np.asarray(points),\
-                self.gp.value_positions[-1], compute_posterior_covariances = True)
         if cost_function_parameters is None: cost_function_parameters = self.cost_function_parameters
-        a = res["posterior means"]
-        b = res["posterior covariances"]
+        a = self.gp.posterior_mean(np.asarray(points))["f(x)"]
+        b = self.gp.posterior_covariance(np.asarray(points))["v(x)"]
         variances = []
         values = []
         value_positions = []

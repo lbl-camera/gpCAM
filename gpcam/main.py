@@ -222,6 +222,10 @@ def main(init_data_files = None, init_hyperparameter_files = None):
             #########################################
             ###simulate new points:##################
             #########################################
+            print("Next points to be requested for ",gp_idx,": ")
+            print(next_measurement_points[gp_idx])
+            print("===============================")
+
             simulated_next_values[gp_idx],\
             simulated_next_variances[gp_idx],\
             simulated_next_value_positions[gp_idx],\
@@ -229,9 +233,6 @@ def main(init_data_files = None, init_hyperparameter_files = None):
             gp_optimizers[gp_idx].simulate(next_measurement_points[gp_idx],
                     cost_function = conf.gaussian_processes[gp_idx]["cost function"],
                     origin = current_position)
-            print("Next points to be requested for ",gp_idx,": ")
-            print(next_measurement_points[gp_idx])
-            print("===============================")
             #########################################
             ###update data###########################
             #########################################

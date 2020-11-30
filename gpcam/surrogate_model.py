@@ -36,8 +36,9 @@ def evaluate_gp_objective_function(x,objective_function,gp):
     ####should only be called with one point
     if len(x.shape) == 1: x = np.array([x])
     if objective_function == "covariance":
-        res = gp.compute_posterior_fvGP_pdf(x, gp.value_positions[-1],compute_means = False, compute_posterior_covariances = True)
-        b = res["posterior covariances"][0]
+        x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
+        res = gp.posterior_covariance(x)
+        b = res["S"]
         sgn, logdet = np.linalg.slogdet(b)
         return np.sqrt(sgn * np.exp(logdet))
     ###################more here: shannon_ig  for instance
