@@ -28,7 +28,7 @@ def main(data_path = None, hyperparameter_path = None):
     print("################################################")
     print("#gpCAM####powered by CAMERA @ LBNL##############")
     print("################################################")
-    print("#########Version: 5.0exp(i1)###############")
+    print("#########Version: 6.0###########################")
     print("################################################")
     print("")
     start_time = time.time()
