@@ -16,7 +16,7 @@ def evaluate_objective_function(x, gp, objective_function,origin = None,
         costs_eval = 1.0
     #for user defined objective function
     if callable(objective_function):
-        return objective_function(x,gp)/costs_eval
+        return -objective_function(x,gp)/costs_eval
     #if no user defined objective function is used
     obj_eval = evaluate_gp_objective_function(x, objective_function, gp)
     obj_eval = obj_eval / costs_eval
@@ -38,27 +38,27 @@ def evaluate_gp_objective_function(x,objective_function,gp):
     if objective_function == "covariance":
         x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         res = gp.posterior_covariance(x)
-        b = res["S"]
+        b = res["S(x)"]
         sgn, logdet = np.linalg.slogdet(b)
-        return np.sqrt(sgn * np.exp(logdet))
+        return np.asscalar(np.sqrt(sgn * np.exp(logdet)))
     ###################more here: shannon_ig  for instance
     elif objective_function == "shannon_ig":
         x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         res = gp.shannon_information_gain(x)["sig"]
-        return res
+        return np.asscalar(res)
     elif objective_function == "upper_confidence":
         x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         m = gp.posterior_mean(x)["f(x)"][0]
         v = gp.posterior_covariance(x)["v(x)"]
-        return m + 3.0*v
+        return np.asscalar(m + 3.0*v)
     elif objective_function == "maximum":
         x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         res = gp.posterior_mean(x)["f(x)"]
-        return res
+        return np.asscalar(res)
     elif objective_function == "minimum":
         x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         res = gp.posterior_mean(x)["f(x)"]
-        return -res
+        return -np.asscalar(res)
 
 ##########################################################################
 def find_objective_function_maxima(gp,objective_function,

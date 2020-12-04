@@ -18,7 +18,7 @@ parameters = {
 
 
 from data_acquisition_functions import synthetic_function, send_data_as_files
-from objective_function_definition import exploitation,shape_finding, gradient_mode
+#from objective_function_definition import exploitation,shape_finding, gradient_mode
 from mean_functions import example_mean
 from cost_function_definition import l1_cost
 from cost_function_definition import update_l1_cost_function
