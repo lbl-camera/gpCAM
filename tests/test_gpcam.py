@@ -9,10 +9,8 @@ import matplotlib.pyplot as plt
 
 import unittest
 
-from gpcam import gpcam
 
-
-class TestGpcam(unittest.TestCase):
+class TestgpCAM(unittest.TestCase):
     """Tests for `gpcam` package."""
 
     def setUp(self):
@@ -31,22 +29,19 @@ class TestGpcam(unittest.TestCase):
         ######################################################
         #y = y/np.max(y)
         index_set_bounds = np.array([[0.,1.],[0.,1.]])
-        hyper_parameter_bounds = np.array([[0.001,1e9],[0.001,100],[0.001,100]])
+        hyperparameter_bounds = np.array([[0.001,1e9],[0.001,100],[0.001,100]])
         hps_guess = np.ones((3))
         ###################################################################################
-        gp = GPOptimizer(2,1,1, index_set_bounds, hyper_parameter_bounds,
-                gp_kernel_function=None)#,
-                #objective_function=obj_func)
-        gp.tell(x,y,likelihood_optimization_method = "global",
-                init_hyperparameters=hps_guess, likelihood_optimization_max_iter=120, 
-                likelihood_optimization_pop_size=100, likelihood_optimization_tolerance=0.000001, 
-                dask_client=False)
+        gp = GPOptimizer(2,1,1, index_set_bounds)
+        gp.tell(x,y)
+        gp.init_gp(hps_guess)
+        gp.train_gp(hyperparameter_bounds)
         ######################################################
         ######################################################
         ######################################################
         print("evaluating objective function at [0.5,0.5,0.5]")
         print("=======================")
-        r = gp.evaluate_objective_function(np.array([[0.5,0.5]]))
+        r = gp.evaluate_objective_function(np.array([0.5,0.5]),objective_function = "shannon_ig")
         print("result: ",r)
         input("Continue with ENTER")
         print("getting data from gp optimizer:")
@@ -81,7 +76,7 @@ class TestGpcam(unittest.TestCase):
             print("done ",((i+1.0)/50.0)*100.," percent")
             for j in range(50):
                 res = gp.gp.posterior_mean(np.array([[x[i],y[j]]]))
-                ar3d[i,j,k] = res["f(x)"]
+                ar3d[i,j] = res["f(x)"]
                 l[counter,0] = x[i]
                 l[counter,1] = y[j]
                 l[counter,3] = res["f(x)"] / 10000.0

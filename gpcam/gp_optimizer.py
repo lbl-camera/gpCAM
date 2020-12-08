@@ -53,7 +53,7 @@ class GPOptimizer():
         self.values = np.empty((0,self.output_number))
         self.variances = np.empty((0,self.output_number))
         self.value_positions = np.empty((0,self.output_number,self.oput_dim))
-        self.index_set_bounds = index_set_bounds
+        self.index_set_bounds = np.array(index_set_bounds)
         self.hyperparameters = None
         self.gp_initialized = False
         self.cost_function_parameters = None
@@ -82,23 +82,24 @@ class GPOptimizer():
         return res
 
 ##############################################################
-    def evaluate_objective_function(self, x, objective_function,origin = None,
+    def evaluate_objective_function(self, x, objective_function = "covariance", origin = None,
             cost_function = None,
             cost_function_parameters = None):
         """
         function that evaluates the objective function
         input:
-            x
-            objective_function
+            x: 1d numpy array
+            objective_function: "covariance","shannon_ig",..., or callable, use the same you use in ask()
             origin = None
             cost_function = None
             cost_function_parameters = None (the class variable will be used)
         returns:
             scalar (float)
         """
-        if gp_initialized is False: raise Exception("Initialize GP before evaluating the objective function")
+        if self.gp_initialized is False: raise Exception("Initialize GP before evaluating the objective function. see help(gp_init)")
         if cost_function_parameters is None and self.cost_function_parameters is not None:
             cost_function_parameters = self.cost_function_parameters
+        x = np.array(x)
         try:
             return sm.evaluate_objective_function(x, self.gp, objective_function,
                 origin, cost_function, cost_function_parameters)
@@ -125,7 +126,18 @@ class GPOptimizer():
         --------------------
             variances (2d numpy array):         A 2d array of all the variances of the measured points
             value_positions (3d numpy array):   A 3d numpy array that stores a 
-                                            2d array of locations for each each point
+                                                2d array of locations for each each data point
+                                                    e.g. 
+                                                    * 2 data points with 2 ouputs in 1d:
+                                                      value_posiitons = np.array([
+                                                      [[0],[1]]
+                                                      [[0],[1]]
+                                                      ])
+                                                    * 2 data points with 3 ouputs in 2d:
+                                                      value_posiitons = np.array([
+                                                      [[0,1],[2,3],[4,5]]
+                                                      [[0,2],[4,2],[7,8]]
+                                                      ])
             append:                             default = False, True/False, append data or rewrite it
 
         Returns:
@@ -210,7 +222,7 @@ class GPOptimizer():
             sparse = sparse,
             )
             self.gp_initialized = True
-            self.hyperparameters = init_hyperparameters
+            self.hyperparameters = np.array(init_hyperparameters)
 
 ##############################################################
     def update_gp(self):
@@ -232,7 +244,7 @@ class GPOptimizer():
             likelihood_optimization_pop_size,
             likelihood_optimization_tolerance,
             likelihood_optimization_max_iter,
-            dask_client):
+            dask_client = True):
         """
         Function to start fvGP asynchronous training.
         Parameters:
@@ -254,13 +266,13 @@ class GPOptimizer():
                 optimization_max_iter = likelihood_optimization_max_iter,
                 dask_client = dask_client
                 )
-        self.hyperparameters = self.gp.hyperparameters
+        self.hyperparameters = np.array(self.gp.hyperparameters)
         return self.hyperparameters
 
 ##############################################################
     def train_gp(self,hyperparameter_bounds,
-            likelihood_optimization_method,likelihood_optimization_pop_size,
-            likelihood_optimization_tolerance,likelihood_optimization_max_iter):
+            likelihood_optimization_method = "global",likelihood_optimization_pop_size = 20,
+            likelihood_optimization_tolerance = 1e-6,likelihood_optimization_max_iter = 120):
         """
         Function to perform fvGP training.
         Parameters:
@@ -283,7 +295,7 @@ class GPOptimizer():
                 optimization_max_iter = likelihood_optimization_max_iter,
                 dask_client = False
                 )
-        self.hyperparameters = self.gp.hyperparameters
+        self.hyperparameters = np.array(self.gp.hyperparameters)
         return self.hyperparameters
 
 ##############################################################
@@ -299,7 +311,7 @@ class GPOptimizer():
 ##############################################################
     def update_hyperparameters(self):
         self.gp.update_hyperparameters()
-        self.hyperparameters = self.gp.hyperparameters
+        self.hyperparameters = np.array(self.gp.hyperparameters)
         return self.hyperparameters
 
 ##############################################################
@@ -349,35 +361,42 @@ class GPOptimizer():
         return {'x':np.array(maxima), "f(x)" : np.array(func_evals)}
 
 ##############################################################
-    def simulate(self, points, cost_function = None, cost_function_parameters = None, origin = None):
-        """
-        this function simulates a measurement:
-        Parameters:
-        -----------
-        points (2d numpy array):           A 2d array of all the points we want to simulate
-
-        Optional Parameters:
-        --------------------
-            origin (numpy array): default = None
-
-        returns:
-        --------
-            return values, variances, value_positions, costs
-        """
-        if cost_function_parameters is None: cost_function_parameters = self.cost_function_parameters
-        a = self.gp.posterior_mean(np.asarray(points))["f(x)"]
-        b = self.gp.posterior_covariance(np.asarray(points))["v(x)"]
-        variances = []
-        values = []
-        value_positions = []
-        costs = []
-        for i in range(len(points)):
-            values.append(a[i])
-            variances.append(b[i])
-            if cost_function is not None and cost_function_parameters is not None:
-                costs.append({"origin":origin, "point": np.array(points[i]),"cost": \
-                    cost_function(origin,points[i],cost_function_parameters)})
-            else:
-                costs.append(None)
-            value_positions.append(self.value_positions[-1])
-        return values, variances, value_positions, costs
+#    def simulate(self, x, cost_function = None, cost_function_parameters = None, origin = None):
+#        """
+#        this function simulates a measurement:
+#        Parameters:
+#        -----------
+#        points (2d numpy array):           A 2d array of all the points we want to simulate
+#
+#        Optional Parameters:
+#        --------------------
+#            origin (numpy array): default = None
+#
+#        returns:
+#        --------
+#            return values, variances, value_positions, costs
+#        """
+#        x = np.array(x)
+#        if cost_function_parameters is None: cost_function_parameters = self.cost_function_parameters
+#        a = self.gp.posterior_mean(x)["f(x)"]
+#        b = self.gp.posterior_covariance(x)["v(x)"]
+#        variances = []
+#        values = []
+#        value_positions = []
+#        costs = []
+#        for i in range(len(x)):
+#            values.append(a[i])
+#            variances.append(b[i])
+#            if cost_function is not None and cost_function_parameters is not None:
+#                costs.append({"origin":origin, "point": np.array(points[i]),"cost": \
+#                    cost_function(origin,points[i],cost_function_parameters)})
+#            else:
+#                costs.append(None)
+#            value_positions.append(self.value_positions[-1])
+#        return np.array(values), np.array(variances), np.array(value_positions), costs
+######################################################################################
+######################################################################################
+######################################################################################
+######################################################################################
+######################################################################################
+######################################################################################

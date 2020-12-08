@@ -66,13 +66,14 @@ def main(init_data_files = None, init_hyperparameter_files = None):
         print("Initialize the Gaussian Process for model: ", gp_idx)
         #####initializing data
         if init_data_files is not None:
+            print("You have chosen to start with previously-collected data")
             if isinstance(init_data_files, str) and gp_idx in init_fata_files:
                 print("Data set will be read from", init_data_files,".")
                 d = list(np.load(init_data_file, allow_pickle = True))
                 data[gp_idx] = Data(gp_idx,function,conf,d)
             elif isinstance(init_data_files, list):
                 for entry in init_data_files:
-                    print(entry)
+                    print("read data from: ",entry)
                     if gp_idx in entry:
                         print("Data set for ",gp_idx,"will be read from", entry,".")
                         d = list(np.load(entry, allow_pickle = True))
@@ -226,22 +227,22 @@ def main(init_data_files = None, init_hyperparameter_files = None):
             print(next_measurement_points[gp_idx])
             print("===============================")
 
-            simulated_next_values[gp_idx],\
-            simulated_next_variances[gp_idx],\
-            simulated_next_value_positions[gp_idx],\
-            simulated_next_costs[gp_idx]=\
-            gp_optimizers[gp_idx].simulate(next_measurement_points[gp_idx],
-                    cost_function = conf.gaussian_processes[gp_idx]["cost function"],
-                    origin = current_position)
+            #simulated_next_values[gp_idx],\
+            #simulated_next_variances[gp_idx],\
+            #simulated_next_value_positions[gp_idx],\
+            #simulated_next_costs[gp_idx]=\
+            #gp_optimizers[gp_idx].simulate(next_measurement_points[gp_idx],
+            #        cost_function = conf.gaussian_processes[gp_idx]["cost function"],
+            #        origin = current_position)
             #########################################
             ###update data###########################
             #########################################
             print("Gathering data and performing measurement...")
             data[gp_idx].update_data(next_measurement_points[gp_idx],
-                simulated_next_values[gp_idx],
-                simulated_next_variances[gp_idx],
-                simulated_next_value_positions[gp_idx],
-                simulated_next_costs[gp_idx],
+                #simulated_next_values[gp_idx],
+                #simulated_next_variances[gp_idx],
+                #simulated_next_value_positions[gp_idx],
+                #simulated_next_costs[gp_idx],
                 error[gp_idx],
                 gp_optimizers[gp_idx].hyperparameters)
 

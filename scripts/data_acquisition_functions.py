@@ -36,7 +36,6 @@ def synthetic_function(data):
         data[idx_data]["measurement values"]["values"] = np.array(
         [himmel_blau([x1, x2])]
         )
-
         data[idx_data]["cost"] = {"origin": np.random.uniform(low=0.0, high=1.0, size = 2),
                                      "point": np.random.uniform(low=0.0, high=1.0, size = 2),
                                      "cost": np.random.uniform(low=0.0, high=1.0)}

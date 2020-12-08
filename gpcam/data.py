@@ -43,13 +43,17 @@ class Data:
         self.times = self.extract_times_from_data()
         self.conf = conf
 
-    def update_data(self, new_points, new_values, 
-            new_variances, new_value_positions, 
-            new_measurement_costs, obj_func_value,
+    def update_data(self, new_points, 
+            #new_values, 
+            #new_variances, new_value_positions, 
+            #new_measurement_costs, 
+            obj_func_value,
             hps):
-        new_data_list = self.compress_into_data(new_points, new_values, 
-                new_variances, new_value_positions, 
-                new_measurement_costs, obj_func_value,
+        new_data_list = self.compress_into_data(new_points, 
+                #new_values, 
+                #new_variances, new_value_positions, 
+                #new_measurement_costs, 
+                obj_func_value,
                 hps)
         self.update_data_set(new_data_list)
         self.data_set = self.clean_data_NaN(self.data_set)
@@ -117,9 +121,11 @@ class Data:
         return times
 
 
-    def compress_into_data(self, new_points, new_values, 
-            new_variances, new_value_positions, 
-            new_measurement_costs, obj_func_eval,
+    def compress_into_data(self, new_points, 
+            #new_values,
+            #new_variances, new_value_positions,
+            #new_measurement_costs, 
+            obj_func_eval,
             hps):
         data = []
         for i in range(len(new_points)):
@@ -135,13 +141,14 @@ class Data:
             for idx in self.conf.parameters.keys():
                 data[i]["position"][idx] = new_points[i][index]
                 index = index + 1
-            data[i]["measurement values"]["values"] = new_values[i]
-            data[i]["measurement values"]["variances"] = new_variances[i]
-            data[i]["measurement values"]["value positions"] = new_value_positions[i]
-            data[i]["cost"] = new_measurement_costs[i]
+            data[i]["measurement values"]["values"] = np.zeros((self.oput_num))
+            data[i]["measurement values"]["variances"] = np.zeros((self.oput_num))
+            data[i]["measurement values"]["value positions"] = np.zeros((self.oput_num, self.oput_dim))
+
+            data[i]["cost"] = None #new_measurement_costs[i]
             data[i]["id"] = str(uuid.uuid4())
             data[i]["time stamp"] = time.time()
-            data[i]["date time"] = datetime.datetime.now()
+            data[i]["date time"] = datetime.datetime.now().strftime("%d/%m/%Y_%H:%M%S")
             data[i]["measured"] = False
             data[i]["objective function evaluation"] = obj_func_eval
             data[i]["hyperparameters"] = hps
@@ -208,7 +215,7 @@ class Data:
             data[point_index]["measurement values"]["variances"] = np.zeros((self.oput_num))
             data[point_index]["measurement values"]["value positions"] = np.zeros((self.oput_num, self.oput_dim))
             data[point_index]["time stamp"] = time.time()
-            data[point_index]["date time"] = datetime.datetime.now()
+            data[point_index]["date time"] = datetime.datetime.now().strftime("%d/%m/%Y_%H:%M%S")
             data[point_index]["measured"] = False
             data[point_index]["function name"] = self.gp_idx
             data[point_index]["metadata"] = None
