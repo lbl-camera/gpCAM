@@ -18,7 +18,7 @@ parameters = {
 
 
 from data_acquisition_functions import synthetic_function, send_data_as_files
-#from objective_function_definition import exploitation,shape_finding, gradient_mode
+from objective_function_definition import exploration, upper_confidence_bounds
 from mean_functions import example_mean
 from cost_function_definition import l1_cost
 from cost_function_definition import update_l1_cost_function
@@ -84,58 +84,6 @@ prediction_dask_client = False  #None/False/client
 initial_data_set_size = 20
 max_number_of_measurements = 100
 
-animation = {
-        'model': 'model',
-        'parameter 1': 'x1',
-        'bounds 1': [-5.0,5.0],
-        'parameter 2': 'x2',
-        'bounds 2': [-5.0,5.0]
-        }
-
-
-
-
 #####################################################################
 ###############The END###############################################
 #####################################################################
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#########################################
-####example for time series experiments:#
-#########################################
-"""
-time_series = [0, 6, 12, 18, 24, 30, 36, 42, 48, 54, 60]
-parameters = {}
-for i in time_series:
-    parameters["temperature_"+str(i)] = {
-        "element interval": [1.0,500.0],  ####either an interval, several intervals or discrete points
-hp = np.array([[10,1,1,1,1,1,1,1,1,1,1,1,1]])
-b = np.array([[
-        [0.0001,1000],
-        [0.0001,1000],
-        [0.0001,1000],
-        [0.0001,1000],
-        [0.0001,1000],
-        [0.0001,1000],
-        [0.0001,1000],
-        [0.0001,1000],
-        [0.0001,1000],
-        [0.0001,1000],
-        [0.0001,1000],
-        [0.0001,1000],
-        [1,2]
-        ]])
-"""
-

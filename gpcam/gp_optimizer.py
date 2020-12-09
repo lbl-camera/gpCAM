@@ -22,8 +22,7 @@ class GPOptimizer():
         input_space_dimension (int):         dim1
         output_space_dimension (int):        dim2
         output_number (int):                 n
-        index_set_bounds (2d list):          bounds of the index set
-        hyperparameter_bounds (2d list):     list or 2d numpy array of bounds
+        index_set_bounds (2d array):         bounds of the index set
 
 
     Example:
@@ -145,7 +144,10 @@ class GPOptimizer():
             no returns
         """
         ######create the current data
+        if len(x) != len(y): raise Exception("Length of x and y has to be the same!")
         if append is True and variances is not None and value_positions is not None:
+            if len(x) != len(value_positions): raise Exception("Length of value positions is not correct!")
+            if y.shape != variance.shape: raise Exception("Shape of variance array not correct!")
             self.points = np.vstack([self.points,x])
             self.values = np.vstack([self.values,y])
             self.variances = np.vstack([self.variances,variances])
@@ -241,18 +243,20 @@ class GPOptimizer():
 
 ##############################################################
     def async_train_gp(self, hyperparameter_bounds,
-            likelihood_optimization_pop_size,
-            likelihood_optimization_tolerance,
-            likelihood_optimization_max_iter,
+            likelihood_optimization_pop_size = 20,
+            likelihood_optimization_tolerance = 1e-6,
+            likelihood_optimization_max_iter = 10000,
             dask_client = True):
         """
         Function to start fvGP asynchronous training.
         Parameters:
         -----------
             hyperparameter_bounds:                  2d np.array of bounds for the hyperparameters
-            likelihood_optimization_pop_size:       number of walkers in the optimization
-            likelihood_optimization_tolerance:      tolerance for termination
-            likelihood_optimization_max_iter:       maximum number of iterations
+        Optional Parameters:
+        --------------------
+            likelihood_optimization_pop_size:       number of walkers in the optimization, default = 20
+            likelihood_optimization_tolerance:      tolerance for termination, default = 1e-6
+            likelihood_optimization_max_iter:       maximum number of iterations, default = 10000
             dask_client:                            a DASK client, see dask package docs for explanation
         """
         if self.gp_initialized is False:
@@ -278,10 +282,12 @@ class GPOptimizer():
         Parameters:
         -----------
             hyperparameter_bounds:                  2d np.array of bounds for the hyperparameters
-            likelihood_optimization_method:         "hgdl"/"global"/"local"
-            likelihood_optimization_pop_size:       number of walkers in the optimization
-            likelihood_optimization_tolerance:      tolerance for termination
-            likelihood_optimization_max_iter:       maximum number of iterations
+        Optional Parameters:
+        --------------------
+            likelihood_optimization_method:         "hgdl"/"global"/"local", default = "global"
+            likelihood_optimization_pop_size:       number of walkers in the optimization, default = 20
+            likelihood_optimization_tolerance:      tolerance for termination, default = 1e-6
+            likelihood_optimization_max_iter:       maximum number of iterations, default = 120
         """
 
         if self.gp_initialized is False:
@@ -329,6 +335,8 @@ class GPOptimizer():
         Given that the acquisition device is at "position", the function ask() s for
         "n" new optimal points within certain "bounds" and using the optimization setup:
         "objective_function_pop_size", "max_iter" and "tol"
+        Parameters:
+        -----------
 
         Optional Parameters:
         --------------------
@@ -360,40 +368,6 @@ class GPOptimizer():
                 dask_client = dask_client)
         return {'x':np.array(maxima), "f(x)" : np.array(func_evals)}
 
-##############################################################
-#    def simulate(self, x, cost_function = None, cost_function_parameters = None, origin = None):
-#        """
-#        this function simulates a measurement:
-#        Parameters:
-#        -----------
-#        points (2d numpy array):           A 2d array of all the points we want to simulate
-#
-#        Optional Parameters:
-#        --------------------
-#            origin (numpy array): default = None
-#
-#        returns:
-#        --------
-#            return values, variances, value_positions, costs
-#        """
-#        x = np.array(x)
-#        if cost_function_parameters is None: cost_function_parameters = self.cost_function_parameters
-#        a = self.gp.posterior_mean(x)["f(x)"]
-#        b = self.gp.posterior_covariance(x)["v(x)"]
-#        variances = []
-#        values = []
-#        value_positions = []
-#        costs = []
-#        for i in range(len(x)):
-#            values.append(a[i])
-#            variances.append(b[i])
-#            if cost_function is not None and cost_function_parameters is not None:
-#                costs.append({"origin":origin, "point": np.array(points[i]),"cost": \
-#                    cost_function(origin,points[i],cost_function_parameters)})
-#            else:
-#                costs.append(None)
-#            value_positions.append(self.value_positions[-1])
-#        return np.array(values), np.array(variances), np.array(value_positions), costs
 ######################################################################################
 ######################################################################################
 ######################################################################################

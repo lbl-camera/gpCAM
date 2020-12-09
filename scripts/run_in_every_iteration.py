@@ -2,7 +2,8 @@ import numpy as np
 
 
 def write_vtk_file(gp_optimizer_obj):
-    plot_dim = [[0,28],[0,41]] 
+    print("This will be printed in every iteration of gpCAM")
+    plot_dim = [[0,28],[0,41]]
     resolution = [100,100]
     print("plotting dims:", plot_dim)
     l = [len(plot_dim[i]) for i in range(len(plot_dim))]
@@ -18,10 +19,8 @@ def write_vtk_file(gp_optimizer_obj):
 
     x = np.linspace(plot_dim[plot_indices[0]][0],plot_dim[plot_indices[0]][1],resolution[0])
     y = np.linspace(plot_dim[plot_indices[1]][0],plot_dim[plot_indices[1]][1],resolution[1])
-    model = np.zeros((len(x)*len(y)))
-    var = np.zeros((model.shape))
+    mean = np.zeros((len(x)*len(y)))
     points = np.zeros((len(x)*len(y),2))
-
     print("plot indices:", plot_indices)
     print("slice indices:", slice_indices)
     index = 0
@@ -30,9 +29,7 @@ def write_vtk_file(gp_optimizer_obj):
             point = np.array([x[i],y[j]])
             points[index,0] = point[0]
             points[index,1] = point[1]
-            res = gp_optimizer_obj.gp.compute_posterior_fvGP_pdf(np.array([point]),np.array([[0]]))
-            model[index] = res["posterior means"]
-            var[index] = res["posterior covariances"]
+            mean[index] = gp_optimizer_obj.posterio_mean(point)["f()"]
             index += 1
     l = np.array([points[:,0],points[:,1],model])
     np.savetxt(file_name,l.T, delimiter = ",",header = 'x coord, y coord, scalar')
