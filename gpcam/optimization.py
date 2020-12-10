@@ -31,15 +31,6 @@ def multi_start_gradient_descent(
         max_index = np.argmax(Evaluations)
     return OptimaList[max_index], Evaluations[max_index]
 
-
-
-
-
-def neg_of(ObjectiveFunction):
-    a = ObjectiveFunction
-    return -1.0 * a
-
-
 def differential_evolution(ObjectiveFunction, bounds, tol, popsize, max_iter = 100, 
         origin = None, gp = None, objective_function = None, cost_function = None, cost_function_parameters = None):
     fun =  partial(ObjectiveFunction, gp = gp, objective_function = objective_function, origin = origin,

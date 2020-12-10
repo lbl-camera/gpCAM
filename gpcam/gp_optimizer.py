@@ -29,7 +29,9 @@ class GPOptimizer():
         obj = GPOptimizer(3,1,2,[[0,10],[0,10],[0,10]])
         obj.tell(x,y)
         obj.init_gp(...)
-        obj.train_gp(...) #can be an async_train_gp()
+        obj.train_gp(...) #can be "async_train_gp()"
+        obj.init_cost(...)
+        obj.update_cost_function(...)
         prediction = obj.gp.posterior_mean(x0)
     ------------------------------------------------------------
     """
@@ -56,6 +58,8 @@ class GPOptimizer():
         self.hyperparameters = None
         self.gp_initialized = False
         self.cost_function_parameters = None
+        self.cost_function = None
+        self.consider_costs = False
 
 
 ##############################################################
@@ -74,6 +78,7 @@ class GPOptimizer():
                 "measurement value positions":self.value_positions,
                 "hyperparameters": self.hyperparameters,
                 "cost function parameters": self.cost_function_parameters,
+                "consider costs": self.consider_costs,
                 }
         except:
             print("Not all data is assigned yet, call tell(...) before asking for the data.")
@@ -81,27 +86,21 @@ class GPOptimizer():
         return res
 
 ##############################################################
-    def evaluate_objective_function(self, x, objective_function = "covariance", origin = None,
-            cost_function = None,
-            cost_function_parameters = None):
+    def evaluate_objective_function(self, x, objective_function = "covariance", origin = None):
         """
         function that evaluates the objective function
         input:
             x: 1d numpy array
             objective_function: "covariance","shannon_ig",..., or callable, use the same you use in ask()
             origin = None
-            cost_function = None
-            cost_function_parameters = None (the class variable will be used)
         returns:
-            scalar (float)
+            scalar (float) or array
         """
         if self.gp_initialized is False: raise Exception("Initialize GP before evaluating the objective function. see help(gp_init)")
-        if cost_function_parameters is None and self.cost_function_parameters is not None:
-            cost_function_parameters = self.cost_function_parameters
         x = np.array(x)
         try:
             return sm.evaluate_objective_function(x, self.gp, objective_function,
-                origin, cost_function, cost_function_parameters)
+                origin, self.cost_function, self.cost_function_parameters)
         except:
             print("Evaluating the objective function was not successful.")
 
@@ -158,40 +157,6 @@ class GPOptimizer():
             self.variances = variances
             self.value_positions = value_positions
         if self.gp_initialized is True: self.update_gp()
-
-##############################################################
-    def update_cost_function(self,
-            measurement_costs,
-            cost_update_function,
-            cost_function_optimization_bounds,
-            cost_function_parameters = None
-            ):
-        """
-        This function updates the parameters for the cost function
-        It essentially calls the user-given cost_update_function which
-        should return the new parameters how they are used by the user defined
-        cost function
-        Parameters:
-        -----------
-            measurement_costs:    an arbitrary structure that describes 
-                                  the costs when moving in the parameter space
-            cost_update_function: a user-defined function 
-                                  def name(measurement_costs,
-                                  cost_fucntion_optimization_bounds,cost_function_parameters)
-                                  which returns the new parameters
-            cost_function_optimization_bounds: see above
-        Optional Parameters:
-        --------------------
-            cost_function_parameters, default = None
-        """
-
-        print("Performing cost function update...")
-        if cost_function_parameters is None: cost_function_parameters = self.cost_function_parameters
-        self.cost_function_parameters = \
-        cost_update_function(measurement_costs,
-        cost_function_optimization_bounds,
-        cost_function_parameters)
-        print("cost parameters changed to: ", self.cost_function_parameters)
 
 ##############################################################
     def init_gp(self,init_hyperparameters, compute_device = "cpu",gp_kernel_function = None,
@@ -323,8 +288,6 @@ class GPOptimizer():
 ##############################################################
     def ask(self, position = None, n = 1,
             objective_function = "covariance",
-            cost_function = None,
-            cost_function_parameters = None,
             optimization_bounds = None,
             optimization_method = "global",
             optimization_pop_size = 20,
@@ -343,8 +306,6 @@ class GPOptimizer():
             position (numpy array):            last measured point, default = None
             n (int):                           how many new measurements are requested, default = 1
             objective_function:                default = None, means that the class objective function will be used
-            cost_function:                     default = None, i.e. no costs are used
-            cost_function_parameters:          defaulr = None, i.e. the class variable is used
             optimization_bounds (2d list/None):             default = None
             optimization_method:                            default = "global", "global"/"hgdl"
             optimization_pop_size (int):                    default = 20
@@ -356,21 +317,75 @@ class GPOptimizer():
         print("optimization method: ", optimization_method)
         print("bounds: ",optimization_bounds)
         if optimization_bounds is None: optimization_bounds = self.index_set_bounds
-        if cost_function_parameters is None: cost_function_parameters = self.cost_function_parameters
-        maxima, func_evals = sm.find_objective_function_maxima(self.gp,objective_function,
+        maxima,func_evals = sm.find_objective_function_maxima(
+                self.gp,
+                objective_function,
                 position,n, optimization_bounds,
                 optimization_method = optimization_method,
                 optimization_pop_size = optimization_pop_size,
                 optimization_max_iter = optimization_max_iter,
                 optimization_tol = optimization_tol,
-                cost_function = cost_function,
-                cost_function_parameters = cost_function_parameters,
+                cost_function = self.cost_function,
+                cost_function_parameters = self.cost_function_parameters,
                 dask_client = dask_client)
         return {'x':np.array(maxima), "f(x)" : np.array(func_evals)}
 
-######################################################################################
-######################################################################################
-######################################################################################
+##############################################################
+    def init_cost(self,cost_function,cost_function_parameters,
+            cost_update_function = None, cost_function_optimization_bounds = None):
+        """
+        This function initializes the costs. If used, the objective function will be augmented by the costs
+        which leads to different suggestions
+
+        Parameters:
+        -----------
+            cost_function: callable
+            cost_function_parameters: arbitrary, are passed to the user defined cost function
+
+        Optional Parameters:
+        --------------------
+            cost_update_function: a function that updates the cost_fucntion_parameters, default = None
+            cost_function_optimization_bounds: optimization bounds for the update, default = None
+        Return:
+        -------
+            no returns
+        """
+
+        self.cost_function = cost_function
+        self.cost_function_parameters = cost_function_parameters
+        self.cost_function_optimization_bounds = cost_function_optimization_bounds
+        self.cost_update_function = cost_update_function
+        self.consider_costs = True
+        print("Costs successfully initialized")
+
+##############################################################
+    def update_cost_function(self,measurement_costs):
+        """
+        This function updates the parameters for the cost function
+        It essentially calls the user-given cost_update_function which
+        should return the new parameters how they are used by the user defined
+        cost function
+        Parameters:
+        -----------
+            measurement_costs:    an arbitrary structure that describes 
+                                  the costs when moving in the parameter space
+            cost_update_function: a user-defined function 
+                                  def name(measurement_costs,
+                                  cost_fucntion_optimization_bounds,cost_function_parameters)
+                                  which returns the new parameters
+            cost_function_optimization_bounds: see above
+        Optional Parameters:
+        --------------------
+            cost_function_parameters, default = None
+        """
+
+        print("Performing cost function update...")
+        if self.cost_function_parameters is None: raise Exception("No cost function parameters specified. Please call init_cost() first.")
+        self.cost_function_parameters = \
+        self.cost_update_function(measurement_costs,
+        self.cost_function_optimization_bounds,
+        self.cost_function_parameters)
+        print("cost parameters changed to: ", self.cost_function_parameters)
 ######################################################################################
 ######################################################################################
 ######################################################################################

@@ -24,7 +24,7 @@ from cost_function_definition import l1_cost
 from cost_function_definition import update_l1_cost_function
 from kernel_definition import kernel_l2_single_task,kernel_l2_multi_task, symmetric_kernel2,non_stat_kernel_2d,periodic_kernel_2d
 from run_in_every_iteration import write_vtk_file
-from plotting_functions import plot_2d_function
+from plotting_functions import plot_function
 
 gaussian_processes = {
     "model_1": {
@@ -37,17 +37,16 @@ gaussian_processes = {
         "objective function optimization tolerance": 0.001,
         "adjust optimization threshold": [True,0.1],
         "run function in every iteration": None,
-        #"data acquisition function": send_data_as_files,
         "data acquisition function": synthetic_function,
-        "objective function": "covariance",
-        #"objective function": "shannon_ig",
+        #"objective function": "covariance",
+        "objective function": "shannon_ig",
         "mean function": None,
         "cost function": None,
         "cost update function": None,
         "cost function parameters": {"offset": 10,"slope":[2.0,2.0]},
         "cost function optimization bounds": [[0.0,10.0],[0.0,10.0],[0.0,10.0]],
         "cost optimization chance" : 0.1,
-        "plot function": plot_2d_function
+        "plot function": plot_function
     },
     ##definition of more gps here if desired
 }

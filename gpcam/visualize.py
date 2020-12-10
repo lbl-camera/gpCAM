@@ -108,14 +108,20 @@ def main(data_path = None, hyperparameter_path = None):
                 conf.likelihood_optimization_tolerance,
                 conf.likelihood_optimization_max_iter
                 )
-    if conf.gaussian_processes[gp_idx]["cost update function"] is not None:
-        gp_optimizers[gp_idx].update_cost_function(
-            data[gp_idx].measurement_costs,
+    if conf.gaussian_processes[gp_idx]["cost function"] is not None and\
+        conf.gaussian_processes[gp_idx]["cost function parameters"] is not None:
+            gp_optimizers[gp_idx].init_cost(
+            conf.gaussian_processes[gp_idx]["cost function"],
+            conf.gaussian_processes[gp_idx]["cost function parameters"],
             conf.gaussian_processes[gp_idx]["cost update function"],
             conf.gaussian_processes[gp_idx]["cost function optimization bounds"],
-            cost_function_parameters =
-            conf.gaussian_processes[gp_idx]["cost function parameters"]
-                )
+                    )
+
+    if conf.gaussian_processes[gp_idx]["cost update function"] is not None and\
+        conf.gaussian_processes[gp_idx]["cost function optimization bounds"] is not None:
+        gp_optimizers[gp_idx].update_cost_function(
+            data[gp_idx].measurement_costs)
+
     if training == True:
         print("Hyper parameters saved in ../data/historic_data/hyperparameters_from_last_visualization_"+start_date_time)
         np.save('../data/historic_data/hyperparameters_from_visualization'+'_'+ start_date_time, gp_optimizers[gp_idx].gp.gp_kernel)

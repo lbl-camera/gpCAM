@@ -8,14 +8,15 @@ from scipy.optimize import differential_evolution as devo
 def l2_cost(origin,x,arguments = None):
     offset = arguments["offset"]
     slope = arguments["slope"]
-    return slope*np.linalg.norm(np.abs(np.subtract(origin,x)))+offset
+    return slope*np.linalg.norm(np.abs(np.subtract(origin,x)), axis = 1)+offset
 
 
 def l1_cost(origin,x,arguments = None):
     offset = arguments["offset"]
     slope = arguments["slope"]
     d = np.abs(np.subtract(origin,x))
-    n = np.sum(d * slope) + offset
+    c = (d * slope) + offset
+    n = np.sum(c, axis = 1)
     return n
 
 

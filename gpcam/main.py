@@ -138,14 +138,19 @@ def main(init_data_files = None, init_hyperparameter_files = None):
                     conf.likelihood_optimization_tolerance,
                     conf.likelihood_optimization_max_iter
                     )
-        if conf.gaussian_processes[gp_idx]["cost update function"] is not None:
-            gp_optimizers[gp_idx].update_cost_function(
-                data[gp_idx].measurement_costs,
+        if conf.gaussian_processes[gp_idx]["cost function"] is not None and\
+           conf.gaussian_processes[gp_idx]["cost function parameters"] is not None:
+               gp_optimizers[gp_idx].init_cost(
+                conf.gaussian_processes[gp_idx]["cost function"],
+                conf.gaussian_processes[gp_idx]["cost function parameters"],
                 conf.gaussian_processes[gp_idx]["cost update function"],
                 conf.gaussian_processes[gp_idx]["cost function optimization bounds"],
-                cost_function_parameters =
-                conf.gaussian_processes[gp_idx]["cost function parameters"]
-                    )
+                       )
+
+        if conf.gaussian_processes[gp_idx]["cost update function"] is not None and\
+           conf.gaussian_processes[gp_idx]["cost function optimization bounds"] is not None:
+            gp_optimizers[gp_idx].update_cost_function(
+                data[gp_idx].measurement_costs)
 
         # save the found hyperparameters for fast restart and faster plotting
         np.save('../data/historic_data/Data_'+ start_date_time+"_" + gp_idx, data[gp_idx].data_set)
@@ -202,15 +207,15 @@ def main(init_data_files = None, init_hyperparameter_files = None):
             else:
                 ofom = conf.objective_function_optimization_method
                 print("Next objective function optimization is ", conf.objective_function_optimization_method)
-            ask_res = gp_optimizers[gp_idx].ask(current_position, n = number_of_suggested_measurements,
-                            objective_function = conf.gaussian_processes[gp_idx]["objective function"],
-                            cost_function = conf.gaussian_processes[gp_idx]["cost function"],
-                            optimization_bounds = None,
-                            optimization_method = ofom,
-                            optimization_pop_size = conf.objective_function_optimization_population_size,
-                            optimization_max_iter = conf.objective_function_optimization_max_iter, 
-                            optimization_tol = opt_tol[gp_idx],
-                            dask_client = prediction_dask_client)
+            ask_res = gp_optimizers[gp_idx].ask(position = current_position,
+                    n = number_of_suggested_measurements,
+                    objective_function = conf.gaussian_processes[gp_idx]["objective function"],
+                    optimization_bounds = None,
+                    optimization_method = ofom,
+                    optimization_pop_size = conf.objective_function_optimization_population_size,
+                    optimization_max_iter = conf.objective_function_optimization_max_iter, 
+                    optimization_tol = opt_tol[gp_idx],
+                    dask_client = prediction_dask_client)
             next_measurement_points[gp_idx] = ask_res["x"]
             func_evals[gp_idx] = ask_res["f(x)"]
             post_var[gp_idx] = gp_optimizers[gp_idx].gp.posterior_covariance(next_measurement_points[gp_idx])
