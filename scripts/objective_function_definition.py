@@ -4,7 +4,10 @@ import matplotlib.pyplot as plt
 ###############################
 #README:
 #objective functions can be defined here following the templates below
-#Note: the objective function returns a scalar which will be maximized 
+#x is the point where toe valuate the objective function
+#obj is the gp object that contains functions such as posterior_mean()
+#and posterior_covariance()...
+#the return is a scalar which will be maximized
 #to find the next optimal point
 ###############################
 
