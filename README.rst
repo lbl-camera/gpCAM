@@ -21,18 +21,12 @@ works, and perform publicly and display publicly, and to permit others to do so.
 
 
 
-
-.. image:: https://drive.google.com/file/d/1GeB_-3sEtfnzZK9uPo7PTUwE9k7ouE-o/view?usp=sharing
-
-
-
-
-
-gpCAM is a code for autonomous data acquisition
+===============================================
 
 
 * Free software: 
 * Documentation: https://www.overleaf.com/read/nrcyxxsbhvbx
+* website: gpcam.lbl.gov
 
 
 Features
@@ -45,11 +39,9 @@ Credits
 
 Main Developer: Marcus Noack (MarcusNoack@lbl.gov)
 Several people from across the DOE national labs have given insights
-that led the code in it's current form
+that led the code in it's current form.
+See "AUTHORS" for more details on that.
 
 
 
 This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypackage`_ project template.
-
-.. _Cookiecutter: https://github.com/audreyr/cookiecutter
-.. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
