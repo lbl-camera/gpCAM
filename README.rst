@@ -22,15 +22,8 @@ works, and perform publicly and display publicly, and to permit others to do so.
 
 
 
-.. image:: https://img.shields.io/pypi/v/gpcam.svg
-        :target: https://pypi.python.org/pypi/gpcam
+.. image:: https://drive.google.com/file/d/1GeB_-3sEtfnzZK9uPo7PTUwE9k7ouE-o/view?usp=sharing
 
-.. image:: https://img.shields.io/travis/Marcus Noack/gpcam.svg
-        :target: https://travis-ci.com/Marcus Noack/gpcam
-
-.. image:: https://readthedocs.org/projects/gpcam/badge/?version=latest
-        :target: https://gpcam.readthedocs.io/en/latest/?badge=latest
-        :alt: Documentation Status
 
 
 
