@@ -9,3 +9,4 @@ ophyd
 dask
 distributed
 zmq
+fvgp
