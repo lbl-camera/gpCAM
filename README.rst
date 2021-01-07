@@ -43,5 +43,3 @@ that led the code in it's current form.
 See "AUTHORS" for more details on that.
 
 
-
-This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypackage`_ project template.
