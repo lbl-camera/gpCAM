@@ -101,8 +101,10 @@ class GPOptimizer():
         try:
             return sm.evaluate_objective_function(x, self.gp, objective_function,
                 origin, self.cost_function, self.cost_function_parameters)
-        except:
+        except Exception as a:
             print("Evaluating the objective function was not successful.")
+            print("Error Message:")
+            print(str(a))
 
 ##############################################################
     def tell(self, x, y,

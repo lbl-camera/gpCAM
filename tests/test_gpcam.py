@@ -4,11 +4,15 @@
 import numpy as np
 from gpcam.gp_optimizer import GPOptimizer
 import matplotlib.pyplot as plt
-
-
-
 import unittest
 
+def obj_func1(x,obj):
+    r1 = obj.posterior_mean(x)["f(x)"]
+    r2 = obj.posterior_covariance(x)["v(x)"]
+    m_index = np.argmin(obj.data_y)
+    m = obj.data_x[m_index]
+    std_model = np.sqrt(r2)
+    return -(r1 + 3.0 * std_model)
 
 class TestgpCAM(unittest.TestCase):
     """Tests for `gpcam` package."""
@@ -41,8 +45,9 @@ class TestgpCAM(unittest.TestCase):
         ######################################################
         print("evaluating objective function at [0.5,0.5,0.5]")
         print("=======================")
-        r = gp.evaluate_objective_function(np.array([0.5,0.5]),objective_function = "shannon_ig")
-        print("result: ",r)
+        r1 = gp.evaluate_objective_function(np.array([0.5,0.5]),objective_function = "shannon_ig")
+        r2 = gp.evaluate_objective_function(np.array([0.5,0.5]),objective_function = obj_func1)
+        print("results: ",r1,r2)
         input("Continue with ENTER")
         print("getting data from gp optimizer:")
         print("=======================")
