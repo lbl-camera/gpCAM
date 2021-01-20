@@ -1,6 +1,7 @@
 todo:
 
 
+* make sure that very small or large values are rescaled, probably withion fvgp
 * add examples for objective functions
 * are mean and objective functions defined a X --> R, or are they vectorized? Same is true for the kernel fuctions, X x X --> R or vectorized
 * add examples for the mean function
