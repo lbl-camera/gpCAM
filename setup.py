@@ -29,7 +29,7 @@ with open(path.join(here, 'requirements.txt')) as requirements_file:
 setup(
     author="Marcus Michael Noack",
     author_email='MarcusNoack@lbl.gov',
-    python_requires='>=3.7',
+    python_requires='>=3.6',
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
         'Intended Audience :: Developers',
