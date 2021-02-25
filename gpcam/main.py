@@ -178,6 +178,7 @@ def main(init_data_files = None, init_hyperparameter_files = None):
     next_measurement_points = {}
     func_evals = {}
     post_var = {}
+    post_mean = {}
     simulated_next_values = {}
     simulated_next_variances = {}
     simulated_next_value_positions = {}
@@ -219,6 +220,7 @@ def main(init_data_files = None, init_hyperparameter_files = None):
             next_measurement_points[gp_idx] = ask_res["x"]
             func_evals[gp_idx] = ask_res["f(x)"]
             post_var[gp_idx] = gp_optimizers[gp_idx].gp.posterior_covariance(next_measurement_points[gp_idx])
+            #post_mean[gp_idx] = gp_optimizers[gp_idx].gp.posterior_mean(next_measurement_points[gp_idx])
 
             if conf.gaussian_processes[gp_idx]["adjust optimization threshold"][0] == True:
                 opt_tol[gp_idx] = abs(func_evals[gp_idx][0] * conf.gaussian_processes[gp_idx]\
@@ -232,22 +234,11 @@ def main(init_data_files = None, init_hyperparameter_files = None):
             print(next_measurement_points[gp_idx])
             print("===============================")
 
-            #simulated_next_values[gp_idx],\
-            #simulated_next_variances[gp_idx],\
-            #simulated_next_value_positions[gp_idx],\
-            #simulated_next_costs[gp_idx]=\
-            #gp_optimizers[gp_idx].simulate(next_measurement_points[gp_idx],
-            #        cost_function = conf.gaussian_processes[gp_idx]["cost function"],
-            #        origin = current_position)
             #########################################
             ###update data###########################
             #########################################
             print("Gathering data and performing measurement...")
             data[gp_idx].update_data(next_measurement_points[gp_idx],
-                #simulated_next_values[gp_idx],
-                #simulated_next_variances[gp_idx],
-                #simulated_next_value_positions[gp_idx],
-                #simulated_next_costs[gp_idx],
                 error[gp_idx],
                 gp_optimizers[gp_idx].hyperparameters)
 

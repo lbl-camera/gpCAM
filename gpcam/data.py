@@ -44,16 +44,10 @@ class Data:
         self.conf = conf
 
     def update_data(self, new_points, 
-            #new_values, 
-            #new_variances, new_value_positions, 
-            #new_measurement_costs, 
-            obj_func_value,
+            post_var,
             hps):
         new_data_list = self.compress_into_data(new_points, 
-                #new_values, 
-                #new_variances, new_value_positions, 
-                #new_measurement_costs, 
-                obj_func_value,
+                post_var,
                 hps)
         self.update_data_set(new_data_list)
         self.data_set = self.clean_data_NaN(self.data_set)
@@ -122,10 +116,7 @@ class Data:
 
 
     def compress_into_data(self, new_points, 
-            #new_values,
-            #new_variances, new_value_positions,
-            #new_measurement_costs, 
-            obj_func_eval,
+            post_var,
             hps):
         data = []
         for i in range(len(new_points)):
@@ -150,7 +141,7 @@ class Data:
             data[i]["time stamp"] = time.time()
             data[i]["date time"] = datetime.datetime.now().strftime("%d/%m/%Y_%H:%M%S")
             data[i]["measured"] = False
-            data[i]["objective function evaluation"] = obj_func_eval
+            data[i]["posterior variance"] = post_var
             data[i]["hyperparameters"] = hps
         return data
 
