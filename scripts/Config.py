@@ -18,7 +18,7 @@ parameters = {
 
 
 from data_acquisition_functions import synthetic_function, send_data_as_files
-from objective_function_definition import exploration, upper_confidence_bounds
+from acquisition_function_definition import exploration, upper_confidence_bounds
 from mean_functions import example_mean
 from cost_function_definition import l1_cost
 from cost_function_definition import update_l1_cost_function
@@ -34,12 +34,12 @@ gaussian_processes = {
         "hyperparameter bounds": [[1.0,100.0],[0.10,100.0],[0.10,100.0]],
         "number of returns": 1,
         "dimensionality of return": 1,
-        "objective function optimization tolerance": 0.001,
+        "acquisition function optimization tolerance": 0.001,
         "adjust optimization threshold": [True,0.1],
         "run function in every iteration": None,
         "data acquisition function": synthetic_function,
-        #"objective function": "covariance",
-        "objective function": "shannon_ig",
+        #"acquisition function": "covariance",
+        "acquisition function": "shannon_ig",
         "mean function": None,
         "cost function": None,
         "cost update function": None,
@@ -56,11 +56,11 @@ automatic_signal_variance_range_determination = True
 ########################################
 ###Variance Optimization################
 ########################################
-objective_function_optimization_method = "global"
-chance_for_local_objective_function_optimization = 0.5 #\in [0,1], omly relevant of method is global
-objective_function_optimization_population_size = 10
-objective_function_optimization_max_iter = 20
-number_of_suggested_measurements = 1  ###only important for "hgdl" in objective_function_optimization_method
+acquisition_function_optimization_method = "global"
+chance_for_local_acquisition_function_optimization = 0.5 #\in [0,1], omly relevant of method is global
+acquisition_function_optimization_population_size = 10
+acquisition_function_optimization_max_iter = 20
+number_of_suggested_measurements = 1  ###only important for "hgdl" in acquisition_function_optimization_method
 
 initial_likelihood_optimization_method = "global"
 global_likelihood_optimization_at = [200]

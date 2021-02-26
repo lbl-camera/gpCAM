@@ -7,70 +7,70 @@ from  .optimization import differential_evolution
 from scipy.optimize import minimize
 
 
-def evaluate_objective_function(x, gp, objective_function,origin = None,
+def evaluate_acquisition_function(x, gp, acquisition_function,origin = None,
         cost_function = None, cost_function_parameters = None):
     ##########################################################
-    ####this function evaluates a default or a user-defined objective function
+    ####this function evaluates a default or a user-defined acquisition function
     ##########################################################
     if x.ndim == 1:x = np.array([x])
     if cost_function is not None and origin is not None and cost_function_parameters is not None:
         cost_eval = cost_function(origin,x,cost_function_parameters)
     else:
         cost_eval = np.array([1.0])
-    #for user defined objective function
-    if callable(objective_function):
-        return -objective_function(x,gp)/cost_eval
-    obj_eval = evaluate_gp_objective_function(x, objective_function, gp)
-    #if no user defined objective function is used
+    #for user defined acquisition function
+    if callable(acquisition_function):
+        return -acquisition_function(x,gp)/cost_eval
+    obj_eval = evaluate_gp_acquisition_function(x, acquisition_function, gp)
+    #if no user defined acquisition function is used
     obj_eval = obj_eval / cost_eval
     return -obj_eval
 
-def evaluate_objective_function_gradient(x, gp, objective_function, origin = None,
+def evaluate_acquisition_function_gradient(x, gp, acquisition_function, origin = None,
         cost_function = None, cost_function_parameters = None):
-    objective_gradient = gradient(evaluate_objective_function, x, 1e-5, gp,objective_function,origin,cost_function,cost_function_parameters)
-    return objective_gradient
+    acquisition_gradient = gradient(evaluate_acquisition_function, x, 1e-5, gp,acquisition_function,origin,cost_function,cost_function_parameters)
+    return acquisition_gradient
 
-def evaluate_objective_function_hessian(x, gp, objective_function,origin = None,
+def evaluate_acquisition_function_hessian(x, gp, acquisition_function,origin = None,
         cost_function = None, cost_function_parameters = None):
-    objective_hessian = hessian(evaluate_objective_function, x, 1e-5, gp,objective_function,origin,cost_function,cost_function_parameters)
-    return objective_hessian
+    acquisition_hessian = hessian(evaluate_acquisition_function, x, 1e-5, gp,acquisition_function,origin,cost_function,cost_function_parameters)
+    return acquisition_hessian
 
-def evaluate_gp_objective_function(x,objective_function,gp):
+def evaluate_gp_acquisition_function(x,acquisition_function,gp):
     ##this function will always spit out a 1d numpy array
     ##for certain functions, this array will only have one entry
     ##for the other the length == len(x)
     if len(x.shape) == 1: x = np.array([x])
-    if objective_function == "variance":
+    if acquisition_function == "variance":
         x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         res = gp.posterior_covariance(x)
-        return b
-    if objective_function == "covariance":
+        return res
+    if acquisition_function == "covariance":
         x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         res = gp.posterior_covariance(x)
         b = res["S(x)"]
         sgn, logdet = np.linalg.slogdet(b)
         return np.array([np.sqrt(sgn * np.exp(logdet))])
     ###################more here: shannon_ig  for instance
-    elif objective_function == "shannon_ig":
+    elif acquisition_function == "shannon_ig":
         x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         res = gp.shannon_information_gain(x)["sig"]
         return np.array([res])
-    elif objective_function == "upper_confidence":
+    elif acquisition_function == "upper_confidence":
         x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         m = gp.posterior_mean(x)["f(x)"]
         v = gp.posterior_covariance(x)["v(x)"]
         return m + 3.0*v
-    elif objective_function == "maximum":
+    elif acquisition_function == "maximum":
         x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         res = gp.posterior_mean(x)["f(x)"]
         return res
-    elif objective_function == "minimum":
+    elif acquisition_function == "minimum":
         x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         res = gp.posterior_mean(x)["f(x)"]
         return -res
 
 ##########################################################################
-def find_objective_function_maxima(gp,objective_function,
+def find_acquisition_function_maxima(gp,acquisition_function,
         origin,number_of_maxima_sought,
         optimization_bounds,
         optimization_method = "global",
@@ -82,7 +82,7 @@ def find_objective_function_maxima(gp,objective_function,
         dask_client = False):
     bounds = np.array(optimization_bounds)
     print("====================================")
-    print("finding objective function maxima...")
+    print("finding acquisition function maxima...")
     print("optimization method ",optimization_method)
     print("adjusted tolerance: ", optimization_tol)
     print("population size: ", optimization_pop_size)
@@ -94,14 +94,14 @@ def find_objective_function_maxima(gp,objective_function,
 
     if optimization_method == "global":
         opti, func_eval = differential_evolution(
-            evaluate_objective_function,
+            evaluate_acquisition_function,
             optimization_bounds,
             tol = optimization_tol,
             popsize = optimization_pop_size,
             max_iter = optimization_max_iter,
             origin = origin,
             gp = gp,
-            objective_function = objective_function,
+            acquisition_function = acquisition_function,
             cost_function = cost_function,
             cost_function_parameters = cost_function_parameters
         )
@@ -111,12 +111,12 @@ def find_objective_function_maxima(gp,objective_function,
         ###run differential evo first if hxdy only returns stationary points
         ###then of hgdl is successful, stack results and return
         from hgdl.hgdl import HGDL
-        a = HGDL(evaluate_objective_function,
-                    evaluate_objective_function_gradient,
-                    evaluate_objective_function_hessian,
+        a = HGDL(evaluate_acquisition_function,
+                    evaluate_acquisition_function_gradient,
+                    evaluate_acquisition_function_hessian,
                     optimization_bounds, number_of_walkers = optimization_pop_size,
                     verbose = False, maxEpochs = optimization_max_iter,
-                    args = (gp,objective_function,origin,cost_function,cost_function_parameters))
+                    args = (gp,acquisition_function,origin,cost_function,cost_function_parameters))
         #####optimization_max_iter, tolerance here
         a.optimize(dask_client = dask_client)
         res = a.get_latest(number_of_maxima_sought)
@@ -125,11 +125,11 @@ def find_objective_function_maxima(gp,objective_function,
     elif optimization_method == "local":
         x0 = np.random.uniform(low = bounds[:,0],high = bounds[:,1],size = len(bounds))
         a = minimize(
-            evaluate_objective_function,
+            evaluate_acquisition_function,
             x0,
-            args = (gp,objective_function,origin,cost_function,cost_function_parameters),
+            args = (gp,acquisition_function,origin,cost_function,cost_function_parameters),
             method="L-BFGS-B",
-            jac=evaluate_objective_function_gradient,
+            jac=evaluate_acquisition_function_gradient,
             bounds = bounds,
             tol = optimization_tol,
             callback = None,
@@ -138,20 +138,20 @@ def find_objective_function_maxima(gp,objective_function,
         opti = np.array([a["x"]])
         func_eval = np.array(a["fun"])
         if a["success"] is False:
-            print("local objective function optimization not successful, solution replaced with random point.")
+            print("local acquisition function optimization not successful, solution replaced with random point.")
             opti = np.array(x0)
             if opti.ndim !=2 : opti = np.array([opti])
-            func_eval = evaluate_objective_function(x0,
-                    gp,objective_function,origin,
+            func_eval = evaluate_acquisition_function(x0,
+                    gp,acquisition_function,origin,
                     cost_function,cost_function_parameters)
             if func_eval.ndim != 1: func_eval = np.array([func_eval])
     else:
-        raise ValueError("Invalid objective function optimization method given.")
+        raise ValueError("Invalid acquisition function optimization method given.")
 
     if func_eval.ndim != 1 or opti.ndim != 2:
         print("f(x): ",func_eval)
         print("x: ",opti)
-        raise Exception("The output of the objective function optimization is not 2 dimensional. Please check your objective function.")
+        raise Exception("The output of the acquisition function optimization is not 2 dimensional. Please check your acquisition function.")
     return opti,func_eval
 
 ############################################################

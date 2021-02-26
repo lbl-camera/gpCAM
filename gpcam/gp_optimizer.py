@@ -86,23 +86,23 @@ class GPOptimizer():
         return res
 
 ##############################################################
-    def evaluate_objective_function(self, x, objective_function = "covariance", origin = None):
+    def evaluate_acquisition_function(self, x, acquisition_function = "covariance", origin = None):
         """
-        function that evaluates the objective function
+        function that evaluates the acquisition function
         input:
             x: 1d numpy array
-            objective_function: "covariance","shannon_ig",..., or callable, use the same you use in ask()
+            acquisition_function: "covariance","shannon_ig",..., or callable, use the same you use in ask()
             origin = None
         returns:
             scalar (float) or array
         """
-        if self.gp_initialized is False: raise Exception("Initialize GP before evaluating the objective function. see help(gp_init)")
+        if self.gp_initialized is False: raise Exception("Initialize GP before evaluating the acquisition function. see help(gp_init)")
         x = np.array(x)
         try:
-            return sm.evaluate_objective_function(x, self.gp, objective_function,
+            return sm.evaluate_acquisition_function(x, self.gp, acquisition_function,
                 origin, self.cost_function, self.cost_function_parameters)
         except Exception as a:
-            print("Evaluating the objective function was not successful.")
+            print("Evaluating the acquisition function was not successful.")
             print("Error Message:")
             print(str(a))
 
@@ -289,7 +289,7 @@ class GPOptimizer():
 
 ##############################################################
     def ask(self, position = None, n = 1,
-            objective_function = "covariance",
+            acquisition_function = "covariance",
             optimization_bounds = None,
             optimization_method = "global",
             optimization_pop_size = 20,
@@ -299,7 +299,7 @@ class GPOptimizer():
         """
         Given that the acquisition device is at "position", the function ask() s for
         "n" new optimal points within certain "bounds" and using the optimization setup:
-        "objective_function_pop_size", "max_iter" and "tol"
+        "acquisition_function_pop_size", "max_iter" and "tol"
         Parameters:
         -----------
 
@@ -307,7 +307,7 @@ class GPOptimizer():
         --------------------
             position (numpy array):            last measured point, default = None
             n (int):                           how many new measurements are requested, default = 1
-            objective_function:                default = None, means that the class objective function will be used
+            acquisition_function:                default = None, means that the class acquisition function will be used
             optimization_bounds (2d list/None):             default = None
             optimization_method:                            default = "global", "global"/"hgdl"
             optimization_pop_size (int):                    default = 20
@@ -319,9 +319,9 @@ class GPOptimizer():
         print("optimization method: ", optimization_method)
         print("bounds: ",optimization_bounds)
         if optimization_bounds is None: optimization_bounds = self.index_set_bounds
-        maxima,func_evals = sm.find_objective_function_maxima(
+        maxima,func_evals = sm.find_acquisition_function_maxima(
                 self.gp,
-                objective_function,
+                acquisition_function,
                 position,n, optimization_bounds,
                 optimization_method = optimization_method,
                 optimization_pop_size = optimization_pop_size,
@@ -336,7 +336,7 @@ class GPOptimizer():
     def init_cost(self,cost_function,cost_function_parameters,
             cost_update_function = None, cost_function_optimization_bounds = None):
         """
-        This function initializes the costs. If used, the objective function will be augmented by the costs
+        This function initializes the costs. If used, the acquisition function will be augmented by the costs
         which leads to different suggestions
 
         Parameters:

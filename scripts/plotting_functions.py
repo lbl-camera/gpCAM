@@ -39,7 +39,7 @@ def plot_function(gp_optimizer_obj):
             points.append(p)
             mean[i,j] = gp_optimizer_obj.gp.posterior_mean(p)["f(x)"]
             var [i,j] = gp_optimizer_obj.gp.posterior_covariance(p)["v(x)"]
-            obj[i,j] = gp_optimizer_obj.evaluate_objective_function(p, objective_function = "shannon_ig", origin = np.array([0.0,0.0]))
+            obj[i,j] = gp_optimizer_obj.evaluate_acquisition_function(p, acquisition_function = "shannon_ig", origin = np.array([0.0,0.0]))
     points = np.asarray(points)
     fig = plt.figure(1)
     hb = plt.pcolormesh(x, y,mean, cmap='inferno')
@@ -62,7 +62,7 @@ def plot_function(gp_optimizer_obj):
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.scatter(gp_optimizer_obj.points[:,0], gp_optimizer_obj.points[:,1])
-    plt.title("gp objective function")
+    plt.title("gp acquisition function")
     cb = fig.colorbar(hb)
 
     plt.show()

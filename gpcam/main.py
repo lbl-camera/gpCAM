@@ -160,7 +160,7 @@ def main(init_data_files = None, init_hyperparameter_files = None):
 
         number_of_measurements[gp_idx] = len(data[gp_idx].points)
         current_position = data[gp_idx].points[np.argmax(data[gp_idx].times)]
-        opt_tol[gp_idx] = conf.gaussian_processes[gp_idx]["objective function optimization tolerance"]
+        opt_tol[gp_idx] = conf.gaussian_processes[gp_idx]["acquisition function optimization tolerance"]
 
 
     if conf.automatic_signal_variance_range_determination is True:
@@ -199,22 +199,22 @@ def main(init_data_files = None, init_hyperparameter_files = None):
             #########################################
             ###ask for new points:###################
             #########################################
-            if conf.objective_function_optimization_method == "hgdl":
+            if conf.acquisition_function_optimization_method == "hgdl":
                 print("Asking for ",number_of_suggested_measurements," new point(s) and using hgdl")
-            elif conf.objective_function_optimization_method == "global" and \
-                 np.random.rand() < conf.chance_for_local_objective_function_optimization:
+            elif conf.acquisition_function_optimization_method == "global" and \
+                 np.random.rand() < conf.chance_for_local_acquisition_function_optimization:
                 ofom = "local"
-                print("Next objective function optimization is local")
+                print("Next acquisition function optimization is local")
             else:
-                ofom = conf.objective_function_optimization_method
-                print("Next objective function optimization is ", conf.objective_function_optimization_method)
+                ofom = conf.acquisition_function_optimization_method
+                print("Next acquisition function optimization is ", conf.acquisition_function_optimization_method)
             ask_res = gp_optimizers[gp_idx].ask(position = current_position,
                     n = number_of_suggested_measurements,
-                    objective_function = conf.gaussian_processes[gp_idx]["objective function"],
+                    acquisition_function = conf.gaussian_processes[gp_idx]["acquisition function"],
                     optimization_bounds = None,
                     optimization_method = ofom,
-                    optimization_pop_size = conf.objective_function_optimization_population_size,
-                    optimization_max_iter = conf.objective_function_optimization_max_iter, 
+                    optimization_pop_size = conf.acquisition_function_optimization_population_size,
+                    optimization_max_iter = conf.acquisition_function_optimization_max_iter, 
                     optimization_tol = opt_tol[gp_idx],
                     dask_client = prediction_dask_client)
             next_measurement_points[gp_idx] = ask_res["x"]
