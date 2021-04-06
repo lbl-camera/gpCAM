@@ -213,7 +213,7 @@ class GPOptimizer():
             likelihood_optimization_pop_size = 20,
             likelihood_optimization_tolerance = 1e-6,
             likelihood_optimization_max_iter = 10000,
-            dask_client = True):
+            dask_client = None):
         """
         Function to start fvGP asynchronous training.
         Parameters:

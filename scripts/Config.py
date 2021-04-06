@@ -75,8 +75,8 @@ likelihood_optimization_max_iter = 120
 compute_device = "cpu"
 sparse = False
 compute_inverse = False
-training_dask_client = False #dask.distributed.Client()  #None/False/client
-prediction_dask_client = False  #None/False/client
+training_dask_client = None #dask.distributed.Client()  #None/False/client
+prediction_dask_client = None  #None/False/client
 ###############################
 ###DATA ACQUISITION############
 ###############################
