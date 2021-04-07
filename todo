@@ -1,5 +1,6 @@
 todo:
 
+* ask() should take starting position into account for local optimizer
 * async_train_gp() --> train_gp_async()
 * Make sure that very small or large values are rescaled, probably within fvgp
 * Add examples for acquisition functions
