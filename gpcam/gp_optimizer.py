@@ -1,7 +1,8 @@
+#!/usr/bin/env python
+
 import numpy as np
 from fvgp.fvgp import FVGP
 from . import surrogate_model as sm
-import time
 
 
 class GPOptimizer():
@@ -35,7 +36,7 @@ class GPOptimizer():
         prediction = obj.gp.posterior_mean(x0)
     ------------------------------------------------------------
     """
-##############################################################
+
     def __init__(
         self,
         input_space_dimension,
@@ -50,10 +51,10 @@ class GPOptimizer():
         self.iput_dim = input_space_dimension
         self.oput_dim = output_space_dimension
         self.output_number = output_number
-        self.points = np.empty((0,self.iput_dim))
-        self.values = np.empty((0,self.output_number))
-        self.variances = np.empty((0,self.output_number))
-        self.value_positions = np.empty((0,self.output_number,self.oput_dim))
+        self.points = np.empty((0, self.iput_dim))
+        self.values = np.empty((0, self.output_number))
+        self.variances = np.empty((0, self.output_number))
+        self.value_positions = np.empty((0, self.output_number, self.oput_dim))
         self.index_set_bounds = np.array(index_set_bounds)
         self.hyperparameters = None
         self.gp_initialized = False
@@ -61,15 +62,15 @@ class GPOptimizer():
         self.cost_function = None
         self.consider_costs = False
 
-
-##############################################################
     def get_data(self):
         """
         this provides a way to see the current class varibles
         the return is a dictionary of class variables
         """
+
         try:
-            res = {"input dim": self.iput_dim,
+            res = {
+                "input dim": self.iput_dim,
                 "output dim": self.oput_dim,
                 "output number": self.output_number,
                 "x": self.points,
@@ -79,7 +80,8 @@ class GPOptimizer():
                 "hyperparameters": self.hyperparameters,
                 "cost function parameters": self.cost_function_parameters,
                 "consider costs": self.consider_costs,
-                }
+            }
+
         except:
             print("Not all data is assigned yet, call tell(...) before asking for the data.")
             res = {}
