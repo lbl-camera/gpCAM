@@ -88,23 +88,40 @@ class GPOptimizer():
             "consider costs": self.consider_costs,
         }
 
+    def evaluate_acquisition_function(
+        self,
+        x,
+        acquisition_function="covariance",
+        origin=None
+    ):
+        """Evaluates the acquisition function.
 
-##############################################################
-    def evaluate_acquisition_function(self, x, acquisition_function = "covariance", origin = None):
+        Parameters
+        ----------
+        x : numpy array
+            1d numpy array.
+        acquisition_function : str or callable, optional
+            "covariance","shannon_ig" ,..., or callable, use the same you use
+            in ask(). (The default is "covariance".)
+        origin : ?, optional
+            TODO (the default is None, which [default_description])
+
+        Returns
+        -------
+        float or numpy array
         """
-        function that evaluates the acquisition function
-        input:
-            x: 1d numpy array
-            acquisition_function: "covariance","shannon_ig",..., or callable, use the same you use in ask()
-            origin = None
-        returns:
-            scalar (float) or array
-        """
-        if self.gp_initialized is False: raise Exception("Initialize GP before evaluating the acquisition function. see help(gp_init)")
+
+        if self.gp_initialized is False:
+            raise Exception(
+                "Initialize GP before evaluating the acquisition function. "
+                "See help(gp_init)."
+            )
         x = np.array(x)
         try:
-            return sm.evaluate_acquisition_function(x, self.gp, acquisition_function,
-                origin, self.cost_function, self.cost_function_parameters)
+            return sm.evaluate_acquisition_function(
+                x, self.gp, acquisition_function, origin, self.cost_function,
+                self.cost_function_parameters
+            )
         except Exception as a:
             print("Evaluating the acquisition function was not successful.")
             print("Error Message:")
@@ -165,8 +182,14 @@ class GPOptimizer():
         if self.gp_initialized is True: self.update_gp()
 
 ##############################################################
-    def init_gp(self,init_hyperparameters, compute_device = "cpu",gp_kernel_function = None,
-            gp_mean_function = None, sparse = False):
+    def init_gp(
+        self,
+        init_hyperparameters,
+        compute_device="cpu",
+        gp_kernel_function=None,
+        gp_mean_function=None,
+        sparse=False
+    ):
         """
         Function to initialize the GP if it has not already been initialized
         Parameters:
@@ -181,18 +204,18 @@ class GPOptimizer():
         """
         if self.gp_initialized is False:
             self.gp = FVGP(
-            self.iput_dim,
-            self.oput_dim,
-            self.output_number,
-            self.points,
-            self.values,
-            init_hyperparameters,
-            value_positions = self.value_positions,
-            variances = self.variances,
-            compute_device = compute_device,
-            gp_kernel_function = gp_kernel_function,
-            gp_mean_function = gp_mean_function,
-            sparse = sparse,
+                self.iput_dim,
+                self.oput_dim,
+                self.output_number,
+                self.points,
+                self.values,
+                init_hyperparameters,
+                value_positions=self.value_positions,
+                variances=self.variances,
+                compute_device=compute_device,
+                gp_kernel_function=gp_kernel_function,
+                gp_mean_function=gp_mean_function,
+                sparse=sparse,
             )
             self.gp_initialized = True
             self.hyperparameters = np.array(init_hyperparameters)
