@@ -2,7 +2,7 @@
 
 import numpy as np
 from fvgp.fvgp import FVGP
-from . import surrogate_model as sm
+from gpcam import surrogate_model as sm
 
 
 class GPOptimizer():
