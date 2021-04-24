@@ -63,29 +63,31 @@ class GPOptimizer():
         self.consider_costs = False
 
     def get_data(self):
-        """
-        this provides a way to see the current class varibles
-        the return is a dictionary of class variables
+        """Provides a way to access the current class varibles.
+
+        Returns
+        -------
+        dict
+            Dictionary containing the input dim, output dim, output number,
+            x & y data, measurement variances, measurement value positions,
+            hyperparameters, cost function parameters and consider costs
+            class attributes. Note that if tell() has not been called, many
+            of these returned values will be None.
         """
 
-        try:
-            res = {
-                "input dim": self.iput_dim,
-                "output dim": self.oput_dim,
-                "output number": self.output_number,
-                "x": self.points,
-                "y": self.values,
-                "measurement variances":self.variances,
-                "measurement value positions":self.value_positions,
-                "hyperparameters": self.hyperparameters,
-                "cost function parameters": self.cost_function_parameters,
-                "consider costs": self.consider_costs,
-            }
+        return {
+            "input dim": self.iput_dim,
+            "output dim": self.oput_dim,
+            "output number": self.output_number,
+            "x": self.points,
+            "y": self.values,
+            "measurement variances": self.variances,
+            "measurement value positions": self.value_positions,
+            "hyperparameters": self.hyperparameters,
+            "cost function parameters": self.cost_function_parameters,
+            "consider costs": self.consider_costs,
+        }
 
-        except:
-            print("Not all data is assigned yet, call tell(...) before asking for the data.")
-            res = {}
-        return res
 
 ##############################################################
     def evaluate_acquisition_function(self, x, acquisition_function = "covariance", origin = None):
