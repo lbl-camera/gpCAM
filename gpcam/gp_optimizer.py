@@ -89,10 +89,7 @@ class GPOptimizer():
         }
 
     def evaluate_acquisition_function(
-        self,
-        x,
-        acquisition_function="covariance",
-        origin=None
+        self, x, acquisition_function="covariance", origin=None
     ):
         """Evaluates the acquisition function.
 
@@ -102,7 +99,7 @@ class GPOptimizer():
             1d numpy array.
         acquisition_function : str or callable, optional
             "covariance","shannon_ig" ,..., or callable, use the same you use
-            in ask(). (The default is "covariance".)
+            in ask(). (The default is "covariance").
         origin : ?, optional
             TODO (the default is None, which [default_description])
 
@@ -127,12 +124,7 @@ class GPOptimizer():
             print("Error Message:")
             print(str(a))
 
-##############################################################
-    def tell(self, x, y,
-            variances = None,
-            value_positions = None,
-            append = False,
-            ):
+    def tell(self, x, y, variances=None, value_positions=None, append=False):
         """
         This function can tell() the gp_optimizer class
         the data that was collected. The data will instantly be use to update the gp_data
@@ -166,20 +158,29 @@ class GPOptimizer():
             no returns
         """
         ######create the current data
-        if len(x) != len(y): raise Exception("Length of x and y has to be the same!")
-        if append is True and variances is not None and value_positions is not None:
-            if len(x) != len(value_positions): raise Exception("Length of value positions is not correct!")
-            if y.shape != variance.shape: raise Exception("Shape of variance array not correct!")
-            self.points = np.vstack([self.points,x])
-            self.values = np.vstack([self.values,y])
-            self.variances = np.vstack([self.variances,variances])
-            self.value_positions = np.vstack([self.value_positions,value_positions])
+
+        if len(x) != len(y):
+            raise Exception("Length of x and y has to be the same!")
+        if append and variances is not None and value_positions is not None:
+            if len(x) != len(value_positions):
+                raise Exception("Length of value positions is not correct!")
+            if y.shape != variances.shape:
+                raise Exception("Shape of variance array not correct!")
+
+            self.points = np.vstack([self.points, x])
+            self.values = np.vstack([self.values, y])
+            self.variances = np.vstack([self.variances, variances])
+            self.value_positions = np.vstack(
+                [self.value_positions, value_positions]
+            )
         else:
             self.points = x
             self.values = y
             self.variances = variances
             self.value_positions = value_positions
-        if self.gp_initialized is True: self.update_gp()
+
+        if self.gp_initialized is True:
+            self.update_gp()
 
 ##############################################################
     def init_gp(
