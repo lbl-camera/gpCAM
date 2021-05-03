@@ -52,6 +52,6 @@ setup(
     packages=find_packages(include=['gpcam', 'gpcam.*']),
     test_suite='tests',
     url='https://github.com/Marcus Noack/gpcam',
-    version='6.0.2',
+    version='6.0.3',
     zip_safe=False,
 )
