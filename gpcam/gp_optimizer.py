@@ -176,20 +176,37 @@ class GPOptimizer():
             sparse, default = False
         """
         if self.gp_initialized is False:
-            self.gp = FVGP(
-            self.iput_dim,
-            self.oput_dim,
-            self.output_number,
-            self.points,
-            self.values,
-            init_hyperparameters,
-            value_positions = self.value_positions,
-            variances = self.variances,
-            compute_device = compute_device,
-            gp_kernel_function = gp_kernel_function,
-            gp_mean_function = gp_mean_function,
-            sparse = sparse,
-            )
+            if self.output_number == 1:
+                self.gp = FVGP(
+                self.iput_dim,
+                self.oput_dim,
+                self.output_number,
+                self.points,
+                self.values,
+                init_hyperparameters,
+                value_positions = self.value_positions,
+                variances = self.variances,
+                compute_device = compute_device,
+                gp_kernel_function = gp_kernel_function,
+                gp_mean_function = gp_mean_function,
+                sparse = sparse,
+                )
+            else:
+                self.gp = fvGP(
+                self.iput_dim,
+                self.oput_dim,
+                self.output_number,
+                self.points,
+                self.values,
+                init_hyperparameters,
+                value_positions = self.value_positions,
+                variances = self.variances,
+                compute_device = compute_device,
+                gp_kernel_function = gp_kernel_function,
+                gp_mean_function = gp_mean_function,
+                sparse = sparse,
+                )
+
             self.gp_initialized = True
             self.hyperparameters = np.array(init_hyperparameters)
 
@@ -209,7 +226,7 @@ class GPOptimizer():
             variances = self.variances)
 
 ##############################################################
-    def async_train_gp(self, hyperparameter_bounds,
+    def train_gp_async(self, hyperparameter_bounds,
             likelihood_optimization_pop_size = 20,
             likelihood_optimization_tolerance = 1e-6,
             likelihood_optimization_max_iter = 10000,
