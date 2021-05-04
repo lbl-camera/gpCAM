@@ -1,7 +1,8 @@
+#!/usr/bin/env python
+
 import numpy as np
 from fvgp.fvgp import FVGP
-from . import surrogate_model as sm
-import time
+from gpcam import surrogate_model as sm
 
 
 class GPOptimizer():
@@ -35,7 +36,7 @@ class GPOptimizer():
         prediction = obj.gp.posterior_mean(x0)
     ------------------------------------------------------------
     """
-##############################################################
+
     def __init__(
         self,
         input_space_dimension,
@@ -50,10 +51,10 @@ class GPOptimizer():
         self.iput_dim = input_space_dimension
         self.oput_dim = output_space_dimension
         self.output_number = output_number
-        self.points = np.empty((0,self.iput_dim))
-        self.values = np.empty((0,self.output_number))
-        self.variances = np.empty((0,self.output_number))
-        self.value_positions = np.empty((0,self.output_number,self.oput_dim))
+        self.points = np.empty((0, self.iput_dim))
+        self.values = np.empty((0, self.output_number))
+        self.variances = np.empty((0, self.output_number))
+        self.value_positions = np.empty((0, self.output_number, self.oput_dim))
         self.index_set_bounds = np.array(index_set_bounds)
         self.hyperparameters = None
         self.gp_initialized = False
@@ -61,57 +62,69 @@ class GPOptimizer():
         self.cost_function = None
         self.consider_costs = False
 
-
-##############################################################
     def get_data(self):
-        """
-        this provides a way to see the current class varibles
-        the return is a dictionary of class variables
-        """
-        try:
-            res = {"input dim": self.iput_dim,
-                "output dim": self.oput_dim,
-                "output number": self.output_number,
-                "x": self.points,
-                "y": self.values,
-                "measurement variances":self.variances,
-                "measurement value positions":self.value_positions,
-                "hyperparameters": self.hyperparameters,
-                "cost function parameters": self.cost_function_parameters,
-                "consider costs": self.consider_costs,
-                }
-        except:
-            print("Not all data is assigned yet, call tell(...) before asking for the data.")
-            res = {}
-        return res
+        """Provides a way to access the current class varibles.
 
-##############################################################
-    def evaluate_acquisition_function(self, x, acquisition_function = "covariance", origin = None):
+        Returns
+        -------
+        dict
+            Dictionary containing the input dim, output dim, output number,
+            x & y data, measurement variances, measurement value positions,
+            hyperparameters, cost function parameters and consider costs
+            class attributes. Note that if tell() has not been called, many
+            of these returned values will be None.
         """
-        function that evaluates the acquisition function
-        input:
-            x: 1d numpy array
-            acquisition_function: "covariance","shannon_ig",..., or callable, use the same you use in ask()
-            origin = None
-        returns:
-            scalar (float) or array
+
+        return {
+            "input dim": self.iput_dim,
+            "output dim": self.oput_dim,
+            "output number": self.output_number,
+            "x": self.points,
+            "y": self.values,
+            "measurement variances": self.variances,
+            "measurement value positions": self.value_positions,
+            "hyperparameters": self.hyperparameters,
+            "cost function parameters": self.cost_function_parameters,
+            "consider costs": self.consider_costs,
+        }
+
+    def evaluate_acquisition_function(
+        self, x, acquisition_function="covariance", origin=None
+    ):
+        """Evaluates the acquisition function.
+
+        Parameters
+        ----------
+        x : numpy array
+            1d numpy array.
+        acquisition_function : str or callable, optional
+            "covariance","shannon_ig" ,..., or callable, use the same you use
+            in ask(). (The default is "covariance").
+        origin : ?, optional
+            TODO (the default is None, which [default_description])
+
+        Returns
+        -------
+        float or numpy array
         """
-        if self.gp_initialized is False: raise Exception("Initialize GP before evaluating the acquisition function. see help(gp_init)")
+
+        if self.gp_initialized is False:
+            raise Exception(
+                "Initialize GP before evaluating the acquisition function. "
+                "See help(gp_init)."
+            )
         x = np.array(x)
         try:
-            return sm.evaluate_acquisition_function(x, self.gp, acquisition_function,
-                origin, self.cost_function, self.cost_function_parameters)
+            return sm.evaluate_acquisition_function(
+                x, self.gp, acquisition_function, origin, self.cost_function,
+                self.cost_function_parameters
+            )
         except Exception as a:
             print("Evaluating the acquisition function was not successful.")
             print("Error Message:")
             print(str(a))
 
-##############################################################
-    def tell(self, x, y,
-            variances = None,
-            value_positions = None,
-            append = False,
-            ):
+    def tell(self, x, y, variances=None, value_positions=None, append=False):
         """
         This function can tell() the gp_optimizer class
         the data that was collected. The data will instantly be use to update the gp_data
@@ -145,24 +158,39 @@ class GPOptimizer():
             no returns
         """
         ######create the current data
-        if len(x) != len(y): raise Exception("Length of x and y has to be the same!")
-        if append is True and variances is not None and value_positions is not None:
-            if len(x) != len(value_positions): raise Exception("Length of value positions is not correct!")
-            if y.shape != variance.shape: raise Exception("Shape of variance array not correct!")
-            self.points = np.vstack([self.points,x])
-            self.values = np.vstack([self.values,y])
-            self.variances = np.vstack([self.variances,variances])
-            self.value_positions = np.vstack([self.value_positions,value_positions])
+
+        if len(x) != len(y):
+            raise Exception("Length of x and y has to be the same!")
+        if append and variances is not None and value_positions is not None:
+            if len(x) != len(value_positions):
+                raise Exception("Length of value positions is not correct!")
+            if y.shape != variances.shape:
+                raise Exception("Shape of variance array not correct!")
+
+            self.points = np.vstack([self.points, x])
+            self.values = np.vstack([self.values, y])
+            self.variances = np.vstack([self.variances, variances])
+            self.value_positions = np.vstack(
+                [self.value_positions, value_positions]
+            )
         else:
             self.points = x
             self.values = y
             self.variances = variances
             self.value_positions = value_positions
-        if self.gp_initialized is True: self.update_gp()
+
+        if self.gp_initialized is True:
+            self.update_gp()
 
 ##############################################################
-    def init_gp(self,init_hyperparameters, compute_device = "cpu",gp_kernel_function = None,
-            gp_mean_function = None, sparse = False):
+    def init_gp(
+        self,
+        init_hyperparameters,
+        compute_device="cpu",
+        gp_kernel_function=None,
+        gp_mean_function=None,
+        sparse=False
+    ):
         """
         Function to initialize the GP if it has not already been initialized
         Parameters:
@@ -206,7 +234,6 @@ class GPOptimizer():
                 gp_mean_function = gp_mean_function,
                 sparse = sparse,
                 )
-
             self.gp_initialized = True
             self.hyperparameters = np.array(init_hyperparameters)
 
