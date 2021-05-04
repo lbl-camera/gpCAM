@@ -3,7 +3,7 @@
 import numpy as np
 from fvgp.fvgp import FVGP
 from gpcam import surrogate_model as sm
-
+#from fvgp.base_gp import BaseGP
 
 class GPOptimizer():
     """
@@ -61,6 +61,7 @@ class GPOptimizer():
         self.cost_function_parameters = None
         self.cost_function = None
         self.consider_costs = False
+        print("success")
 
     def get_data(self):
         """Provides a way to access the current class varibles.
@@ -204,36 +205,33 @@ class GPOptimizer():
             sparse, default = False
         """
         if self.gp_initialized is False:
-            if self.output_number == 1:
-                self.gp = FVGP(
-                self.iput_dim,
-                self.oput_dim,
-                self.output_number,
-                self.points,
-                self.values,
-                init_hyperparameters,
-                value_positions = self.value_positions,
-                variances = self.variances,
-                compute_device = compute_device,
-                gp_kernel_function = gp_kernel_function,
-                gp_mean_function = gp_mean_function,
-                sparse = sparse,
-                )
-            else:
-                self.gp = fvGP(
-                self.iput_dim,
-                self.oput_dim,
-                self.output_number,
-                self.points,
-                self.values,
-                init_hyperparameters,
-                value_positions = self.value_positions,
-                variances = self.variances,
-                compute_device = compute_device,
-                gp_kernel_function = gp_kernel_function,
-                gp_mean_function = gp_mean_function,
-                sparse = sparse,
-                )
+            #if self.output_number == 1:
+            #    self.gp = BaseGP(
+            #    self.points,
+            #    self.values,
+            #    init_hyperparameters,
+            #    variances = self.variances,
+            #    compute_device = compute_device,
+            #    gp_kernel_function = gp_kernel_function,
+            #    gp_mean_function = gp_mean_function,
+            #    sparse = sparse,
+            #    normalize_y = False
+            #    )
+            #else:
+            self.gp = FVGP(
+            self.iput_dim,
+            self.oput_dim,
+            self.output_number,
+            self.points,
+            self.values,
+            init_hyperparameters,
+            value_positions = self.value_positions,
+            variances = self.variances,
+            compute_device = compute_device,
+            gp_kernel_function = gp_kernel_function,
+            gp_mean_function = gp_mean_function,
+            sparse = sparse,
+            )
             self.gp_initialized = True
             self.hyperparameters = np.array(init_hyperparameters)
 
