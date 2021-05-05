@@ -9,5 +9,5 @@ ophyd
 dask
 distributed
 zmq
-fvgp == 2.3.1
+fvgp == 2.3.2
 hgdl

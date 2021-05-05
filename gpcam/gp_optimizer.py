@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
 import numpy as np
-from fvgp.fvgp import FVGP
+from fvgp.fvgp import fvGP
 from gpcam import surrogate_model as sm
-#from fvgp.base_gp import BaseGP
+from fvgp.base_gp import BaseGP
 
-class GPOptimizer():
+class GPOptimizer(BaseGP):
     """
     GPOptimizer class: Given data, this class can determine which
     data should be collected next.
@@ -205,33 +205,35 @@ class GPOptimizer():
             sparse, default = False
         """
         if self.gp_initialized is False:
-            #if self.output_number == 1:
-            #    self.gp = BaseGP(
-            #    self.points,
-            #    self.values,
-            #    init_hyperparameters,
-            #    variances = self.variances,
-            #    compute_device = compute_device,
-            #    gp_kernel_function = gp_kernel_function,
-            #    gp_mean_function = gp_mean_function,
-            #    sparse = sparse,
-            #    normalize_y = False
-            #    )
-            #else:
-            self.gp = FVGP(
-            self.iput_dim,
-            self.oput_dim,
-            self.output_number,
-            self.points,
-            self.values,
-            init_hyperparameters,
-            value_positions = self.value_positions,
-            variances = self.variances,
-            compute_device = compute_device,
-            gp_kernel_function = gp_kernel_function,
-            gp_mean_function = gp_mean_function,
-            sparse = sparse,
-            )
+            print(self.values)
+            if self.output_number == 1:
+                self.gp = BaseGP(
+                self.iput_dim,
+                self.points,
+                self.values[:,0],
+                init_hyperparameters,
+                variances = self.variances[:,0],
+                compute_device = compute_device,
+                gp_kernel_function = gp_kernel_function,
+                gp_mean_function = gp_mean_function,
+                sparse = sparse,
+                normalize_y = False
+                )
+            else:
+                self.gp = fvGP(
+                self.iput_dim,
+                self.oput_dim,
+                self.output_number,
+                self.points,
+                self.values,
+                init_hyperparameters,
+                value_positions = self.value_positions,
+                variances = self.variances,
+                compute_device = compute_device,
+                gp_kernel_function = gp_kernel_function,
+                gp_mean_function = gp_mean_function,
+                sparse = sparse,
+                )
             self.gp_initialized = True
             self.hyperparameters = np.array(init_hyperparameters)
 
@@ -307,8 +309,7 @@ class GPOptimizer():
                 optimization_method = likelihood_optimization_method,
                 optimization_pop_size = likelihood_optimization_pop_size,
                 optimization_tolerance = likelihood_optimization_tolerance,
-                optimization_max_iter = likelihood_optimization_max_iter,
-                dask_client = False
+                optimization_max_iter = likelihood_optimization_max_iter
                 )
         self.hyperparameters = np.array(self.gp.hyperparameters)
         return self.hyperparameters
