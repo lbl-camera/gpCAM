@@ -41,31 +41,31 @@ def evaluate_gp_acquisition_function(x,acquisition_function,gp):
     ##for the other the length == len(x)
     if len(x.shape) == 1: x = np.array([x])
     if acquisition_function == "variance":
-        x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
+        #x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         res = gp.posterior_covariance(x)
         return res
     if acquisition_function == "covariance":
-        x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
+        #x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         res = gp.posterior_covariance(x)
         b = res["S(x)"]
         sgn, logdet = np.linalg.slogdet(b)
         return np.array([np.sqrt(sgn * np.exp(logdet))])
     ###################more here: shannon_ig  for instance
     elif acquisition_function == "shannon_ig":
-        x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
+        #x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         res = gp.shannon_information_gain(x)["sig"]
         return np.array([res])
     elif acquisition_function == "upper_confidence":
-        x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
+        #x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         m = gp.posterior_mean(x)["f(x)"]
         v = gp.posterior_covariance(x)["v(x)"]
         return m + 3.0*v
     elif acquisition_function == "maximum":
-        x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
+        #x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         res = gp.posterior_mean(x)["f(x)"]
         return res
     elif acquisition_function == "minimum":
-        x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
+        #x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         res = gp.posterior_mean(x)["f(x)"]
         return -res
 
@@ -77,6 +77,7 @@ def find_acquisition_function_maxima(gp,acquisition_function,
         optimization_pop_size = 20,
         optimization_max_iter = 200,
         optimization_tol = 10e-6,
+        optimization_x0 = None,
         cost_function = None,
         cost_function_parameters = None,
         dask_client = False):
@@ -116,6 +117,7 @@ def find_acquisition_function_maxima(gp,acquisition_function,
                     evaluate_acquisition_function_hessian,
                     optimization_bounds, number_of_walkers = optimization_pop_size,
                     verbose = False, maxEpochs = optimization_max_iter,
+                    x0 = optimization_x0,
                     args = (gp,acquisition_function,origin,cost_function,cost_function_parameters))
         #####optimization_max_iter, tolerance here
         a.optimize(dask_client = dask_client)
@@ -124,6 +126,8 @@ def find_acquisition_function_maxima(gp,acquisition_function,
         func_eval = res['func evals']
     elif optimization_method == "local":
         x0 = np.random.uniform(low = bounds[:,0],high = bounds[:,1],size = len(bounds))
+        if optimization_x0 is not None: x0 = optimization_x0
+        else: x0 = np.random.uniform(low = bounds[:,0],high = bounds[:,1],size = len(bounds))
         a = minimize(
             evaluate_acquisition_function,
             x0,

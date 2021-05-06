@@ -1,0 +1,7 @@
+6.0.4 --> 6.0.5
+---------------
+
+aync_train_gp() --> train_gp_async()
+GPOptimizer is now ONLY for single-task GPs, fvGPOptimizer is for multi-task GPs, therefore the initialization has changes some
+ask() now needs a cost function to consider it
+ask() can receive starting positions for the optimizer

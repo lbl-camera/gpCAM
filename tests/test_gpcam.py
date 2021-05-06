@@ -26,27 +26,25 @@ class TestgpCAM(unittest.TestCase):
     def test_single_task(self,dim = 2, N = 100):
         """Test something."""
         x = np.random.rand(100,dim)
-        y = np.empty((len(x),1))
-        y[:,0] = np.sin(x[:,0])
+        y = np.sin(x[:,0])
         ######################################################
         ######################################################
         ######################################################
-        #y = y/np.max(y)
         index_set_bounds = np.array([[0.,1.],[0.,1.]])
         hyperparameter_bounds = np.array([[0.001,1e9],[0.001,100],[0.001,100]])
         hps_guess = np.ones((3))
         ###################################################################################
-        gp = GPOptimizer(2,1,1, index_set_bounds)
+        gp = GPOptimizer(dim,index_set_bounds)
         gp.tell(x,y)
         gp.init_gp(hps_guess)
         gp.train_gp(hyperparameter_bounds)
         ######################################################
         ######################################################
         ######################################################
-        print("evaluating objective function at [0.5,0.5,0.5]")
+        print("evaluating acquisition function at [0.5,0.5,0.5]")
         print("=======================")
-        r1 = gp.evaluate_objective_function(np.array([0.5,0.5]),objective_function = "shannon_ig")
-        r2 = gp.evaluate_objective_function(np.array([0.5,0.5]),objective_function = obj_func1)
+        r1 = gp.evaluate_acquisition_function(np.array([0.5,0.5]),acquisition_function = "shannon_ig")
+        r2 = gp.evaluate_acquisition_function(np.array([0.5,0.5]),acquisition_function = obj_func1)
         print("results: ",r1,r2)
         input("Continue with ENTER")
         print("getting data from gp optimizer:")
@@ -61,11 +59,11 @@ class TestgpCAM(unittest.TestCase):
         input("Continue with ENTER")
         print("getting the maximum (remember that this means getting the minimum of -f(x)):")
         print("=======================")
-        r = gp.ask(objective_function = "maximum")
+        r = gp.ask(acquisition_function = "maximum")
         print(r)
         print("getting the minimum:")
         print("=======================")
-        r = gp.ask(objective_function = "minimum")
+        r = gp.ask(acquisition_function = "minimum")
         print(r)
         input("Continue with ENTER")
         print("Writing interpolation to file...")
@@ -80,7 +78,7 @@ class TestgpCAM(unittest.TestCase):
         for i in range(50):
             print("done ",((i+1.0)/50.0)*100.," percent")
             for j in range(50):
-                res = gp.gp.posterior_mean(np.array([[x[i],y[j]]]))
+                res = gp.posterior_mean(np.array([[x[i],y[j]]]))
                 ar3d[i,j] = res["f(x)"]
                 l[counter,0] = x[i]
                 l[counter,1] = y[j]

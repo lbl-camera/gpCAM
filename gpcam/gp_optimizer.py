@@ -3,9 +3,9 @@
 import numpy as np
 from fvgp.fvgp import fvGP
 from gpcam import surrogate_model as sm
-from fvgp.base_gp import BaseGP
+from fvgp.gp import GP
 
-class GPOptimizer(BaseGP):
+class GPOptimizer(GP):
     """
     GPOptimizer class: Given data, this class can determine which
     data should be collected next.
@@ -21,27 +21,24 @@ class GPOptimizer(BaseGP):
 
     Attributes:
         input_space_dimension (int):         dim1
-        output_space_dimension (int):        dim2
-        output_number (int):                 n
         index_set_bounds (2d array):         bounds of the index set
 
 
     Example:
-        obj = GPOptimizer(3,1,2,[[0,10],[0,10],[0,10]])
+        obj = GPOptimizer(3,[[0,10],[0,10],[0,10]])
         obj.tell(x,y)
         obj.init_gp(...)
-        obj.train_gp(...) #can be "async_train_gp()"
-        obj.init_cost(...)
+        obj.train_gp(...) #can be "train_gp_async()"
+        co = obj.init_cost(...)
+        ask(cost_function = co)
         obj.update_cost_function(...)
-        prediction = obj.gp.posterior_mean(x0)
+        prediction = obj.posterior_mean(x0)
     ------------------------------------------------------------
     """
 
     def __init__(
         self,
         input_space_dimension,
-        output_space_dimension,
-        output_number,
         index_set_bounds,
     ):
         """
@@ -49,22 +46,19 @@ class GPOptimizer(BaseGP):
         type help(gp_optimizer) for help
         """
         self.iput_dim = input_space_dimension
-        self.oput_dim = output_space_dimension
-        self.output_number = output_number
         self.points = np.empty((0, self.iput_dim))
-        self.values = np.empty((0, self.output_number))
-        self.variances = np.empty((0, self.output_number))
-        self.value_positions = np.empty((0, self.output_number, self.oput_dim))
+        self.values = np.empty((0))
+        self.variances = np.empty((0))
         self.index_set_bounds = np.array(index_set_bounds)
         self.hyperparameters = None
         self.gp_initialized = False
         self.cost_function_parameters = None
         self.cost_function = None
         self.consider_costs = False
-        print("success")
 
     def get_data(self):
-        """Provides a way to access the current class varibles.
+        """
+        Provides a way to access the current class varibles.
 
         Returns
         -------
@@ -78,31 +72,30 @@ class GPOptimizer(BaseGP):
 
         return {
             "input dim": self.iput_dim,
-            "output dim": self.oput_dim,
-            "output number": self.output_number,
             "x": self.points,
             "y": self.values,
             "measurement variances": self.variances,
-            "measurement value positions": self.value_positions,
             "hyperparameters": self.hyperparameters,
             "cost function parameters": self.cost_function_parameters,
             "consider costs": self.consider_costs,
         }
 
-    def evaluate_acquisition_function(
-        self, x, acquisition_function="covariance", origin=None
-    ):
-        """Evaluates the acquisition function.
+    def evaluate_acquisition_function(self,
+        x, acquisition_function="covariance", cost_function=None,
+        origin=None):
+        """
+        Evaluates the acquisition function.
 
-        Parameters
-        ----------
-        x : numpy array
-            1d numpy array.
-        acquisition_function : str or callable, optional
-            "covariance","shannon_ig" ,..., or callable, use the same you use
-            in ask(). (The default is "covariance").
-        origin : ?, optional
-            TODO (the default is None, which [default_description])
+        Parameters:
+        -----------
+        x: 1d numpy array.
+
+        Optional Parameters:
+        --------------------
+        acquisition_function : default = "covariance",
+                               "covariance","shannon_ig" ,..., or callable, use the same you use
+                               in ask(). (The default is "covariance").
+        origin:                default = None, only important for cost considerations
 
         Returns
         -------
@@ -117,15 +110,14 @@ class GPOptimizer(BaseGP):
         x = np.array(x)
         try:
             return sm.evaluate_acquisition_function(
-                x, self.gp, acquisition_function, origin, self.cost_function,
-                self.cost_function_parameters
-            )
+                x, self, acquisition_function, origin, cost_function,
+                self.cost_function_parameters)
         except Exception as a:
             print("Evaluating the acquisition function was not successful.")
             print("Error Message:")
             print(str(a))
 
-    def tell(self, x, y, variances=None, value_positions=None, append=False):
+    def tell(self, x, y, variances=None, append=False):
         """
         This function can tell() the gp_optimizer class
         the data that was collected. The data will instantly be use to update the gp_data
@@ -139,19 +131,6 @@ class GPOptimizer(BaseGP):
         Optional Parameters:
         --------------------
             variances (2d numpy array):         A 2d array of all the variances of the measured points
-            value_positions (3d numpy array):   A 3d numpy array that stores a 
-                                                2d array of locations for each each data point
-                                                    e.g. 
-                                                    * 2 data points with 2 ouputs in 1d:
-                                                      value_posiitons = np.array([
-                                                      [[0],[1]]
-                                                      [[0],[1]]
-                                                      ])
-                                                    * 2 data points with 3 ouputs in 2d:
-                                                      value_posiitons = np.array([
-                                                      [[0,1],[2,3],[4,5]]
-                                                      [[0,2],[4,2],[7,8]]
-                                                      ])
             append:                             default = False, True/False, append data or rewrite it
 
         Returns:
@@ -162,23 +141,21 @@ class GPOptimizer(BaseGP):
 
         if len(x) != len(y):
             raise Exception("Length of x and y has to be the same!")
-        if append and variances is not None and value_positions is not None:
-            if len(x) != len(value_positions):
-                raise Exception("Length of value positions is not correct!")
-            if y.shape != variances.shape:
+        if append:
+            if self.variances != variances.shape:
                 raise Exception("Shape of variance array not correct!")
+            if self.points.shape != x.shape:
+                raise Exception("Shape of points array not correct!")
+            if self.values.shape != y.shape:
+                raise Exception("Shape of values array not correct!")
 
             self.points = np.vstack([self.points, x])
             self.values = np.vstack([self.values, y])
             self.variances = np.vstack([self.variances, variances])
-            self.value_positions = np.vstack(
-                [self.value_positions, value_positions]
-            )
         else:
             self.points = x
             self.values = y
             self.variances = variances
-            self.value_positions = value_positions
 
         if self.gp_initialized is True:
             self.update_gp()
@@ -205,35 +182,19 @@ class GPOptimizer(BaseGP):
             sparse, default = False
         """
         if self.gp_initialized is False:
-            print(self.values)
-            if self.output_number == 1:
-                self.gp = BaseGP(
-                self.iput_dim,
-                self.points,
-                self.values[:,0],
-                init_hyperparameters,
-                variances = self.variances[:,0],
-                compute_device = compute_device,
-                gp_kernel_function = gp_kernel_function,
-                gp_mean_function = gp_mean_function,
-                sparse = sparse,
-                normalize_y = False
-                )
-            else:
-                self.gp = fvGP(
-                self.iput_dim,
-                self.oput_dim,
-                self.output_number,
-                self.points,
-                self.values,
-                init_hyperparameters,
-                value_positions = self.value_positions,
-                variances = self.variances,
-                compute_device = compute_device,
-                gp_kernel_function = gp_kernel_function,
-                gp_mean_function = gp_mean_function,
-                sparse = sparse,
-                )
+            GP.__init__(
+            self,
+            self.iput_dim,
+            self.points,
+            self.values,
+            init_hyperparameters,
+            variances = self.variances,
+            compute_device = compute_device,
+            gp_kernel_function = gp_kernel_function,
+            gp_mean_function = gp_mean_function,
+            sparse = sparse,
+            normalize_y = False
+            )
             self.gp_initialized = True
             self.hyperparameters = np.array(init_hyperparameters)
 
@@ -246,10 +207,9 @@ class GPOptimizer(BaseGP):
         -----------
             no input parameters
         """
-        self.gp.update_gp_data(
+        self.update_gp_data(
             self.points,
             self.values,
-            value_positions = self.value_positions,
             variances = self.variances)
 
 ##############################################################
@@ -272,22 +232,21 @@ class GPOptimizer(BaseGP):
         """
         if self.gp_initialized is False:
             raise Exception("No GP to be trained. Please call init_gp(...) before training.")
-        self.gp.train(
+        self.train_async(
                 hyperparameter_bounds,
                 init_hyperparameters = self.hyperparameters,
-                optimization_method = "hgdl",
                 optimization_pop_size = likelihood_optimization_pop_size,
                 optimization_tolerance = likelihood_optimization_tolerance,
                 optimization_max_iter = likelihood_optimization_max_iter,
                 dask_client = dask_client
                 )
-        self.hyperparameters = np.array(self.gp.hyperparameters)
         return self.hyperparameters
 
 ##############################################################
     def train_gp(self,hyperparameter_bounds,
             likelihood_optimization_method = "global",likelihood_optimization_pop_size = 20,
-            likelihood_optimization_tolerance = 1e-6,likelihood_optimization_max_iter = 120):
+            optimization_dict = None,likelihood_optimization_tolerance = 1e-6,
+            likelihood_optimization_max_iter = 120):
         """
         Function to perform fvGP training.
         Parameters:
@@ -297,21 +256,22 @@ class GPOptimizer(BaseGP):
         --------------------
             likelihood_optimization_method:         "hgdl"/"global"/"local", default = "global"
             likelihood_optimization_pop_size:       number of walkers in the optimization, default = 20
+            optimization_dict:                      default = None
             likelihood_optimization_tolerance:      tolerance for termination, default = 1e-6
             likelihood_optimization_max_iter:       maximum number of iterations, default = 120
         """
 
         if self.gp_initialized is False:
             raise Exception("No GP to be trained. Please call init_gp(...) before training.")
-        self.gp.train(
+        self.train(
                 hyperparameter_bounds,
                 init_hyperparameters = self.hyperparameters,
                 optimization_method = likelihood_optimization_method,
+                optimization_dict = optimization_dict,
                 optimization_pop_size = likelihood_optimization_pop_size,
                 optimization_tolerance = likelihood_optimization_tolerance,
                 optimization_max_iter = likelihood_optimization_max_iter
                 )
-        self.hyperparameters = np.array(self.gp.hyperparameters)
         return self.hyperparameters
 
 ##############################################################
@@ -322,22 +282,24 @@ class GPOptimizer(BaseGP):
         -----------
             no input parameters
         """
-        self.gp.stop_training()
+        try: self.stop_training()
+        except: pass
 
 ##############################################################
     def update_hyperparameters(self):
-        self.gp.update_hyperparameters()
-        self.hyperparameters = np.array(self.gp.hyperparameters)
+        self.update_hyperparameters()
         return self.hyperparameters
 
 ##############################################################
     def ask(self, position = None, n = 1,
             acquisition_function = "covariance",
+            cost_function = None,
             optimization_bounds = None,
             optimization_method = "global",
             optimization_pop_size = 20,
             optimization_max_iter = 20,
             optimization_tol = 10e-6,
+            optimization_x0 = None,
             dask_client = False):
         """
         Given that the acquisition device is at "position", the function ask() s for
@@ -350,12 +312,14 @@ class GPOptimizer(BaseGP):
         --------------------
             position (numpy array):            last measured point, default = None
             n (int):                           how many new measurements are requested, default = 1
-            acquisition_function:                default = None, means that the class acquisition function will be used
+            acquisition_function:              default = None, means that the class acquisition function will be used
+            cost_function:                     default = None, otherwise cost objective received from init_cost, or callable
             optimization_bounds (2d list/None):             default = None
             optimization_method:                            default = "global", "global"/"hgdl"
             optimization_pop_size (int):                    default = 20
             optimization_max_iter (int):                    default = 20
             optimization_tol (float):                       default = 10e-6
+            optimization_x0:                                default = None, starting positions for optimizer
             dask_client:                                    default = False
         """
         print("aks() initiated with hyperparameters:",self.hyperparameters)
@@ -363,15 +327,16 @@ class GPOptimizer(BaseGP):
         print("bounds: ",optimization_bounds)
         if optimization_bounds is None: optimization_bounds = self.index_set_bounds
         maxima,func_evals = sm.find_acquisition_function_maxima(
-                self.gp,
+                self,
                 acquisition_function,
                 position,n, optimization_bounds,
                 optimization_method = optimization_method,
                 optimization_pop_size = optimization_pop_size,
                 optimization_max_iter = optimization_max_iter,
                 optimization_tol = optimization_tol,
-                cost_function = self.cost_function,
+                cost_function = cost_function,
                 cost_function_parameters = self.cost_function_parameters,
+                optimization_x0 = optimization_x0,
                 dask_client = dask_client)
         return {'x':np.array(maxima), "f(x)" : np.array(func_evals)}
 
@@ -391,9 +356,10 @@ class GPOptimizer(BaseGP):
         --------------------
             cost_update_function: a function that updates the cost_fucntion_parameters, default = None
             cost_function_optimization_bounds: optimization bounds for the update, default = None
+
         Return:
         -------
-            no returns
+            cost function that can be injected into ask()
         """
 
         self.cost_function = cost_function
@@ -402,6 +368,7 @@ class GPOptimizer(BaseGP):
         self.cost_update_function = cost_update_function
         self.consider_costs = True
         print("Costs successfully initialized")
+        return self.cost_function
 
 ##############################################################
     def update_cost_function(self,measurement_costs):
