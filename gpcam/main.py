@@ -105,17 +105,24 @@ def main(init_data_files = None, init_hyperparameter_files = None):
             training = conf.initial_likelihood_optimization_method
         #########################################
         error[gp_idx] = np.inf
-        gp_optimizers[gp_idx] = GPOptimizer(
+        if conf.gaussian_processes[gp_idx]["number of returns"] == 1:
+            gp_optimizers[gp_idx] = GPOptimizer(
+            len(conf.parameters),
+            data[gp_idx].variance_optimization_bounds,
+            )
+        else:
+            gp_optimizers[gp_idx] = fvGPOptimizer(
             len(conf.parameters),
             conf.gaussian_processes[gp_idx]["dimensionality of return"],
             conf.gaussian_processes[gp_idx]["number of returns"],
             data[gp_idx].variance_optimization_bounds,
             )
+
         gp_optimizers[gp_idx].tell(
             data[gp_idx].points,
             data[gp_idx].values,
             variances = data[gp_idx].variances,
-            value_positions = data[gp_idx].value_positions,
+            #value_positions = data[gp_idx].value_positions,
             append = False
                 )
         gp_optimizers[gp_idx].init_gp(hps,compute_device = conf.compute_device,
@@ -154,9 +161,9 @@ def main(init_data_files = None, init_hyperparameter_files = None):
 
         # save the found hyperparameters for fast restart and faster plotting
         np.save('../data/historic_data/Data_'+ start_date_time+"_" + gp_idx, data[gp_idx].data_set)
-        np.save('../data/historic_data/hyperparameters_'+ start_date_time+"_" + gp_idx, gp_optimizers[gp_idx].gp.hyperparameters)
+        np.save('../data/historic_data/hyperparameters_'+ start_date_time+"_" + gp_idx, gp_optimizers[gp_idx].hyperparameters)
         np.save('../data/current_data/Data_' + gp_idx, data[gp_idx].data_set)
-        np.save('../data/current_data/hyperparameters_' + gp_idx, gp_optimizers[gp_idx].gp.hyperparameters)
+        np.save('../data/current_data/hyperparameters_' + gp_idx, gp_optimizers[gp_idx].hyperparameters)
 
         number_of_measurements[gp_idx] = len(data[gp_idx].points)
         current_position = data[gp_idx].points[np.argmax(data[gp_idx].times)]
@@ -211,15 +218,15 @@ def main(init_data_files = None, init_hyperparameter_files = None):
             ask_res = gp_optimizers[gp_idx].ask(position = current_position,
                     n = number_of_suggested_measurements,
                     acquisition_function = conf.gaussian_processes[gp_idx]["acquisition function"],
-                    optimization_bounds = None,
-                    optimization_method = ofom,
-                    optimization_pop_size = conf.acquisition_function_optimization_population_size,
-                    optimization_max_iter = conf.acquisition_function_optimization_max_iter, 
-                    optimization_tol = opt_tol[gp_idx],
+                    bounds = None,
+                    method = ofom,
+                    pop_size = conf.acquisition_function_optimization_population_size,
+                    max_iter = conf.acquisition_function_optimization_max_iter, 
+                    tol = opt_tol[gp_idx],
                     dask_client = prediction_dask_client)
             next_measurement_points[gp_idx] = ask_res["x"]
             func_evals[gp_idx] = ask_res["f(x)"]
-            post_var[gp_idx] = gp_optimizers[gp_idx].gp.posterior_covariance(next_measurement_points[gp_idx])
+            post_var[gp_idx] = gp_optimizers[gp_idx].posterior_covariance(next_measurement_points[gp_idx])
             #post_mean[gp_idx] = gp_optimizers[gp_idx].gp.posterior_mean(next_measurement_points[gp_idx])
 
             if conf.gaussian_processes[gp_idx]["adjust optimization threshold"][0] == True:
@@ -250,7 +257,7 @@ def main(init_data_files = None, init_hyperparameter_files = None):
                     data[gp_idx].points,
                     data[gp_idx].values,
                     variances = data[gp_idx].variances,
-                    value_positions = data[gp_idx].value_positions,
+                    #value_positions = data[gp_idx].value_positions,
                     append = False)
             print("Training...")
             if number_of_measurements[gp_idx] in conf.global_likelihood_optimization_at:
@@ -312,9 +319,9 @@ def main(init_data_files = None, init_hyperparameter_files = None):
             if conf.gaussian_processes[gp_idx]["run function in every iteration"] is not None:
                 conf.gaussian_processes[gp_idx]["run function in every iteration"](gp_optimizers[gp_idx])
             np.save('../data/historic_data/Data_'+ start_date_time+"_" + gp_idx, data[gp_idx].data_set)
-            np.save('../data/historic_data/hyperparameters_'+ start_date_time+"_" + gp_idx, gp_optimizers[gp_idx].gp.hyperparameters)
+            np.save('../data/historic_data/hyperparameters_'+ start_date_time+"_" + gp_idx, gp_optimizers[gp_idx].hyperparameters)
             np.save('../data/current_data/Data_' + gp_idx, data[gp_idx].data_set)
-            np.save('../data/current_data/hyperparameters_' + gp_idx, gp_optimizers[gp_idx].gp.hyperparameters)
+            np.save('../data/current_data/hyperparameters_' + gp_idx, gp_optimizers[gp_idx].hyperparameters)
 
             current_position = data[gp_idx].points[np.argmax(data[gp_idx].times)]
         if any(i >= conf.max_number_of_measurements for i in number_of_measurements.values()):

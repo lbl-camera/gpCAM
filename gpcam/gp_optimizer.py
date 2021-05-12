@@ -214,9 +214,9 @@ class GPOptimizer(GP):
 
 ##############################################################
     def train_gp_async(self, hyperparameter_bounds,
-            likelihood_optimization_pop_size = 20,
-            likelihood_optimization_tolerance = 1e-6,
-            likelihood_optimization_max_iter = 10000,
+            pop_size = 20,
+            tolerance = 1e-6,
+            max_iter = 10000,
             dask_client = None):
         """
         Function to start fvGP asynchronous training.
@@ -225,9 +225,9 @@ class GPOptimizer(GP):
             hyperparameter_bounds:                  2d np.array of bounds for the hyperparameters
         Optional Parameters:
         --------------------
-            likelihood_optimization_pop_size:       number of walkers in the optimization, default = 20
-            likelihood_optimization_tolerance:      tolerance for termination, default = 1e-6
-            likelihood_optimization_max_iter:       maximum number of iterations, default = 10000
+            pop_size:       number of walkers in the optimization, default = 20
+            tolerance:      tolerance for termination, default = 1e-6
+            max_iter:       maximum number of iterations, default = 10000
             dask_client:                            a DASK client, see dask package docs for explanation
         """
         if self.gp_initialized is False:
@@ -235,18 +235,18 @@ class GPOptimizer(GP):
         self.train_async(
                 hyperparameter_bounds,
                 init_hyperparameters = self.hyperparameters,
-                optimization_pop_size = likelihood_optimization_pop_size,
-                optimization_tolerance = likelihood_optimization_tolerance,
-                optimization_max_iter = likelihood_optimization_max_iter,
+                pop_size = pop_size,
+                tolerance = tolerance,
+                max_iter = max_iter,
                 dask_client = dask_client
                 )
         return self.hyperparameters
 
 ##############################################################
     def train_gp(self,hyperparameter_bounds,
-            likelihood_optimization_method = "global",likelihood_optimization_pop_size = 20,
-            optimization_dict = None,likelihood_optimization_tolerance = 1e-6,
-            likelihood_optimization_max_iter = 120):
+            method = "global",pop_size = 20,
+            optimization_dict = None,tolerance = 1e-6,
+            max_iter = 120):
         """
         Function to perform fvGP training.
         Parameters:
@@ -254,11 +254,11 @@ class GPOptimizer(GP):
             hyperparameter_bounds:                  2d np.array of bounds for the hyperparameters
         Optional Parameters:
         --------------------
-            likelihood_optimization_method:         "hgdl"/"global"/"local", default = "global"
-            likelihood_optimization_pop_size:       number of walkers in the optimization, default = 20
+            method:         "hgdl"/"global"/"local", default = "global"
+            pop_size:       number of walkers in the optimization, default = 20
             optimization_dict:                      default = None
-            likelihood_optimization_tolerance:      tolerance for termination, default = 1e-6
-            likelihood_optimization_max_iter:       maximum number of iterations, default = 120
+            tolerance:      tolerance for termination, default = 1e-6
+            max_iter:       maximum number of iterations, default = 120
         """
 
         if self.gp_initialized is False:
@@ -266,11 +266,11 @@ class GPOptimizer(GP):
         self.train(
                 hyperparameter_bounds,
                 init_hyperparameters = self.hyperparameters,
-                optimization_method = likelihood_optimization_method,
+                method = method,
                 optimization_dict = optimization_dict,
-                optimization_pop_size = likelihood_optimization_pop_size,
-                optimization_tolerance = likelihood_optimization_tolerance,
-                optimization_max_iter = likelihood_optimization_max_iter
+                pop_size = pop_size,
+                tolerance = tolerance,
+                max_iter = max_iter
                 )
         return self.hyperparameters
 
@@ -287,19 +287,19 @@ class GPOptimizer(GP):
 
 ##############################################################
     def update_hyperparameters(self):
-        self.update_hyperparameters()
+        GP.update_hyperparameters(self)
         return self.hyperparameters
 
 ##############################################################
     def ask(self, position = None, n = 1,
             acquisition_function = "covariance",
             cost_function = None,
-            optimization_bounds = None,
-            optimization_method = "global",
-            optimization_pop_size = 20,
-            optimization_max_iter = 20,
-            optimization_tol = 10e-6,
-            optimization_x0 = None,
+            bounds = None,
+            method = "global",
+            pop_size = 20,
+            max_iter = 20,
+            tol = 10e-6,
+            x0 = None,
             dask_client = False):
         """
         Given that the acquisition device is at "position", the function ask() s for
@@ -314,29 +314,29 @@ class GPOptimizer(GP):
             n (int):                           how many new measurements are requested, default = 1
             acquisition_function:              default = None, means that the class acquisition function will be used
             cost_function:                     default = None, otherwise cost objective received from init_cost, or callable
-            optimization_bounds (2d list/None):             default = None
-            optimization_method:                            default = "global", "global"/"hgdl"
-            optimization_pop_size (int):                    default = 20
-            optimization_max_iter (int):                    default = 20
-            optimization_tol (float):                       default = 10e-6
-            optimization_x0:                                default = None, starting positions for optimizer
+            bounds (2d list/None):             default = None
+            method:                            default = "global", "global"/"hgdl"
+            pop_size (int):                    default = 20
+            max_iter (int):                    default = 20
+            tol (float):                       default = 10e-6
+            x0:                                default = None, starting positions for optimizer
             dask_client:                                    default = False
         """
         print("aks() initiated with hyperparameters:",self.hyperparameters)
-        print("optimization method: ", optimization_method)
-        print("bounds: ",optimization_bounds)
-        if optimization_bounds is None: optimization_bounds = self.index_set_bounds
+        print("optimization method: ", method)
+        print("bounds: ",bounds)
+        if bounds is None: bounds = self.index_set_bounds
         maxima,func_evals = sm.find_acquisition_function_maxima(
                 self,
                 acquisition_function,
-                position,n, optimization_bounds,
-                optimization_method = optimization_method,
-                optimization_pop_size = optimization_pop_size,
-                optimization_max_iter = optimization_max_iter,
-                optimization_tol = optimization_tol,
+                position,n, bounds,
+                optimization_method = method,
+                optimization_pop_size = pop_size,
+                optimization_max_iter = max_iter,
+                optimization_tol = tol,
                 cost_function = cost_function,
                 cost_function_parameters = self.cost_function_parameters,
-                optimization_x0 = optimization_x0,
+                optimization_x0 = x0,
                 dask_client = dask_client)
         return {'x':np.array(maxima), "f(x)" : np.array(func_evals)}
 
@@ -354,7 +354,7 @@ class GPOptimizer(GP):
 
         Optional Parameters:
         --------------------
-            cost_update_function: a function that updates the cost_fucntion_parameters, default = None
+            cost_update_function: a function that updates the cost_function_parameters, default = None
             cost_function_optimization_bounds: optimization bounds for the update, default = None
 
         Return:
@@ -383,7 +383,7 @@ class GPOptimizer(GP):
                                   the costs when moving in the parameter space
             cost_update_function: a user-defined function 
                                   def name(measurement_costs,
-                                  cost_fucntion_optimization_bounds,cost_function_parameters)
+                                  cost_function_optimization_bounds,cost_function_parameters)
                                   which returns the new parameters
             cost_function_optimization_bounds: see above
         Optional Parameters:

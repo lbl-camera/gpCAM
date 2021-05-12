@@ -6,7 +6,7 @@ from gpcam.gp_optimizer import GPOptimizer
 import matplotlib.pyplot as plt
 import unittest
 
-def obj_func1(x,obj):
+def ac_func1(x,obj):
     r1 = obj.posterior_mean(x)["f(x)"]
     r2 = obj.posterior_covariance(x)["v(x)"]
     m_index = np.argmin(obj.data_y)
@@ -19,9 +19,19 @@ class TestgpCAM(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures, if any."""
-
-    def tearDown(self):
-        """Tear down test fixtures, if any."""
+        x = np.random.rand(100,dim)
+        y = np.sin(x[:,0])
+        ######################################################
+        ######################################################
+        ######################################################
+        index_set_bounds = np.array([[0.,1.],[0.,1.]])
+        hyperparameter_bounds = np.array([[0.001,1e9],[0.001,100],[0.001,100]])
+        hps_guess = np.ones((3))
+        ###################################################################################
+        gp = GPOptimizer(dim,index_set_bounds)
+        gp.tell(x,y)
+        gp.init_gp(hps_guess)
+        gp.train_gp(hyperparameter_bounds)
 
     def test_single_task(self,dim = 2, N = 100):
         """Test something."""
@@ -44,7 +54,7 @@ class TestgpCAM(unittest.TestCase):
         print("evaluating acquisition function at [0.5,0.5,0.5]")
         print("=======================")
         r1 = gp.evaluate_acquisition_function(np.array([0.5,0.5]),acquisition_function = "shannon_ig")
-        r2 = gp.evaluate_acquisition_function(np.array([0.5,0.5]),acquisition_function = obj_func1)
+        r2 = gp.evaluate_acquisition_function(np.array([0.5,0.5]),acquisition_function = ac_func1)
         print("results: ",r1,r2)
         input("Continue with ENTER")
         print("getting data from gp optimizer:")
