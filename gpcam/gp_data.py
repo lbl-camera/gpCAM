@@ -33,7 +33,7 @@ class gpData:
         self.y = self.extract_values_from_data()
         self.v = self.extract_variances_from_data()
         self.times = self.extract_times_from_data()
-        #self.costs = self.extract_times_from_data()
+        self.measurement_costs = self.extract_costs_from_data()
 
     ###############################################################
     def add_data_points(self, new_points, post_var = None, hps = None):
@@ -47,7 +47,8 @@ class gpData:
         self.y = self.extract_values_from_data()
         self.v = self.extract_variances_from_data()
         self.times = self.extract_times_from_data()
-        return self.x, self.y, self.v
+        self.measurement_costs = self.extract_costs_from_data()
+        return self.x, self.y, self.v   
     ###############################################################
     def translate2data(self, x, y = None, v = None, post_var = None ,hps = None):
         """
@@ -57,7 +58,7 @@ class gpData:
         for i in range(len(x)):
             data.append(self.npy2data(x[i],post_var,hps))
             if y is not None: data[i]["value"] = y[i]
-            if v is not None: data[i]["value"] = v[i]
+            if v is not None: data[i]["variance"] = v[i]
         return data
     ###############################################################
     def npy2data(self, x,post_var = None, hps = None, cost = None):

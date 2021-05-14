@@ -125,8 +125,8 @@ def find_acquisition_function_maxima(gp,acquisition_function,
         opti = res['x']
         func_eval = res['func evals']
     elif optimization_method == "local":
-        x0 = np.random.uniform(low = bounds[:,0],high = bounds[:,1],size = len(bounds))
-        if optimization_x0 is not None: x0 = optimization_x0
+        if optimization_x0 is not None and optimization_x0.ndim == 1: x0 = optimization_x0
+        elif optimization_x0 is not None and optimization_x0.ndim == 2: x0 = optimization_x0[0]
         else: x0 = np.random.uniform(low = bounds[:,0],high = bounds[:,1],size = len(bounds))
         a = minimize(
             evaluate_acquisition_function,

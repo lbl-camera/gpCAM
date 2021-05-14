@@ -116,38 +116,15 @@ class fvGPOptimizer(fvGP, GPOptimizer):
                                                       [[0,1],[2,3],[4,5]]
                                                       [[0,2],[4,2],[7,8]]
                                                       ])
-            append:                             default = False, True/False, append data or rewrite it
 
         Returns:
         --------
             no returns
         """
-        ######create the current data
-
-        if len(x) != len(y):
-            raise Exception("Length of x and y has to be the same!")
-        if append:
-            if self.variances != variances.shape:
-                raise Exception("Shape of variance array not correct!")
-            if self.points.shape != x.shape:
-                raise Exception("Shape of points array not correct!")
-            if self.values.shape != y.shape:
-                raise Exception("Shape of values array not correct!")
-            if self.value_positions.shape != value_positions.shape:
-                raise Exception("Shape of value positions array not correct!")
-
-
-            self.points = np.vstack([self.points, x])
-            self.values = np.vstack([self.values, y])
-            self.variances = np.vstack([self.variances, variances])
-            self.value_positions = np.vstack(
-                [self.value_positions, value_positions]
-            )
-        else:
-            self.points = x
-            self.values = y
-            self.variances = variances
-            self.value_positions = value_positions
+        self.points = x
+        self.values = y
+        self.variances = variances
+        self.value_positions = value_positions
 
         if self.gp_initialized is True:
             self.update_fvgp()

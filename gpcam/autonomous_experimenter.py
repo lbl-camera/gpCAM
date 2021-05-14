@@ -5,7 +5,7 @@ import numpy as np
 from gpcam.gp_data import gpData
 from gpcam.gp_optimizer import GPOptimizer
 
-#todo: costs are not included, autonomous experimenter for fvgp, data class for fvgp, script that uses the config and runs the  autonomous experimenter
+#todo: autonomous experimenter for fvgp, data class for fvgp
 
 
 class AutonomousExperimenterGP():
@@ -33,6 +33,8 @@ class AutonomousExperimenterGP():
         * append_data = False: Append data or communiate entire dataset
         * compute_device = "cpu"
         * sparse = False
+        * training_dask_client = None
+        * acq_func_opt_dask_client = None
     """
     def __init__(self,
             parameter_bounds,
@@ -62,7 +64,6 @@ class AutonomousExperimenterGP():
         self.acq_func = acq_func
         self.cost_func = cost_func
         self.cost_update_func = cost_update_func
-        self.cost_func_params = cost_func_params
         self.kernel_func = kernel_func
         self.prior_mean_func = prior_mean_func
         self.run_every_iteration = run_every_iteration
@@ -94,6 +95,8 @@ class AutonomousExperimenterGP():
             gp_kernel_function = self.kernel_func,
             gp_mean_function = self.prior_mean_func,
             sparse = self.sparse)
+        #init costs
+        self._init_costs(cost_func_params)
         print("##################################################################################")
         print("Initialization successfully concluded")
         print("now train(...) or train_async(...), and then go(...)")
@@ -104,6 +107,7 @@ class AutonomousExperimenterGP():
         self.hyperparameter_bounds,
         method = method, pop_size = pop_size,
         tolerance = tol, max_iter = max_iter)
+
     def train_async(self,pop_size = 10,tol = 1e-6, max_iter = 20, dask_client = None):
         self.gp_optimizer.train_gp_async(
         self.hyperparameter_bounds,pop_size = pop_size,
@@ -118,12 +122,16 @@ class AutonomousExperimenterGP():
     def update_hps(self):
         self.gp_optimizer.update_hyperparameters()
 
+    def _init_costs(self,cost_func_params):
+        self.gp_optimizer.init_cost(self.cost_func,cost_func_params,
+                cost_update_function = self.cost_update_func)
     ###################################################################################
     def go(self, N = 1e15, breaking_error = 1e-50,
             retrain_globally_at = [100,400,1000],
             retrain_locally_at = [20,40,60,80,100,200,400,1000],
             retrain_async_at = [1000,2000,5000,10000],
             retrain_callable_at = [],
+            update_cost_func_at = [],
             acq_func_opt_setting = lambda number: "global" if number % 2 == 0 else "local",
             training_opt_callable = None,
             training_opt_max_iter = 20,
@@ -181,6 +189,7 @@ class AutonomousExperimenterGP():
                     position = current_position,
                     n = number_of_suggested_measurements,
                     acquisition_function = self.acq_func,
+                    cost_function = self.cost_func,
                     bounds = None,
                     method = acq_func_opt_setting(i),
                     pop_size = acq_func_opt_pop_size,
@@ -229,8 +238,8 @@ class AutonomousExperimenterGP():
             try: np.save('Data_'+ start_date_time, self.data.dataset)
             except Exception as e: print("Data not saved due to ", str(e))
             ###########################
-            #cost_update()
-            #self.cost_func_parameters = self.cost_update_func()
+            #cost update
+            if i in update_cost_func_at: gp_optimizer.update_cost_function(self.dataset.measurement_costs)
 
             if error < breaking_error: break
         print("====================================================")

@@ -36,8 +36,6 @@ gp ={
         "cost function": None,
         "cost update function": None,
         "cost function parameters": {"offset": 10,"slope":[2.0,2.0]},
-        "cost function optimization bounds": [[0.0,10.0],[0.0,10.0],[0.0,10.0]],
-        "cost optimization chance" : 0.1,
         "plot function": plot_function
 }
 append_data = True

@@ -131,7 +131,6 @@ class GPOptimizer(GP):
         Optional Parameters:
         --------------------
             variances (2d numpy array):         A 2d array of all the variances of the measured points
-            append:                             default = False, True/False, append data or rewrite it
 
         Returns:
         --------
@@ -271,6 +270,7 @@ class GPOptimizer(GP):
 ##############################################################
     def update_hyperparameters(self):
         GP.update_hyperparameters(self)
+        self.hyperparameters = GP.hyperparameters
         return self.hyperparameters
 
 ##############################################################
@@ -324,8 +324,7 @@ class GPOptimizer(GP):
         return {'x':np.array(maxima), "f(x)" : np.array(func_evals)}
 
 ##############################################################
-    def init_cost(self,cost_function,cost_function_parameters,
-            cost_update_function = None, cost_function_optimization_bounds = None):
+    def init_cost(self,cost_function,cost_function_parameters,cost_update_function = None):
         """
         This function initializes the costs. If used, the acquisition function will be augmented by the costs
         which leads to different suggestions
@@ -347,7 +346,6 @@ class GPOptimizer(GP):
 
         self.cost_function = cost_function
         self.cost_function_parameters = cost_function_parameters
-        self.cost_function_optimization_bounds = cost_function_optimization_bounds
         self.cost_update_function = cost_update_function
         self.consider_costs = True
         print("Costs successfully initialized")
@@ -377,9 +375,7 @@ class GPOptimizer(GP):
         print("Performing cost function update...")
         if self.cost_function_parameters is None: raise Exception("No cost function parameters specified. Please call init_cost() first.")
         self.cost_function_parameters = \
-        self.cost_update_function(measurement_costs,
-        self.cost_function_optimization_bounds,
-        self.cost_function_parameters)
+        self.cost_update_function(measurement_costs, self.cost_function_parameters)
         print("cost parameters changed to: ", self.cost_function_parameters)
 ######################################################################################
 ######################################################################################

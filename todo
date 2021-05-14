@@ -1,12 +1,10 @@
 todo:
 
 * cost function should be comunicated to ask()
-* ask() should take starting position into account for local optimizer
-* async_train_gp() --> train_gp_async()
-* Make sure that very small or large values are rescaled, probably within fvgp
 * Add examples for acquisition functions
 * Are mean and objective functions defined as X --> R, or are they vectorized? Same is true for the kernel fuctions, X x X --> R or vectorized
 * Add examples for the mean function
+* examples for cost and cost update func
 * Add great tests
 * Constrained training
 ==============================

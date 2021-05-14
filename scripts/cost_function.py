@@ -24,10 +24,11 @@ def l1_cost(origin,x,arguments = None):
 ######update functions##################
 ########################################
 
-def update_l2_cost_function(costs, bounds, parameters):
+def update_l2_cost_function(costs, parameters):
     print("Cost adjustment in progress...")
     print("old cost parameters: ",parameters)
     #print(costs)
+    bounds = ...
     #print(bounds)
     #input()
     ###remove out-liers:
