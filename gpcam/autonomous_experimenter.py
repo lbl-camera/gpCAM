@@ -2,39 +2,64 @@
 import time
 from time import strftime
 import numpy as np
-from gpcam import global_config as conf
+from gpcam.gp_data import gpData
+from gpcam.gp_optimizer import GPOptimizer
 
-from . import misc as smc
-from .data import Data
-from .gp_optimizer import GPOptimizer
-import dask.distributed
-
-
+#todo: costs are not included, autonomous experimenter for fvgp, data class for fvgp, script that uses the config and runs the  autonomous experimenter
 
 
 class AutonomousExperimenterGP():
-    def __init__(parameter_bounds,
-            init_data_size = 10,
+    """
+    class AutonomousExperimenterGP:
+    executes the autonomous loop for a single-task GP
+    use class AutonomousExperimenterfvGP for multi-task experiments
+    Parameters:
+    -----------
+        * parameter_bounds
+        * instrument_func
+        * hyperparameters
+        * hyperparameter_bounds
+    Optional Parameters:
+    --------------------
+        * init_dataset_size = None: int or None, None means you have to provide intial data
+        * acq_func = "covariance": acquisition function to be maximized in search of new measurements
+        * cost_func = None
+        * cost_update_func = None
+        * cost_func_parameters = {}
+        * kernel_func = None
+        * prior_mean_func = None
+        * run_every_iteration = None
+        * x = None, y = None, v = None: inital data can be supplied here
+        * append_data = False: Append data or communiate entire dataset
+        * compute_device = "cpu"
+        * sparse = False
+    """
+    def __init__(self,
+            parameter_bounds,
             instrument_func,
             hyperparameters,
             hyperparameter_bounds,
-            acq_func = None,
+            init_dataset_size = None,
+            acq_func = "covariance",
             cost_func = None,
             cost_update_func = None,
             cost_func_params = {},
             kernel_func = None,
             prior_mean_func = None,
             run_every_iteration = None,
-            x = None, y = None, v = None,
-            append_data = False
+            x = None, y = None, v = None, dataset = None,
+            append_data = False,
             compute_device = "cpu",
-            sparse = False
+            sparse = False,
+            training_dask_client = None,
+            acq_func_opt_dask_client = None
             ):
+        self.parameter_bounds = parameter_bounds
         self.dim = len(parameter_bounds)
         self.instrument_func = instrument_func
-        self.init_data_size = init_data_size
         self.hyperparameters = hyperparameters
         self.hyperparameter_bounds = hyperparameter_bounds
+        self.acq_func = acq_func
         self.cost_func = cost_func
         self.cost_update_func = cost_update_func
         self.cost_func_params = cost_func_params
@@ -45,39 +70,51 @@ class AutonomousExperimenterGP():
         self.append = append_data
         self.sparse = sparse
         self.async_train = False
-        if x is None or y is None:
-            self.x = self._create_random_data()
-            self.y, self.v = self.instrument_func(self.x)
+        self.training_dask_client = training_dask_client
+        self.acq_func_opt_dask_client = acq_func_opt_dask_client
+        #getting the data ready
+        if init_dataset_size is None and x is None:
+            raise Exception("Either provide length of initial data or an inital dataset")
+        self.data = gpData(self.dim, self.parameter_bounds,self.instrument_func,init_dataset_size,self.append)
+        if (x is None or y is None) and dataset is None:
+            self.data.create_random_init_dataset()
+        elif (x is None or y is None) and dataset is not None:
+            self.data.comm_init_dataset(list(np.load(dataset, allow_pickle = True)))
+            self.hyperparameters = self.data.dataset[-1]["hyperparameters"]
         else:
-            self.x = x
-            self.y = y
-            self.v = v
+            self.data.comm_init_data(self.data.translate2data(x,y,v))
+        self.x = self.data.x
+        self.y = self.data.y
+        self.v = self.data.v
+        self.init_dataset_size = len(self.x)
+        ######################
         self.gp_optimizer = GPOptimizer(self.dim,parameter_bounds)
-        gp_optimizer.tell(self.x,
-            self.y,variances = self.v,
-            append = self.data)
-        gp_optimizer.init_gp(self.hyperparameters,compute_device = self.compute_device,
+        self.gp_optimizer.tell(self.x, self.y,variances = self.v)
+        self.gp_optimizer.init_gp(self.hyperparameters,compute_device = self.compute_device,
             gp_kernel_function = self.kernel_func,
             gp_mean_function = self.prior_mean_func,
             sparse = self.sparse)
-        self.data = gpData(self.dim, self.instrument_func)
-    print("##################################################################################")
-    print("Initialization successfully concluded")
-    print("now train(...) or train_async(...), and then go(...)")
-    print("##################################################################################")
+        print("##################################################################################")
+        print("Initialization successfully concluded")
+        print("now train(...) or train_async(...), and then go(...)")
+        print("##################################################################################")
     ###################################################################################
-    def train(self,pop_size,tol,max_iter, method = "global", dask_client = None):
-        gp_optimizer.train_gp(
-        self.hyperparameter_bounds,method,pop_size,tol,max_iter,dask_client
-        )
-    def train_async(self,pop_size,tol,max_iter, dask_client = None):
+    def train(self,pop_size = 10,tol = 1e-6, max_iter = 20, method = "global"):
+        self.gp_optimizer.train_gp(
+        self.hyperparameter_bounds,
+        method = method, pop_size = pop_size,
+        tolerance = tol, max_iter = max_iter)
+    def train_async(self,pop_size = 10,tol = 1e-6, max_iter = 20, dask_client = None):
         self.gp_optimizer.train_gp_async(
-        self.hyperparameter_bounds,pop_size,tol,max_iter,dask_client
+        self.hyperparameter_bounds,pop_size = pop_size,
+        tolerance = tol,max_iter = max_iter,
+        dask_client = dask_client
         )
         self.async_train = True
-    def kill_training(self)
+    def kill_training(self):
         self.gp_optimizer.stop_async_train()
         self.async_train = False
+
     def update_hps(self):
         self.gp_optimizer.update_hyperparameters()
 
@@ -86,9 +123,9 @@ class AutonomousExperimenterGP():
             retrain_globally_at = [100,400,1000],
             retrain_locally_at = [20,40,60,80,100,200,400,1000],
             retrain_async_at = [1000,2000,5000,10000],
-            acq_func_opt_settings = ,
-            training_opt = "global",
-            acq_func_opt = "global",
+            retrain_callable_at = [],
+            acq_func_opt_setting = lambda number: "global" if number % 2 == 0 else "local",
+            training_opt_callable = None,
             training_opt_max_iter = 20,
             training_opt_pop_size = 10,
             training_opt_tol      = 1e-6,
@@ -97,9 +134,6 @@ class AutonomousExperimenterGP():
             acq_func_opt_tol      = 1e-6,
             acq_func_opt_tol_adjust = [True,0.1],
             number_of_suggested_measurements = 1,
-            sparse = False,
-            training_dask_client = None,
-            acq_func_opt_dask_client = None
             ):
         """
         function to start the autonomous-data-acquisition loop
@@ -110,9 +144,9 @@ class AutonomousExperimenterGP():
             * retrain_globally_at = [100,400,1000]
             * retrain_locally_at = [20,40,60,80,100,200,400,1000]
             * retrain_async_at = [1000,2000,5000,10000]
-            * search_settings = when global, local, hgdl, other
-            * training_opt = "global", local, hgdl, callable
-            * acq_func_opt = "global", local, hgdl, callable
+            * retrain_callable = []: if this is not an empty list, "training_opt_callable" has to be provided
+            * search_setting = lambda function to decide when global, local, hgdl, other ask()
+            * training_opt_callable = None, callable
             * training_opt_max_iter = 20
             * training_opt_pop_size = 10
             * training_opt_tol      = 1e-6
@@ -129,73 +163,80 @@ class AutonomousExperimenterGP():
         start_time = time.time()
         start_date_time = strftime("%Y-%m-%d_%H_%M_%S", time.localtime())
         print("Date and time:       ", start_date_time)
-        
-        for i in range(N):
+
+        for i in range(len(self.x),int(N)):
             n_measurements = len(self.x)
+            print("")
+            print("")
+            print("")
             print("====================")
             print("====================")
             print("iteration: ",i)
-            print("Run Time: ", time.time() - self.start_time, "     seconds")
+            print("Run Time: ", time.time() - start_time, "     seconds")
             print("Number of measurements: ", n_measurements)
             print("====================")
             #ask() for new suggestions
-            current_position = x[-1]
-            res = gp_optimizer.ask(
+            current_position = self.x[-1]
+            res = self.gp_optimizer.ask(
                     position = current_position,
                     n = number_of_suggested_measurements,
-                    acquisition_function = conf.gaussian_processes[gp_idx]["acquisition function"],
+                    acquisition_function = self.acq_func,
                     bounds = None,
-                    method = ofom,
-                    pop_size = conf.acquisition_function_optimization_population_size,
-                    max_iter = conf.acquisition_function_optimization_max_iter, 
-                    tol = opt_tol[gp_idx],
-                    dask_client = prediction_dask_client)
+                    method = acq_func_opt_setting(i),
+                    pop_size = acq_func_opt_pop_size,
+                    max_iter = acq_func_opt_max_iter,
+                    tol = acq_func_opt_tol,
+                    dask_client = self.acq_func_opt_dask_client)
             #########################
             next_measurement_points = res["x"]
             func_evals = res["f(x)"]
-            post_var = gp_optimizer.posterior_covariance(next_measurement_points[gp_idx])
-            error = np.max(post_var[gp_idx]["v(x)"])
-            if acq_func_opt_tol_adjust[0]: 
+            post_var = self.gp_optimizer.posterior_covariance(next_measurement_points)
+            error = np.max(post_var["v(x)"])
+            if acq_func_opt_tol_adjust[0]:
                 acq_func_opt_tol = abs(func_evals[0]) * acq_func_opt_tol_adjust[1]
                 print("variance optimization tolerance of changed to: ", acq_func_opt_tol)
             print("Next points to be requested: ")
             print(next_measurement_points)
             #update and tell() new data
-            self.x,self.y.self.v = self.data.update_data(next_measurement_points,
-                                   post_var,gp_optimizer.hyperparameters)
+            self.x,self.y, self.v = self.data.add_data_points(next_measurement_points,
+                                   post_var,self.gp_optimizer.hyperparameters)
+            self.gp_optimizer.tell(self.x, self.y,variances = self.v)
             ###########################
             #train()
-            if len(self.x) in retrain_async_at: self.train_async()
-            elif: len(self.x) in retrain_globally:
+            if len(self.x) in retrain_async_at:
+                self.kill_training()
+                self.train_async(training_opt_pop_size = 10,training_opt_tol = 1e-6, 
+                                 training_opt_max_iter = 20, dask_client = self.training_dask_client)
+            elif len(self.x) in retrain_globally_at:
+                self.kill_training()
                 print("Fresh optimization from scratch via global optimization")
-                gp_optimizers.stop_async_train()
-                self.train(pop_size,training_opt_tol,max_iter, method = "global", dask_client = None):
-                gp_optimizer.train_gp(
-                self.hyperparameter_bounds,method,pop_size,tol,max_iter,dask_client
-                )
-
-                self.train(method = "global")
-
-            elif: len(self.x) in retarin_locally: self.train(method = "local")
-            else: print("No training in this round")
+                self.train(training_opt_pop_size = 10,training_opt_tol = 1e-6,
+                                 training_opt_max_iter = 20, method = "global")
+            elif len(self.x) in retrain_locally_at:
+                self.kill_training()
+                print("Fresh optimization from scratch via global optimization")
+                self.train(training_opt_pop_size = 10,training_opt_tol = 1e-6,
+                                 training_opt_max_iter = 20, method = "local")
+            elif len(self.x) in retrain_callable_at:
+                self.kill_training()
+                print("Fresh optimization from scratch via global optimization")
+                self.train(training_opt_pop_size = 10,training_opt_tol = 1e-6,
+                                 training_opt_max_iter = 20, method = training_opt)
+            else:
+                self.update_hps()
+                print("No training in this round but I tried and update the hyperparameters")
+            ###save some data
+            try: np.save('Data_'+ start_date_time, self.data.dataset)
+            except Exception as e: print("Data not saved due to ", str(e))
             ###########################
             #cost_update()
-            self.cost_func_parameters = self.cost_update_func()
+            #self.cost_func_parameters = self.cost_update_func()
 
             if error < breaking_error: break
         print("====================================================")
         print("The autonomous experiment was concluded successfully")
         print("====================================================")
     ###################################################################################
-    def _create_random_x(self):
-        return np.linalg.uniform(low = self.parameter_bounds[:,0],
-                                 high =self.parameter_bounds[:,1],
-                                 size = self.dim)
-    def _create_random_points(self):
-        x = np.empty((self.init_data_size,self.dim))
-        for i in range(len(self.init_data_size)):
-            x[i,:] = data_create_random_x()
-        return x
     ###################################################################################
 
 

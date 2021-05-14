@@ -30,17 +30,13 @@ import zlib
 def synthetic_function(data):
     for idx_data in range(len(data)):
         if data[idx_data]["measured"] == True: continue
-        gp_idx = data[idx_data]["function name"]
-        x1 = data[idx_data]["position"]["x1"]
-        x2 = data[idx_data]["position"]["x2"]
-        data[idx_data]["measurement values"]["values"] = np.array(
-        [himmel_blau([x1, x2])]
-        )
+        x1 = data[idx_data]["position"][0]
+        x2 = data[idx_data]["position"][1]
+        data[idx_data]["value"] = himmel_blau([x1, x2])
         data[idx_data]["cost"] = {"origin": np.random.uniform(low=0.0, high=1.0, size = 2),
                                      "point": np.random.uniform(low=0.0, high=1.0, size = 2),
                                      "cost": np.random.uniform(low=0.0, high=1.0)}
-        data[idx_data]["measurement values"]["variances"] = np.array([0.01])
-        data[idx_data]["measurement values"]["value positions"] = np.array([[0]])
+        data[idx_data]["variance"] = 0.01
         data[idx_data]["measured"] = True
         data[idx_data]["time stamp"] = time.time()
     return data
@@ -79,71 +75,6 @@ def comm_via_zmq(data):
 #################################################
 ############send data in files###################
 #################################################
-def send_data_as_files(data):
-    path_new_command = "../data/command/"
-    path_new_result = "../data/result/"
-    while os.path.isfile(path_new_command + "command.npy"):
-        time.sleep(1)
-        print("Waiting for experiment device to read and subsequently delete last command.")
-
-    write_success = False
-    read_success = False
-    while write_success == False:
-        try:
-            np.save(path_new_command + "command", data)
-            np.save(path_new_command + "command_bak", data)
-            write_success = True
-            print("Successfully send data set of length ",len(data)," to experiment device")
-        except:
-            time.sleep(1)
-            print("Saving new experiment command file not successful, trying again...")
-            write_success = False
-    while read_success == False:
-        try:
-            new_data = np.load(
-                path_new_result + "result.npy", encoding="ASCII", allow_pickle=True
-            )
-            read_success = True
-            print("Successfully received data set of length ",len(new_data)," from experiment device")
-            copyfile(path_new_result + "result.npy",path_new_result + "result_bak.npy")
-            os.remove(path_new_result + "result.npy")
-        except:
-            print("New measurement values have not been written yet.")
-            print("exception: ", sys.exc_info()[0])
-            time.sleep(1)
-            read_success = False
-    return list(new_data)
-
-
-
-#################################################
-############interpolate existing data############
-#################################################
-def interpolate_experiment_data(data):
-    space_dim = 4
-    File = ""
-    method = ""
-    interpolate_data_array = np.load(File)
-    p = interpolate_data_array[:, 0 : space_dim]
-    m = interpolate_data_array[:,space_dim]
-    asked_points = np.zeros((len(data),space_dim))
-    for idx_data in range(len(data)):
-        index = 0
-        for key in data[idx_data]["position"].keys():
-            asked_points[idx_data][index] = data[idx_data]["position"][key]
-            index += 1
-    res = griddata(p, m, asked_points, method=method, fill_value=0)
-    for idx_data in range(len(data)):
-        for key in data[idx_data]["position"].keys():
-            data[idx_data]["measurement values"]["values"] = np.array([res[idx_data]])
-            data[idx_data]["measurement values"]["variances"] = np.array([0.0000])
-            data[idx_data]["measurement values"]["value positions"] = np.array([[0]])
-        data[idx_data]["cost"] = 0.0
-        data[idx_data]["measured"] = True
-        data[idx_data]["time stamp"] = time.time()
-        data[idx_data]["meta data"] = None
-    return data
-
 ###################################################
 ####predefined test function#######################
 ###################################################

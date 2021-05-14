@@ -117,7 +117,7 @@ class GPOptimizer(GP):
             print("Error Message:")
             print(str(a))
 
-    def tell(self, x, y, variances=None, append=False):
+    def tell(self, x, y, variances=None):
         """
         This function can tell() the gp_optimizer class
         the data that was collected. The data will instantly be use to update the gp_data
@@ -137,25 +137,9 @@ class GPOptimizer(GP):
         --------
             no returns
         """
-        ######create the current data
-
-        if len(x) != len(y):
-            raise Exception("Length of x and y has to be the same!")
-        if append:
-            if self.variances != variances.shape:
-                raise Exception("Shape of variance array not correct!")
-            if self.points.shape != x.shape:
-                raise Exception("Shape of points array not correct!")
-            if self.values.shape != y.shape:
-                raise Exception("Shape of values array not correct!")
-
-            self.points = np.vstack([self.points, x])
-            self.values = np.vstack([self.values, y])
-            self.variances = np.vstack([self.variances, variances])
-        else:
-            self.points = x
-            self.values = y
-            self.variances = variances
+        self.points = x
+        self.values = y
+        self.variances = variances
 
         if self.gp_initialized is True:
             self.update_gp()
@@ -260,7 +244,6 @@ class GPOptimizer(GP):
             tolerance:      tolerance for termination, default = 1e-6
             max_iter:       maximum number of iterations, default = 120
         """
-
         if self.gp_initialized is False:
             raise Exception("No GP to be trained. Please call init_gp(...) before training.")
         self.train(

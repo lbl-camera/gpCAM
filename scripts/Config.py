@@ -7,27 +7,19 @@ import dask.distributed
 ###############################
 ###General#####################
 ###############################
-parameters = {
-    "x1": {
-        "element interval": [-5,5],  ####either an interval, several intervals or discrete points
-    },
-    "x2": {
-        "element interval": [-5,5],
-    },
-}
+parameters = np.array([[-5,5],[-10,10]])
 
 
-from data_acquisition_functions import synthetic_function, send_data_as_files
-from acquisition_function_definition import exploration, upper_confidence_bounds
-from mean_functions import example_mean
-from cost_function_definition import l1_cost
-from cost_function_definition import update_l1_cost_function
-from kernel_definition import kernel_l2_single_task,kernel_l2_multi_task, symmetric_kernel2,non_stat_kernel_2d,periodic_kernel_2d
-from run_in_every_iteration import write_vtk_file
-from plotting_functions import plot_function
+from instrument_function import synthetic_function
+from acquisition_function import exploration, upper_confidence_bounds
+from mean_function import example_mean
+from cost_function import l1_cost
+from cost_function import update_l1_cost_function
+from kernel_function import kernel_l2_single_task,kernel_l2_multi_task, symmetric_kernel2,non_stat_kernel_2d,periodic_kernel_2d
+from run_every_iteration import write_vtk_file
+from plotting_function import plot_function
 
-gaussian_processes = {
-    "model_1": {
+gp ={
         "kernel function": None,
         #"kernel function": kernel_l2_multi_task,
         "hyperparameters": [1.0,1.0,1.0],
@@ -47,10 +39,8 @@ gaussian_processes = {
         "cost function optimization bounds": [[0.0,10.0],[0.0,10.0],[0.0,10.0]],
         "cost optimization chance" : 0.1,
         "plot function": plot_function
-    },
-    ##definition of more gps here if desired
 }
-
+append_data = True
 breaking_error = 1e-12
 automatic_signal_variance_range_determination = True
 ########################################
@@ -80,7 +70,7 @@ prediction_dask_client = None  #None/False/client
 ###############################
 ###DATA ACQUISITION############
 ###############################
-initial_data_set_size = 20
+initial_dataset_size = 20
 max_number_of_measurements = 100
 
 #####################################################################

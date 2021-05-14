@@ -1,6 +1,5 @@
 import random
 import numpy as np
-from gpcam import global_config as conf
 import math
 import os
 import re, os.path

@@ -219,4 +219,53 @@
                 dask_client = dask_client)
         return {'x':np.array(maxima), "f(x)" : np.array(func_evals)}
 
+def send_data_as_files(data):
+    path_new_command = "../data/command/"
+    path_new_result = "../data/result/"
+    while os.path.isfile(path_new_command + "command.npy"):
+        time.sleep(1)
+        print("Waiting for experiment device to read and subsequently delete last command.")
 
+    write_success = False
+    read_success = False
+    while write_success == False:
+        try:
+            np.save(path_new_command + "command", data)
+            np.save(path_new_command + "command_bak", data)
+            write_success = True
+            print("Successfully send data set of length ",len(data)," to experiment device")
+        except:
+            time.sleep(1)
+            print("Saving new experiment command file not successful, trying again...")
+            write_success = False
+    while read_success == False:
+        try:
+            new_data = np.load(
+                path_new_result + "result.npy", encoding="ASCII", allow_pickle=True
+            )
+            read_success = True
+            print("Successfully received data set of length ",len(new_data)," from experiment device")
+            copyfile(path_new_result + "result.npy",path_new_result + "result_bak.npy")
+            os.remove(path_new_result + "result.npy")
+        except:
+            print("New measurement values have not been written yet.")
+            print("exception: ", sys.exc_info()[0])
+            time.sleep(1)
+            read_success = False
+    return list(new_data)
+
+
+
+#################################################
+############interpolate existing data############
+#################################################
+def interpolate_experiment_data(data):
+    space_dim = 4
+    File = ""
+    method = ""
+    interpolate_data_array = np.load(File)
+    p = interpolate_data_array[:, 0 : space_dim]
+    m = interpolate_data_array[:,space_dim]
+    asked_points = np.zeros((len(data),space_dim))
+    for idx_data in range(len(data)):
+        index = 0
