@@ -91,14 +91,14 @@ class gpData:
             new_data = self.function(new_data)
             self.dataset = self.dataset + new_data
     ###############################################################
-    def data2npy(self,data_entry):
-        """
-        takes an entry in the data list and returns point, val,var
-        """
-        x = data_entry["position"]
-        y = data_entry["value"]
-        v = data_entry["variance"]
-        return x,y,v
+    #def data2npy(self,data_entry):
+    #    """
+    #    takes an entry in the data list and returns point, val,var
+    #    """
+    #    x = data_entry["position"]
+    #    y = data_entry["value"]
+    #    v = data_entry["variance"]
+    #    return x,y,v
     ###############################################################
     ###############################################################
     ###Printing####################################################

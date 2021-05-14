@@ -89,7 +89,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
         return res
 
 
-    def tell(self, x, y, variances=None, value_positions=None, append=False):
+    def tell(self, x, y, variances=None, value_positions=None):
         """
         This function can tell() the gp_optimizer class
         the data that was collected. The data will instantly be use to update the gp_data
@@ -184,6 +184,3 @@ class fvGPOptimizer(fvGP, GPOptimizer):
             value_positions = self.value_positions,
             variances = self.variances)
 
-######################################################################################
-######################################################################################
-######################################################################################

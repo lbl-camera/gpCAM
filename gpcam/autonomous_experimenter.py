@@ -249,5 +249,73 @@ class AutonomousExperimenterGP():
     ###################################################################################
 
 
-#class AutonomousExperimenterfvGP():
+class AutonomousExperimenterfvGP(AutonomousExperimenterGP):
+    def __init__(self,
+            parameter_bounds,
+            instrument_func,
+            hyperparameters,
+            hyperparameter_bounds,
+            init_dataset_size = None,
+            acq_func = "covariance",
+            cost_func = None,
+            cost_update_func = None,
+            cost_func_params = {},
+            kernel_func = None,
+            prior_mean_func = None,
+            run_every_iteration = None,
+            x = None, y = None, v = None, vp = None, dataset = None,
+            append_data = False,
+            compute_device = "cpu",
+            sparse = False,
+            training_dask_client = None,
+            acq_func_opt_dask_client = None
+            ):
+        self.parameter_bounds = parameter_bounds
+        self.dim = len(parameter_bounds)
+        self.instrument_func = instrument_func
+        self.hyperparameters = hyperparameters
+        self.hyperparameter_bounds = hyperparameter_bounds
+        self.acq_func = acq_func
+        self.cost_func = cost_func
+        self.cost_update_func = cost_update_func
+        self.kernel_func = kernel_func
+        self.prior_mean_func = prior_mean_func
+        self.run_every_iteration = run_every_iteration
+        self.compute_device = compute_device
+        self.append = append_data
+        self.sparse = sparse
+        self.async_train = False
+        self.training_dask_client = training_dask_client
+        self.acq_func_opt_dask_client = acq_func_opt_dask_client
+        #getting the data ready
+        if init_dataset_size is None and x is None:
+            raise Exception("Either provide length of initial data or an inital dataset")
+        self.data = fvgpData(self.dim, self.parameter_bounds,self.instrument_func,init_dataset_size,self.append)
+        if (x is None or y is None) and dataset is None:
+            self.data.create_random_init_dataset()
+        elif (x is None or y is None) and dataset is not None:
+            self.data.comm_init_dataset(list(np.load(dataset, allow_pickle = True)))
+            self.hyperparameters = self.data.dataset[-1]["hyperparameters"]
+        else:
+            self.data.comm_init_data(self.data.translate2data(x,y,v,vp))
+        self.x = self.data.x
+        self.y = self.data.y
+        self.v = self.data.v
+        self.vp = self.data.v
+        self.init_dataset_size = len(self.x)
+        ######################
+        self.fvgp_optimizer = GPOptimizer(self.dim,parameter_bounds)
+        self.fvgp_optimizer.tell(self.x, self.y,variances = self.v,value_positions = self.vp)
+        self.fvgp_optimizer.init_fvgp(self.hyperparameters,compute_device = self.compute_device,
+            gp_kernel_function = self.kernel_func,
+            gp_mean_function = self.prior_mean_func,
+            sparse = self.sparse)
+        #init costs
+        self._init_costs(cost_func_params)
+        print("##################################################################################")
+        print("Initialization successfully concluded")
+        print("now train(...) or train_async(...), and then go(...)")
+        print("##################################################################################")
+
+
 #class AutonomousExperimenterEnsembleGP():
