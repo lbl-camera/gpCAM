@@ -2,8 +2,10 @@
 import time
 from time import strftime
 import numpy as np
-from gpcam.gp_data import gpData
+from gpcam.data import gpData
+from gpcam.data import fvgpData
 from gpcam.gp_optimizer import GPOptimizer
+from gpcam.fvgp_optimizer import fvGPOptimizer
 
 #todo: autonomous experimenter for fvgp, data class for fvgp
 
@@ -233,7 +235,7 @@ class AutonomousExperimenterGP():
                                  training_opt_max_iter = 20, method = training_opt)
             else:
                 self.update_hps()
-                print("No training in this round but I tried and update the hyperparameters")
+                print("No training in this round but I tried to update the hyperparameters")
             ###save some data
             try: np.save('Data_'+ start_date_time, self.data.dataset)
             except Exception as e: print("Data not saved due to ", str(e))
@@ -245,13 +247,20 @@ class AutonomousExperimenterGP():
         print("====================================================")
         print("The autonomous experiment was concluded successfully")
         print("====================================================")
-    ###################################################################################
-    ###################################################################################
+
+###################################################################################
+###################################################################################
+###################################################################################
+###################################################################################
+###################################################################################
+###################################################################################
 
 
 class AutonomousExperimenterfvGP(AutonomousExperimenterGP):
     def __init__(self,
             parameter_bounds,
+            output_number,
+            output_dim,
             instrument_func,
             hyperparameters,
             hyperparameter_bounds,
@@ -290,7 +299,8 @@ class AutonomousExperimenterfvGP(AutonomousExperimenterGP):
         #getting the data ready
         if init_dataset_size is None and x is None:
             raise Exception("Either provide length of initial data or an inital dataset")
-        self.data = fvgpData(self.dim, self.parameter_bounds,self.instrument_func,init_dataset_size,self.append)
+        self.data = fvgpData(self.dim, self.parameter_bounds,self.instrument_func,init_dataset_size,
+                output_number = output_number, output_dim = output_dim, append = self.append)
         if (x is None or y is None) and dataset is None:
             self.data.create_random_init_dataset()
         elif (x is None or y is None) and dataset is not None:
@@ -304,9 +314,9 @@ class AutonomousExperimenterfvGP(AutonomousExperimenterGP):
         self.vp = self.data.v
         self.init_dataset_size = len(self.x)
         ######################
-        self.fvgp_optimizer = GPOptimizer(self.dim,parameter_bounds)
-        self.fvgp_optimizer.tell(self.x, self.y,variances = self.v,value_positions = self.vp)
-        self.fvgp_optimizer.init_fvgp(self.hyperparameters,compute_device = self.compute_device,
+        self.gp_optimizer = fvGPOptimizer(self.dim,output_dim,output_number,parameter_bounds,)
+        self.gp_optimizer.tell(self.x, self.y,variances = self.v,value_positions = self.vp)
+        self.gp_optimizer.init_fvgp(self.hyperparameters,compute_device = self.compute_device,
             gp_kernel_function = self.kernel_func,
             gp_mean_function = self.prior_mean_func,
             sparse = self.sparse)

@@ -180,6 +180,7 @@ class GPOptimizer(GP):
             )
             self.gp_initialized = True
             self.hyperparameters = np.array(init_hyperparameters)
+            print("GP successfully initiated")
 
 ##############################################################
     def update_gp(self):
@@ -212,6 +213,8 @@ class GPOptimizer(GP):
             tolerance:      tolerance for termination, default = 1e-6
             max_iter:       maximum number of iterations, default = 10000
             dask_client:                            a DASK client, see dask package docs for explanation
+        Return:
+            Nothing, call update_hyperparameters() for the result
         """
         if self.gp_initialized is False:
             raise Exception("No GP to be trained. Please call init_gp(...) before training.")
@@ -223,7 +226,6 @@ class GPOptimizer(GP):
                 max_iter = max_iter,
                 dask_client = dask_client
                 )
-        return self.hyperparameters
 
 ##############################################################
     def train_gp(self,hyperparameter_bounds,
@@ -269,8 +271,7 @@ class GPOptimizer(GP):
 
 ##############################################################
     def update_hyperparameters(self):
-        GP.update_hyperparameters(self)
-        self.hyperparameters = GP.hyperparameters
+        self.hyperparameters = GP.update_hyperparameters(self)
         return self.hyperparameters
 
 ##############################################################

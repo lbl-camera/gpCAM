@@ -31,15 +31,6 @@ def multi_start_gradient_descent(
         max_index = np.argmax(Evaluations)
     return OptimaList[max_index], Evaluations[max_index]
 
-def differential_evolution(ObjectiveFunction, bounds, tol, popsize, max_iter = 100, 
-        origin = None, gp = None, acquisition_function = None, cost_function = None, cost_function_parameters = None):
-    fun =  partial(ObjectiveFunction, gp = gp, acquisition_function = acquisition_function, origin = origin,
-            cost_function = cost_function, cost_function_parameters = cost_function_parameters)
-    res = devo(
-        fun, bounds, tol=tol, disp=True, maxiter=max_iter, popsize=popsize, polish=False
-    )
-    return [list(res["x"])], list([res["fun"]])
-
 
 def compute_population_acquisition(Population, ObjectiveFunction, *args):
     ObjectiveFunctionEvaluation = np.zeros((len(Population)))

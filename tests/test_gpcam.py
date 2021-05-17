@@ -17,7 +17,7 @@ def ac_func1(x,obj):
 class TestgpCAM(unittest.TestCase):
     """Tests for `gpcam` package."""
 
-    def setUp(self):
+    def setUp(self,dim = 2):
         """Set up test fixtures, if any."""
         x = np.random.rand(100,dim)
         y = np.sin(x[:,0])

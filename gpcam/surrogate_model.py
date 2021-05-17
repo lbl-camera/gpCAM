@@ -3,8 +3,9 @@ import random
 import numpy as np
 import itertools
 import matplotlib.pyplot as plt
-from  .optimization import differential_evolution
 from scipy.optimize import minimize
+from functools import partial
+from scipy.optimize import differential_evolution as devo
 
 
 def evaluate_acquisition_function(x, gp, acquisition_function,origin = None,
@@ -162,6 +163,15 @@ def find_acquisition_function_maxima(gp,acquisition_function,
 ############################################################
 ############################################################
 ############################################################
+def differential_evolution(ObjectiveFunction, bounds, tol, popsize, max_iter = 100, 
+        origin = None, gp = None, acquisition_function = None, cost_function = None, cost_function_parameters = None):
+    fun =  partial(ObjectiveFunction, gp = gp, acquisition_function = acquisition_function, origin = origin,
+            cost_function = cost_function, cost_function_parameters = cost_function_parameters)
+    res = devo(
+        fun, bounds, tol=tol, disp=True, maxiter=max_iter, popsize=popsize, polish=False
+    )
+    return [list(res["x"])], list([res["fun"]])
+
 
 def normed_gaussian_function(x, mean, sigma2):
     return (1.0 / np.sqrt(2.0 * np.pi * sigma2)) * np.exp(
