@@ -78,17 +78,17 @@ class AutonomousExperimenterGP():
         #getting the data ready
         if init_dataset_size is None and x is None:
             raise Exception("Either provide length of initial data or an inital dataset")
-        self.data = gpData(self.dim, self.parameter_bounds,self.instrument_func,init_dataset_size,self.append)
+        self.data = gpData(self.dim, self.parameter_bounds,self.instrument_func)
         if (x is None or y is None) and dataset is None:
-            self.data.create_random_init_dataset()
+            self.data.create_random_init_dataset(init_dataset_size)
         elif (x is None or y is None) and dataset is not None:
-            self.data.comm_init_dataset(list(np.load(dataset, allow_pickle = True)))
+            self.data.inject_dataset(list(np.load(dataset, allow_pickle = True)))
             self.hyperparameters = self.data.dataset[-1]["hyperparameters"]
-        else:
-            self.data.comm_init_data(self.data.translate2data(x,y,v))
-        self.x = self.data.x
-        self.y = self.data.y
-        self.v = self.data.v
+            if self.data.nan_in_datset(): clean_data_NaN()
+        elif x is not None and y is not None:
+            self.data.inject_arrays(x,y,v)
+        else: raise Exception("No viable option for data given!")
+        self.x, self.y, self.v, self.t, self.c = self.data.extract_data()
         self.init_dataset_size = len(self.x)
         ######################
         self.gp_optimizer = GPOptimizer(self.dim,parameter_bounds)
@@ -211,6 +211,8 @@ class AutonomousExperimenterGP():
             #update and tell() new data
             self.x,self.y, self.v = self.data.add_data_points(next_measurement_points,
                                    post_var,self.gp_optimizer.hyperparameters)
+            self.inject_arrays(next_measurement_points)
+            self.x, self.y, self.v, self.t, self.c = self.data.extract_data()
             self.gp_optimizer.tell(self.x, self.y,variances = self.v)
             ###########################
             #train()
@@ -241,7 +243,7 @@ class AutonomousExperimenterGP():
             except Exception as e: print("Data not saved due to ", str(e))
             ###########################
             #cost update
-            if i in update_cost_func_at: gp_optimizer.update_cost_function(self.dataset.measurement_costs)
+            if i in update_cost_func_at: gp_optimizer.update_cost_function(self.c)
 
             if error < breaking_error: break
         print("====================================================")

@@ -11,48 +11,39 @@ import time
 import datetime
 
 class gpData:
-    def __init__(self, dim, parameter_bounds, function, init_dataset_size = None, output_number = None, output_dim = None, append = False):
+    """
+    Data Class
+
+    dataset is a list of dictionaries
+    data arrays are numpy arrays
+    """
+    def __init__(self, dim, parameter_bounds, function, output_number = None, output_dim = None):
         self.function = function
         self.dim = dim
         self.parameter_bounds = parameter_bounds
-        self.init_dataset_size = init_dataset_size
-        self.append = append
         self.dataset = []
         self.output_number = output_number
         self.output_dim =output_dim
 
     ###############################################################
     #either create random data or commubicate a data set (use translate2data for numpy arrays)
-    def create_random_init_dataset(self):
-        self.x = self._create_random_points()
+    def create_random_data(self, length):
+        """
+        creates random data of "length" and creates a dataset
+        """
+        self.x = self._create_random_points(length)
         self.point_number = len(self.x)
-        self.x, self.y, self.v = self.add_data_points(self.x)
+        self.inject_arrays(self.x)
 
-    def comm_init_dataset(self,data):
-        self.dataset = data
-        self.point_number = len(data)
-        self.x = self.extract_points_from_data()
-        self.y = self.extract_values_from_data()
-        self.v = self.extract_variances_from_data()
-        self.times = self.extract_times_from_data()
-        self.measurement_costs = self.extract_costs_from_data()
+    def inject_dataset(self,dataset, append = False):
+        """
+        takes a dataset and may append it to existing dataset
+        """
+        if append: self.dataset = self.dataset + dataset
+        else: self.dataset = dataset
+        self.point_number = len(self.dataset)
 
-    ###############################################################
-    def add_data_points(self, new_points, post_var = None, hps = None):
-        """
-        adds points to data and asks the instrument to get values and variances
-        """
-        new_data_list = self.translate2data(new_points,post_var = post_var, hps = hps)
-        self._get_data_from_instrument(new_data_list, self.append)
-        self.dataset = self.clean_data_NaN(self.dataset)
-        self.x = self.extract_points_from_data()
-        self.y = self.extract_values_from_data()
-        self.v = self.extract_variances_from_data()
-        self.times = self.extract_times_from_data()
-        self.measurement_costs = self.extract_costs_from_data()
-        return self.x, self.y, self.v   
-    ###############################################################
-    def translate2data(self, x, y = None, v = None, post_var = None ,hps = None):
+    def inject_arrays(self, x, y = None, v = None, append = False):
         """
         translates numpy arrays to the data format
         """
@@ -61,9 +52,46 @@ class gpData:
             data.append(self.npy2data(x[i],post_var,hps))
             if y is not None: data[i]["value"] = y[i]
             if v is not None: data[i]["variance"] = v[i]
-        return data
+        if append: self.dataset = self.dataset + data
+        else: self.dataset = data
     ###############################################################
-    def npy2data(self, x,post_var = None, hps = None, cost = None):
+    def extract_data(self):
+        x = self.extract_points_from_data()
+        y = self.extract_values_from_data()
+        v = self.extract_variances_from_data()
+        t = self.extract_times_from_data()
+        c = self.extract_costs_from_data()
+        return x,y,v,t,c
+    ###############################################################
+    def collect_data(self, dataset):
+        return self.function(dataset)
+
+    #def add_data_points(self, new_points, post_var = None, hps = None):
+    #    """
+    #    adds points to data and asks the instrument to get values and variances
+    #    """
+    #    new_data_list = self.translate2data(new_points,post_var = post_var, hps = hps)
+    #    self._get_data_from_instrument(new_data_list, self.append)
+    #    self.dataset = self.clean_data_NaN(self.dataset)
+    #    self.x = self.extract_points_from_data()
+    #    self.y = self.extract_values_from_data()
+    #    self.v = self.extract_variances_from_data()
+    #    self.times = self.extract_times_from_data()
+    #    self.measurement_costs = self.extract_costs_from_data()
+    #    return self.x, self.y, self.v   
+    ###############################################################
+    #def translate2data(self, x, y = None, v = None, post_var = None ,hps = None):
+    #    """
+    #    translates numpy arrays to the data format
+    #    """
+    #    data = []
+    #    for i in range(len(x)):
+    #        data.append(self.npy2data(x[i],post_var,hps))
+    #        if y is not None: data[i]["value"] = y[i]
+    #        if v is not None: data[i]["variance"] = v[i]
+    #    return data
+    ###############################################################
+    def npy2dataset_entry(self, x,post_var = None, hps = None, cost = None):
         """
         parameters:
         -----------
@@ -93,7 +121,7 @@ class gpData:
             new_data = self.function(new_data)
             self.dataset = self.dataset + new_data
     ###############################################################
-    #def data2npy(self,data_entry):
+    #def dataset2array(self,data_entry):
     #    """
     #    takes an entry in the data list and returns point, val,var
     #    """
@@ -156,20 +184,26 @@ class gpData:
         return np.random.uniform(low = self.parameter_bounds[:,0],
                                  high =self.parameter_bounds[:,1],
                                  size = self.dim)
-    def _create_random_points(self):
-        x = np.empty((self.init_dataset_size,self.dim))
-        for i in range(self.init_dataset_size):
+    def _create_random_points(self, length):
+        x = np.empty((length,self.dim))
+        for i in range(length):
             x[i,:] = self._create_random_x()
         return x
     ###############################################################
     #########Cleaning##############################################
     ###############################################################
-    def clean_data_NaN(self,data):
-        for entry in data:
+    def clean_data_NaN(self):
+        for entry in self.dataset:
             if self._nan_in_dict(entry):
                 print("CAUTION, NaN detected in data")
-                data.remove(entry)
-        return data
+                self.dataset.remove(entry)
+
+    def nan_in_dataset(self):
+        for entry in self.dataset:
+            if self._nan_in_dict(entry):
+                return True
+        return False
+
 
     def _nan_in_dict(self,dictionary):
         is_nan = False
