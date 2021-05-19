@@ -17,8 +17,7 @@ class gpData:
     dataset is a list of dictionaries
     data arrays are numpy arrays
     """
-    def __init__(self, dim, parameter_bounds, function, output_number = None, output_dim = None):
-        self.function = function
+    def __init__(self, dim, parameter_bounds, output_number = None, output_dim = None):
         self.dim = dim
         self.parameter_bounds = parameter_bounds
         self.dataset = []
@@ -26,46 +25,33 @@ class gpData:
         self.output_dim =output_dim
 
     ###############################################################
-    #either create random data or commubicate a data set (use translate2data for numpy arrays)
-    def create_random_data(self, length):
+    #either create random data or communicate a data set (use translate2data for numpy arrays)
+    def create_random_dataset(self, length):
         """
         creates random data of "length" and creates a dataset
         """
         self.x = self._create_random_points(length)
         self.point_number = len(self.x)
-        self.inject_arrays(self.x)
+        self.dataset = self.inject_arrays(self.x)
 
-    def inject_dataset(self,dataset, append = False):
+    def inject_dataset(self,dataset):
         """
-        takes a dataset and may append it to existing dataset
+        initializes a previously-collected dataset
+        !!!for intitiation only!!! just use the "+" operator to update the existing dataset
         """
-        if append: self.dataset = self.dataset + dataset
-        else: self.dataset = dataset
         self.point_number = len(self.dataset)
 
-    def inject_arrays(self, x, y = None, v = None, append = False):
+    #def inject_arrays(self, x, y = None, v = None, append = False):
+    def inject_arrays(self, x):
         """
         translates numpy arrays to the data format
         """
         data = []
         for i in range(len(x)):
-            data.append(self.npy2data(x[i],post_var,hps))
-            if y is not None: data[i]["value"] = y[i]
-            if v is not None: data[i]["variance"] = v[i]
-        if append: self.dataset = self.dataset + data
-        else: self.dataset = data
+            data.append(self.npy2dataset_entry(x[i]))
+        return data
     ###############################################################
-    def extract_data(self):
-        x = self.extract_points_from_data()
-        y = self.extract_values_from_data()
-        v = self.extract_variances_from_data()
-        t = self.extract_times_from_data()
-        c = self.extract_costs_from_data()
-        return x,y,v,t,c
     ###############################################################
-    def collect_data(self, dataset):
-        return self.function(dataset)
-
     #def add_data_points(self, new_points, post_var = None, hps = None):
     #    """
     #    adds points to data and asks the instrument to get values and variances
@@ -91,35 +77,33 @@ class gpData:
     #        if v is not None: data[i]["variance"] = v[i]
     #    return data
     ###############################################################
-    def npy2dataset_entry(self, x,post_var = None, hps = None, cost = None):
+    #def npy2dataset_entry(self, x,post_var = None, hps = None, cost = None):
+    def npy2dataset_entry(self, x):
         """
         parameters:
         -----------
-        x ... 1d numpy array
-        y ... float
-        v ... float
-        post_var ... float
+            x ... 1d numpy array
         """
         d = {}
         d["position"] = x
         d["value"] = None
         d["variance"] = None
-        d["cost"] = cost
+        d["cost"] = None
         d["id"] = str(uuid.uuid4())
         d["time stamp"] = time.time()
         d["date time"] = datetime.datetime.now().strftime("%d/%m/%Y_%H:%M%S")
         d["measured"] = False
-        d["posterior variance"] = post_var
-        d["hyperparameters"] = hps
+        d["posterior variance"] = None #post_var
+        d["hyperparameters"] = None #hps
         return d
     ###############################################################
-    def _get_data_from_instrument(self, new_data, append = False):
-        if append:
-            self.dataset = self.dataset + new_data
-            self.dataset = self.function(self.dataset)
-        else:
-            new_data = self.function(new_data)
-            self.dataset = self.dataset + new_data
+    #def _get_data_from_instrument(self, new_data, append = False):
+    #    if append:
+    #        self.dataset = self.dataset + new_data
+    #        self.dataset = self.function(self.dataset)
+    #    else:
+    #        new_data = self.function(new_data)
+    #        self.dataset = self.dataset + new_data
     ###############################################################
     #def dataset2array(self,data_entry):
     #    """
@@ -146,7 +130,17 @@ class gpData:
     ################################################################
     ########Extracting##############################################
     ################################################################
+    def extract_data(self):
+        x = self.extract_points_from_data()
+        y = self.extract_values_from_data()
+        v = self.extract_variances_from_data()
+        t = self.extract_times_from_data()
+        c = self.extract_costs_from_data()
+        return x,y,v,t,c
+
     def extract_points_from_data(self):
+        print(self.point_number, len(self.dataset))
+        input()
         P = np.zeros((self.point_number, self.dim))
         for idx_data in range(self.point_number):
             P[idx_data] = self.dataset[idx_data]["position"]
@@ -192,11 +186,15 @@ class gpData:
     ###############################################################
     #########Cleaning##############################################
     ###############################################################
+    def check_incoming_data(self):
+        return 0
+
     def clean_data_NaN(self):
         for entry in self.dataset:
             if self._nan_in_dict(entry):
                 print("CAUTION, NaN detected in data")
                 self.dataset.remove(entry)
+        self.point_number = len(self.data_set)
 
     def nan_in_dataset(self):
         for entry in self.dataset:

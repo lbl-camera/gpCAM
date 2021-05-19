@@ -75,21 +75,27 @@ class AutonomousExperimenterGP():
         self.async_train = False
         self.training_dask_client = training_dask_client
         self.acq_func_opt_dask_client = acq_func_opt_dask_client
-        #getting the data ready
-        if init_dataset_size is None and x is None:
+        ################################
+        #getting the data ready#########
+        ################################
+        if init_dataset_size is None and x is None and dataset is None:
             raise Exception("Either provide length of initial data or an inital dataset")
-        self.data = gpData(self.dim, self.parameter_bounds,self.instrument_func)
+        self.data = gpData(self.dim, self.parameter_bounds)
         if (x is None or y is None) and dataset is None:
-            self.data.create_random_init_dataset(init_dataset_size)
+            self.data.create_random_dataset(init_dataset_size)
+            self.data.dataset = self.instrument_func(self.data.dataset)
         elif (x is None or y is None) and dataset is not None:
             self.data.inject_dataset(list(np.load(dataset, allow_pickle = True)))
             self.hyperparameters = self.data.dataset[-1]["hyperparameters"]
-            if self.data.nan_in_datset(): clean_data_NaN()
         elif x is not None and y is not None:
-            self.data.inject_arrays(x,y,v)
+            self.data.inject_arrays(x)
+            self.data.dataset = self.instrument_func(self.data.dataset)
         else: raise Exception("No viable option for data given!")
+        if self.data.nan_in_dataset(): self.data.clean_data_NaN();
         self.x, self.y, self.v, self.t, self.c = self.data.extract_data()
         self.init_dataset_size = len(self.x)
+        ######################
+        ######################
         ######################
         self.gp_optimizer = GPOptimizer(self.dim,parameter_bounds)
         self.gp_optimizer.tell(self.x, self.y,variances = self.v)
@@ -209,10 +215,10 @@ class AutonomousExperimenterGP():
             print("Next points to be requested: ")
             print(next_measurement_points)
             #update and tell() new data
-            self.x,self.y, self.v = self.data.add_data_points(next_measurement_points,
-                                   post_var,self.gp_optimizer.hyperparameters)
-            self.inject_arrays(next_measurement_points)
-            self.x, self.y, self.v, self.t, self.c = self.data.extract_data()
+            new_data = self.data.inject_array(new_measurement_points)
+            if self.append: self.dataset = self.dataset + self.instrument_func(new_data)
+            else: self.dataset = self.instrument_func(self.dataset + new_data)
+            self.x,self.y, self.v, self.t, self.t = self.data.extract_data()
             self.gp_optimizer.tell(self.x, self.y,variances = self.v)
             ###########################
             #train()
