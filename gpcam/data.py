@@ -190,7 +190,7 @@ class gpData:
 ######################################################################
 ######################################################################
 class fvgpData(gpData):
-    def create_random_init_dataset(self):
+    def create_random_dataset(self, length):
         if self.output_number is None or self.output_dim is None:
             raise Exception("When initializing the data class for a multi-output GP, \
                     please provide output_number AND an output_dim parameters.")
@@ -211,13 +211,14 @@ class fvgpData(gpData):
         self.point_number = len(self.dataset)
         self.dataset = dataset
 
-    def inject_arrays(self, x):
+    def inject_arrays(self, x, info = None):
         """
         translates numpy arrays to the data format
         """
         data = []
         for i in range(len(x)):
             data.append(self.npy2dataset_entry(x[i]))
+            if info is not None: data[i].update(info[i])
         return data
 
     def npy2dataset_entry(self, x):
@@ -231,18 +232,28 @@ class fvgpData(gpData):
         d["values"] = None
         d["variances"] = None
         d["value positions"] = None
-        d["cost"] = None #cost
+        d["cost"] = None
         d["id"] = str(uuid.uuid4())
         d["time stamp"] = time.time()
         d["date time"] = datetime.datetime.now().strftime("%d/%m/%Y_%H:%M%S")
         d["measured"] = False
-        d["posterior variances"] = None #post_var
-        d["hyperparameters"] = None #hps
+        d["posterior variances"] = None
+        d["hyperparameters"] = None
         return d
 
     ################################################################
     ################################################################
     ################################################################
+    def extract_data(self):
+        x = self.extract_points_from_data()
+        y = self.extract_values_from_data()
+        v = self.extract_variances_from_data()
+        t = self.extract_times_from_data()
+        c = self.extract_costs_from_data()
+        vp= self.extract_value_positions_from_data()
+        return x,y,v,vp,t,c
+
+
     def extract_value_positions_from_data(self):
         self.point_number = len(self.dataset)
         VP = np.zeros((self.point_number, self.output_number, self.output_dim))
