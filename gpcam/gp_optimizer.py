@@ -272,6 +272,7 @@ class GPOptimizer(GP):
 ##############################################################
     def update_hyperparameters(self):
         self.hyperparameters = GP.update_hyperparameters(self)
+        print("GPOptimizer updated the Hyperperameters: ", self.hyperparameters)
         return self.hyperparameters
 
 ##############################################################

@@ -86,7 +86,7 @@ def find_acquisition_function_maxima(gp,acquisition_function,
     print("====================================")
     print("finding acquisition function maxima...")
     print("optimization method ",optimization_method)
-    print("adjusted tolerance: ", optimization_tol)
+    print("tolerance: ", optimization_tol)
     print("population size: ", optimization_pop_size)
     print("maximum number of iterations: ",optimization_max_iter)
     print("bounds: ")

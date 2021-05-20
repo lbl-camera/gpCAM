@@ -7,7 +7,7 @@ torch
 pandas
 ophyd
 dask
-distributed
+distributed >= 2021.4.1
 zmq
 fvgp == 2.3.5
 hgdl == 1.0.5

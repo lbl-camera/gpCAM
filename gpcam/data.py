@@ -40,44 +40,18 @@ class gpData:
         !!!for intitiation only!!! just use the "+" operator to update the existing dataset
         """
         self.point_number = len(self.dataset)
+        self.dataset = dataset
 
-    #def inject_arrays(self, x, y = None, v = None, append = False):
-    def inject_arrays(self, x):
+    def inject_arrays(self, x, info = None):
         """
         translates numpy arrays to the data format
         """
         data = []
         for i in range(len(x)):
             data.append(self.npy2dataset_entry(x[i]))
+            if info is not None: data[i].update(info[i])
         return data
     ###############################################################
-    ###############################################################
-    #def add_data_points(self, new_points, post_var = None, hps = None):
-    #    """
-    #    adds points to data and asks the instrument to get values and variances
-    #    """
-    #    new_data_list = self.translate2data(new_points,post_var = post_var, hps = hps)
-    #    self._get_data_from_instrument(new_data_list, self.append)
-    #    self.dataset = self.clean_data_NaN(self.dataset)
-    #    self.x = self.extract_points_from_data()
-    #    self.y = self.extract_values_from_data()
-    #    self.v = self.extract_variances_from_data()
-    #    self.times = self.extract_times_from_data()
-    #    self.measurement_costs = self.extract_costs_from_data()
-    #    return self.x, self.y, self.v   
-    ###############################################################
-    #def translate2data(self, x, y = None, v = None, post_var = None ,hps = None):
-    #    """
-    #    translates numpy arrays to the data format
-    #    """
-    #    data = []
-    #    for i in range(len(x)):
-    #        data.append(self.npy2data(x[i],post_var,hps))
-    #        if y is not None: data[i]["value"] = y[i]
-    #        if v is not None: data[i]["variance"] = v[i]
-    #    return data
-    ###############################################################
-    #def npy2dataset_entry(self, x,post_var = None, hps = None, cost = None):
     def npy2dataset_entry(self, x):
         """
         parameters:
@@ -96,23 +70,6 @@ class gpData:
         d["posterior variance"] = None #post_var
         d["hyperparameters"] = None #hps
         return d
-    ###############################################################
-    #def _get_data_from_instrument(self, new_data, append = False):
-    #    if append:
-    #        self.dataset = self.dataset + new_data
-    #        self.dataset = self.function(self.dataset)
-    #    else:
-    #        new_data = self.function(new_data)
-    #        self.dataset = self.dataset + new_data
-    ###############################################################
-    #def dataset2array(self,data_entry):
-    #    """
-    #    takes an entry in the data list and returns point, val,var
-    #    """
-    #    x = data_entry["position"]
-    #    y = data_entry["value"]
-    #    v = data_entry["variance"]
-    #    return x,y,v
     ###############################################################
     ###Printing####################################################
     ###############################################################
@@ -139,20 +96,21 @@ class gpData:
         return x,y,v,t,c
 
     def extract_points_from_data(self):
-        print(self.point_number, len(self.dataset))
-        input()
+        self.point_number = len(self.dataset)
         P = np.zeros((self.point_number, self.dim))
         for idx_data in range(self.point_number):
             P[idx_data] = self.dataset[idx_data]["position"]
         return P
 
     def extract_values_from_data(self):
+        self.point_number = len(self.dataset)
         M= np.zeros((self.point_number))
         for idx_data in range(self.point_number):
             M[idx_data] = self.dataset[idx_data]["value"]
         return M
 
     def extract_variances_from_data(self):
+        self.point_number = len(self.dataset)
         Variance = np.zeros((self.point_number))
         for idx_data in range(self.point_number):
             if self.dataset[idx_data]["variance"] is None: return None
@@ -160,12 +118,14 @@ class gpData:
         return Variance
 
     def extract_costs_from_data(self):
+        self.point_number = len(self.dataset)
         Costs = []
         for idx in range(self.point_number):
             Costs.append(self.dataset[idx]["cost"])
         return Costs
 
     def extract_times_from_data(self):
+        self.point_number = len(self.dataset)
         times = np.zeros((self.point_number))
         for idx_data in range(self.point_number):
             times[idx_data] = self.dataset[idx_data]["time stamp"]
@@ -229,87 +189,62 @@ class gpData:
 ######################################################################
 ######################################################################
 ######################################################################
-
 class fvgpData(gpData):
     def create_random_init_dataset(self):
         if self.output_number is None or self.output_dim is None:
-            raise Exception("When initializing the data class for a multi-output GP, please provide output_number AND an output_dim parameters.")
+            raise Exception("When initializing the data class for a multi-output GP, \
+                    please provide output_number AND an output_dim parameters.")
 
-        self.x = self._create_random_points()
+        self.x = self._create_random_points(length)
         self.point_number = len(self.x)
-        self.x, self.y,self.v, self.vp = self.add_data_points(self.x)
+        self.dataset = self.inject_arrays(self.x)
 
-    def comm_init_dataset(self,data):
+    def inject_dataset(self,dataset):
+        """
+        initializes a previously-collected dataset
+        !!!for intitiation only!!! just use the "+" operator to update the existing dataset
+        """
         if self.output_number is None or self.output_dim is None:
-            raise Exception("When initializing the data class for a multi-output GP, please provide output_number AND an output_dim parameters.")
+            raise Exception("When initializing the data class for a multi-output GP, \
+                    please provide output_number AND an output_dim parameters.")
 
-        self.dataset = data
-        self.point_number = len(data)
-        self.output_number = len(data[0]["variances"])
-        self.vp = self.extract_value_positions_from_data()
-        self.x = self.extract_points_from_data()
-        self.y = self.extract_values_from_data()
-        self.v = self.extract_variances_from_data()
-        self.times = self.extract_times_from_data()
-        self.measurement_costs = self.extract_costs_from_data()
-        self.output_number = len(self.v[0])
-        self.output_dim = len(self.vp[0,0])
+        self.point_number = len(self.dataset)
+        self.dataset = dataset
 
-    def add_data_points(self, new_points, post_var = None, hps = None):
-        """
-        adds points to data and asks the instrument to get values, variances and value positions
-        """
-        new_data_list = self.translate2data(new_points,post_var = post_var, hps = hps)
-        self._get_data_from_instrument(new_data_list, self.append)
-        self.dataset = self.clean_data_NaN(self.dataset)
-        self.x = self.extract_points_from_data()
-        self.y = self.extract_values_from_data()
-        self.v = self.extract_variances_from_data()
-        self.times = self.extract_times_from_data()
-        self.measurement_costs = self.extract_costs_from_data()
-        self.vp = self.extract_value_positions_from_data()
-        return self.x, self.y, self.v, self.vp
-
-    def translate2data(self, x, y = None, v = None, vp = None,post_var = None ,hps = None):
+    def inject_arrays(self, x):
         """
         translates numpy arrays to the data format
         """
         data = []
         for i in range(len(x)):
-            data.append(self.npy2data(x[i],post_var,hps))
-            data[i]["value positions"] = None
-            if y is not None: data[i]["values"] = y[i]
-            if v is not None: data[i]["variances"] = v[i]
-            if vp is not None:data[i]["value positions"] = vp[i]
+            data.append(self.npy2dataset_entry(x[i]))
         return data
 
-    def npy2data(self, x,post_var = None, hps = None, cost = None):
+    def npy2dataset_entry(self, x):
         """
         parameters:
         -----------
         x ... 1d numpy array
-        y ... float
-        v ... float
-        post_var ... float
         """
         d = {}
         d["position"] = x
         d["values"] = None
         d["variances"] = None
         d["value positions"] = None
-        d["cost"] = cost
+        d["cost"] = None #cost
         d["id"] = str(uuid.uuid4())
         d["time stamp"] = time.time()
         d["date time"] = datetime.datetime.now().strftime("%d/%m/%Y_%H:%M%S")
         d["measured"] = False
-        d["posterior variances"] = post_var
-        d["hyperparameters"] = hps
+        d["posterior variances"] = None #post_var
+        d["hyperparameters"] = None #hps
         return d
 
     ################################################################
     ################################################################
     ################################################################
     def extract_value_positions_from_data(self):
+        self.point_number = len(self.dataset)
         VP = np.zeros((self.point_number, self.output_number, self.output_dim))
         for idx_data in range(self.point_number):
             if ("value positions" in self.dataset[idx_data]):
@@ -319,12 +254,14 @@ class fvgpData(gpData):
         return VP
 
     def extract_values_from_data(self):
+        self.point_number = len(self.dataset)
         M= np.zeros((self.point_number,self.output_number))
         for idx_data in range(self.point_number):
             M[idx_data] = self.dataset[idx_data]["values"]
         return M
 
     def extract_variances_from_data(self):
+        self.point_number = len(self.dataset)
         Variance = np.zeros((self.point_number,self.output_number))
         for idx_data in range(self.point_number):
             if self.dataset[idx_data]["variances"] is None: return None

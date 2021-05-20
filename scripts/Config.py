@@ -51,9 +51,9 @@ acquisition_function_optimization_max_iter = 20
 number_of_suggested_measurements = 1  ###only important for "hgdl" in acquisition_function_optimization_method
 
 initial_likelihood_optimization_method = "global"
-global_likelihood_optimization_at = [200]
-local_likelihood_optimization_at = [100,400,1000]
-hgdl_likelihood_optimization_at = []
+global_likelihood_optimization_at = [10,20,30,40]
+local_likelihood_optimization_at = [15,35,1000]
+hgdl_likelihood_optimization_at = [17,32]
 likelihood_optimization_population_size = 20
 likelihood_optimization_tolerance = 0.001
 likelihood_optimization_max_iter = 120

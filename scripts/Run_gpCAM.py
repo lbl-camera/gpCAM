@@ -47,6 +47,7 @@ def main():
         run()
     if len(sys.argv) > 1:
         run(sys.argv[1])
+
 if __name__ == "__main__":
     try:
         main()
@@ -57,4 +58,5 @@ if __name__ == "__main__":
         print("======================")
         logf = open("errors.log", "w")
         traceback.print_exc(file = logf)
+        exit("System Exit")
         #traceback.print_exc()
