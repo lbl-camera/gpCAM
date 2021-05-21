@@ -251,7 +251,7 @@ class fvgpData(gpData):
         t = self.extract_times_from_data()
         c = self.extract_costs_from_data()
         vp= self.extract_value_positions_from_data()
-        return x,y,v,vp,t,c
+        return x,y,v,t,c,vp
 
 
     def extract_value_positions_from_data(self):

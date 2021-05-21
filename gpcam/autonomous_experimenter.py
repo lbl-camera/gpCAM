@@ -5,7 +5,7 @@ import numpy as np
 from gpcam.data import gpData
 from gpcam.data import fvgpData
 from gpcam.gp_optimizer import GPOptimizer
-from gpcam.fvgp_optimizer import fvGPOptimizer
+from gpcam.gp_optimizer import fvGPOptimizer
 
 #todo: autonomous experimenter for fvgp, data class for fvgp
 
@@ -136,6 +136,14 @@ class AutonomousExperimenterGP():
     def _init_costs(self,cost_func_params):
         self.gp_optimizer.init_cost(self.cost_func,cost_func_params,
                 cost_update_function = self.cost_update_func)
+
+    def tell(self, x,y,v, vp  = None):
+        if vp is None: self.gp_optimizer.tell(x, y,variances = v)
+        else: self.gp_optimizer.tell(x, y,variances = v, value_positions = vp)
+
+    def extract_data(self):
+        x,y,v,t,c = self.data.extract_data()
+        return x,y,v,t,c, None
     ###################################################################################
     def go(self, N = 1e15, breaking_error = 1e-50,
             retrain_globally_at = [100,400,1000],
@@ -226,9 +234,8 @@ class AutonomousExperimenterGP():
             else: self.data.dataset = self.instrument_func(self.data.dataset + new_data)
             if self.data.nan_in_dataset(): self.data.clean_data_NaN()
             #update arrays and the gp_optimizer
-            self.x,self.y, self.v, self.t, self.t = self.data.extract_data()
-            self.gp_optimizer.tell(self.x, self.y,variances = self.v)
-
+            self.x,self.y, self.v, self.t, self.c,vp = self.extract_data()
+            self.tell(self.x, self.y, self.v, vp)
             ###########################
             #train()
             print("Training ...")
@@ -327,12 +334,12 @@ class AutonomousExperimenterfvGP(AutonomousExperimenterGP):
             self.data.dataset = self.instrument_func(self.data.dataset)
         else: raise Exception("No viable option for data given!")
         if self.data.nan_in_dataset(): self.data.clean_data_NaN()
-        self.x, self.y, self.v, self.t, self.c = self.data.extract_data()
+        self.x, self.y, self.v, self.t, self.c, self.vp = self.data.extract_data()
         self.init_dataset_size = len(self.x)
         ######################
         ######################
         ######################
-        self.gp_optimizer = fvGPOptimizer(self.dim,output_dim,output_number,parameter_bounds,)
+        self.gp_optimizer = fvGPOptimizer(self.dim,output_dim,output_number,parameter_bounds)
         self.gp_optimizer.tell(self.x, self.y,variances = self.v,value_positions = self.vp)
         self.gp_optimizer.init_fvgp(self.hyperparameters,compute_device = self.compute_device,
             gp_kernel_function = self.kernel_func,
@@ -344,6 +351,10 @@ class AutonomousExperimenterfvGP(AutonomousExperimenterGP):
         print("Initialization successfully concluded")
         print("now train(...) or train_async(...), and then go(...)")
         print("##################################################################################")
+
+    def extract_data(self):
+        x,y,v,t,c,vp = self.data.extract_data()
+        return x,y,v,t,c,vp
 
 
 #class AutonomousExperimenterEnsembleGP():
