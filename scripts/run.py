@@ -16,7 +16,7 @@ def run(init_data_files = None):
             kernel_func = c.gp["kernel function"], prior_mean_func = c.gp["mean function"],
             run_every_iteration = c.gp["run function in every iteration"],
             append_data = c.append_data, compute_device = c.compute_device,
-            sparse = c.sparse, 
+            sparse = c.sparse,
             training_dask_client = c.training_dask_client,
             acq_func_opt_dask_client = c.prediction_dask_client)
     #train

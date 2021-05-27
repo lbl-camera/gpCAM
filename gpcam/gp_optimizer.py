@@ -21,7 +21,7 @@ class GPOptimizer(GP):
 
     Attributes:
         input_space_dimension (int):         dim1
-        index_set_bounds (2d array):         bounds of the index set
+        input_space_bounds (2d array):         bounds of the index set
 
 
     Example:
@@ -39,7 +39,7 @@ class GPOptimizer(GP):
     def __init__(
         self,
         input_space_dimension,
-        index_set_bounds,
+        input_space_bounds,
         ):
         """
         GPOptimizer constructor
@@ -49,7 +49,7 @@ class GPOptimizer(GP):
         self.points = np.empty((0, self.iput_dim))
         self.values = np.empty((0))
         self.variances = np.empty((0))
-        self.index_set_bounds = np.array(index_set_bounds)
+        self.input_space_bounds = np.array(input_space_bounds)
         self.gp_initialized = False
         self.cost_function_parameters = None
         self.cost_function = None
@@ -68,7 +68,6 @@ class GPOptimizer(GP):
             class attributes. Note that if tell() has not been called, many
             of these returned values will be None.
         """
-
         if self.gp_initialized: hps = self.hyperparameters
         else: hps = None
         return {
@@ -326,7 +325,7 @@ class GPOptimizer(GP):
         print("ask() initiated with hyperparameters:",self.hyperparameters)
         print("optimization method: ", method)
         print("bounds: ",bounds)
-        if bounds is None: bounds = self.index_set_bounds
+        if bounds is None: bounds = self.input_space_bounds
         maxima,func_evals = sm.find_acquisition_function_maxima(
                 self,
                 acquisition_function,
@@ -416,7 +415,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
         input_space_dimension (int):         dim1
         output_space_dimension (int):        dim2
         output_number (int):                 n
-        index_set_bounds (2d array):         bounds of the index set
+        input_space_bounds (2d array):         bounds of the index set
 
 
     Example:
@@ -435,7 +434,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
         input_space_dimension,
         output_space_dimension,
         output_number,
-        index_set_bounds,
+        input_space_bounds,
     ):
         """
         GPOptimizer constructor
@@ -449,7 +448,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
         self.values = np.empty((0, self.output_number))
         self.variances = np.empty((0, self.output_number))
         self.value_positions = np.empty((0, self.output_number, self.oput_dim))
-        self.index_set_bounds = np.array(index_set_bounds)
+        self.input_space_bounds = np.array(input_space_bounds)
         #self.hyperparameters = None
         self.gp_initialized = False
         self.cost_function_parameters = None
@@ -457,7 +456,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
         self.consider_costs = False
         GPOptimizer.__init__(self,
                 input_space_dimension,
-                index_set_bounds
+                input_space_bounds
                 )
 
     def get_data_fvGP(self):

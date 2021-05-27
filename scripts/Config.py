@@ -45,7 +45,6 @@ automatic_signal_variance_range_determination = True
 ###Variance Optimization################
 ########################################
 acquisition_function_optimization_method = "global"
-chance_for_local_acquisition_function_optimization = 0.5 #\in [0,1], only relevant of method is global
 acquisition_function_optimization_population_size = 10
 acquisition_function_optimization_max_iter = 20
 number_of_suggested_measurements = 1  ###only important for "hgdl" in acquisition_function_optimization_method
@@ -62,7 +61,6 @@ likelihood_optimization_max_iter = 120
 ########################################
 compute_device = "cpu"
 sparse = False
-compute_inverse = False
 training_dask_client = None #dask.distributed.Client()  #None/False/client
 prediction_dask_client = None  #None/False/client
 ###############################
