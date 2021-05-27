@@ -9,5 +9,5 @@ ophyd
 dask
 distributed >= 2021.4.1
 zmq
-fvgp == 2.3.5
-hgdl == 1.0.5
+fvgp == 2.3.8
+hgdl == 1.0.11

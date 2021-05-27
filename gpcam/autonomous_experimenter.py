@@ -58,8 +58,7 @@ class AutonomousExperimenterGP():
             training_dask_client = None,
             acq_func_opt_dask_client = None
             ):
-        self.parameter_bounds = parameter_bounds
-        self.dim = len(parameter_bounds)
+        dim = len(parameter_bounds)
         self.instrument_func = instrument_func
         self.hyperparameter_bounds = hyperparameter_bounds
         self.acq_func = acq_func
@@ -68,9 +67,7 @@ class AutonomousExperimenterGP():
         self.kernel_func = kernel_func
         self.prior_mean_func = prior_mean_func
         self.run_every_iteration = run_every_iteration
-        self.compute_device = compute_device
         self.append = append_data
-        self.sparse = sparse
         self.async_train = False
         self.training_dask_client = training_dask_client
         self.acq_func_opt_dask_client = acq_func_opt_dask_client
@@ -79,7 +76,7 @@ class AutonomousExperimenterGP():
         ################################
         if init_dataset_size is None and x is None and dataset is None:
             raise Exception("Either provide length of initial data or an inital dataset")
-        self.data = gpData(self.dim, self.parameter_bounds)
+        self.data = gpData(dim, parameter_bounds)
         if (x is None or y is None) and dataset is None:
             self.data.create_random_dataset(init_dataset_size)
             self.data.dataset = self.instrument_func(self.data.dataset)
@@ -96,12 +93,12 @@ class AutonomousExperimenterGP():
         ######################
         ######################
         ######################
-        self.gp_optimizer = GPOptimizer(self.dim,parameter_bounds)
+        self.gp_optimizer = GPOptimizer(dim,parameter_bounds)
         self.gp_optimizer.tell(self.x, self.y,variances = self.v)
-        self.gp_optimizer.init_gp(hyperparameters, compute_device = self.compute_device,
+        self.gp_optimizer.init_gp(hyperparameters, compute_device = compute_device,
             gp_kernel_function = self.kernel_func,
             gp_mean_function = self.prior_mean_func,
-            sparse = self.sparse)
+            sparse = sparse)
         #init costs
         self._init_costs(cost_func_params)
         print("##################################################################################")
@@ -116,7 +113,7 @@ class AutonomousExperimenterGP():
         tolerance = tol, max_iter = max_iter)
 
     def train_async(self,pop_size = 10,tol = 1e-6, max_iter = 20, dask_client = None):
-        self.gp_optimizer.train_gp_async(
+        self.opt_obj = self.gp_optimizer.train_gp_async(
         self.hyperparameter_bounds,pop_size = pop_size,
         tolerance = tol,max_iter = max_iter,
         dask_client = dask_client
@@ -125,11 +122,14 @@ class AutonomousExperimenterGP():
 
     def kill_training(self):
         print("async trianing is being killed")
-        self.gp_optimizer.stop_async_train()
+        if self.async_train: self.gp_optimizer.stop_async_train(self.opt_obj)
         self.async_train = False
 
+    def kill_client(self):
+        if self.async_train: self.gp_optimizer.kill_async_train(self.opt_obj)
+
     def update_hps(self):
-        self.gp_optimizer.update_hyperparameters()
+        if self.async_train: self.gp_optimizer.update_hyperparameters(self.opt_obj)
         print("The Autonomus Experimenter updated the Hyperparameters")
         print("hps: ", self.gp_optimizer.hyperparameters)
 
@@ -223,25 +223,30 @@ class AutonomousExperimenterGP():
             error = np.max(post_var[0])
             if acq_func_opt_tol_adjust[0]:
                 acq_func_opt_tol = abs(func_evals[0]) * acq_func_opt_tol_adjust[1]
-                print("variance optimization tolerance of changed to: ", acq_func_opt_tol)
+                print("variance optimization tolerance changed to: ", acq_func_opt_tol)
             print("Next points to be requested: ")
             print(next_measurement_points)
             #update and tell() new data
             info  = [{"hyperparameters" : self.gp_optimizer.hyperparameters,
                       "posterior variance" : post_var[i]} for i in range(len(next_measurement_points))]
             new_data = self.data.inject_arrays(next_measurement_points, info = info)
+            print("Sending request to instrument ...")
             if self.append: self.data.dataset = self.data.dataset + self.instrument_func(new_data)
             else: self.data.dataset = self.instrument_func(self.data.dataset + new_data)
+            print("Data received")
+            print("Checking if data is clean ...")
             if self.data.nan_in_dataset(): self.data.clean_data_NaN()
+            print("done")
             #update arrays and the gp_optimizer
             self.x,self.y, self.v, self.t, self.c,vp = self.extract_data()
+            print("Communicating new data to GP")
             self.tell(self.x, self.y, self.v, vp)
             ###########################
             #train()
             print("Training ...")
             if len(self.x) in retrain_async_at:
                 self.kill_training()
-                self.train_async(pop_size = 10,tol = 1e-6,max_iter = 20,
+                self.opt_obj = self.train_async(pop_size = 10,tol = 1e-6,max_iter = 20,
                                  dask_client = self.training_dask_client)
             elif len(self.x) in retrain_globally_at:
                 self.kill_training()
@@ -266,6 +271,7 @@ class AutonomousExperimenterGP():
             if i in update_cost_func_at: gp_optimizer.update_cost_function(self.c)
 
             if error < breaking_error: break
+        self.kill_client()
         print("====================================================")
         print("The autonomous experiment was concluded successfully")
         print("====================================================")
@@ -276,7 +282,7 @@ class AutonomousExperimenterGP():
 ###################################################################################
 ###################################################################################
 ###################################################################################
-class AutonomousExperimenterfvGP(AutonomousExperimenterGP):
+class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
     def __init__(self,
             parameter_bounds,
             output_number,
@@ -299,8 +305,7 @@ class AutonomousExperimenterfvGP(AutonomousExperimenterGP):
             training_dask_client = None,
             acq_func_opt_dask_client = None
             ):
-        self.parameter_bounds = parameter_bounds
-        self.dim = len(parameter_bounds)
+        dim = len(parameter_bounds)
         self.instrument_func = instrument_func
         self.hyperparameters = hyperparameters
         self.hyperparameter_bounds = hyperparameter_bounds
@@ -310,9 +315,7 @@ class AutonomousExperimenterfvGP(AutonomousExperimenterGP):
         self.kernel_func = kernel_func
         self.prior_mean_func = prior_mean_func
         self.run_every_iteration = run_every_iteration
-        self.compute_device = compute_device
         self.append = append_data
-        self.sparse = sparse
         self.async_train = False
         self.training_dask_client = training_dask_client
         self.acq_func_opt_dask_client = acq_func_opt_dask_client
@@ -321,7 +324,7 @@ class AutonomousExperimenterfvGP(AutonomousExperimenterGP):
         ################################
         if init_dataset_size is None and x is None and dataset is None:
             raise Exception("Either provide length of initial data or an inital dataset")
-        self.data = fvgpData(self.dim, self.parameter_bounds, 
+        self.data = fvgpData(dim, parameter_bounds,
                 output_number = output_number, output_dim = output_dim)
         if (x is None or y is None) and dataset is None:
             self.data.create_random_dataset(init_dataset_size)
@@ -339,12 +342,12 @@ class AutonomousExperimenterfvGP(AutonomousExperimenterGP):
         ######################
         ######################
         ######################
-        self.gp_optimizer = fvGPOptimizer(self.dim,output_dim,output_number,parameter_bounds)
+        self.gp_optimizer = fvGPOptimizer(dim,output_dim,output_number,parameter_bounds)
         self.gp_optimizer.tell(self.x, self.y,variances = self.v,value_positions = self.vp)
-        self.gp_optimizer.init_fvgp(self.hyperparameters,compute_device = self.compute_device,
+        self.gp_optimizer.init_fvgp(self.hyperparameters,compute_device = compute_device,
             gp_kernel_function = self.kernel_func,
             gp_mean_function = self.prior_mean_func,
-            sparse = self.sparse)
+            sparse = sparse)
         #init costs
         self._init_costs(cost_func_params)
         print("##################################################################################")

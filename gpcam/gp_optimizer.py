@@ -40,7 +40,7 @@ class GPOptimizer(GP):
         self,
         input_space_dimension,
         index_set_bounds,
-    ):
+        ):
         """
         GPOptimizer constructor
         type help(gp_optimizer) for help
@@ -50,7 +50,6 @@ class GPOptimizer(GP):
         self.values = np.empty((0))
         self.variances = np.empty((0))
         self.index_set_bounds = np.array(index_set_bounds)
-        self.hyperparameters = None
         self.gp_initialized = False
         self.cost_function_parameters = None
         self.cost_function = None
@@ -58,7 +57,7 @@ class GPOptimizer(GP):
 
     def get_data(self):
         """
-        Provides a way to access the current class varibles.
+        Provides a way to access the current class attributes.
 
         Returns
         -------
@@ -70,15 +69,17 @@ class GPOptimizer(GP):
             of these returned values will be None.
         """
 
+        if self.gp_initialized: hps = self.hyperparameters
+        else: hps = None
         return {
             "input dim": self.iput_dim,
             "x": self.points,
             "y": self.values,
             "measurement variances": self.variances,
-            "hyperparameters": self.hyperparameters,
+            "hyperparameters": hps,
             "cost function parameters": self.cost_function_parameters,
             "consider costs": self.consider_costs,
-        }
+            }
 
     def evaluate_acquisition_function(self,
         x, acquisition_function="covariance", cost_function=None,
@@ -139,9 +140,9 @@ class GPOptimizer(GP):
         self.points = x
         self.values = y
         self.variances = variances
+        print("New data communicated via tell()")
 
-        if self.gp_initialized is True:
-            self.update_gp()
+        if self.gp_initialized is True: self.update_gp()
 
 ##############################################################
     def init_gp(
@@ -179,8 +180,8 @@ class GPOptimizer(GP):
             normalize_y = False
             )
             self.gp_initialized = True
-            self.hyperparameters = np.array(init_hyperparameters)
             print("GP successfully initiated")
+        else: print("GP already initialized")
 
 ##############################################################
     def update_gp(self):
@@ -195,9 +196,11 @@ class GPOptimizer(GP):
             self.points,
             self.values,
             variances = self.variances)
+        print("GP data updated")
 
 ##############################################################
-    def train_gp_async(self, hyperparameter_bounds,
+    def train_gp_async(self,
+            hyperparameter_bounds,
             pop_size = 20,
             tolerance = 1e-6,
             max_iter = 10000,
@@ -212,13 +215,13 @@ class GPOptimizer(GP):
             pop_size:       number of walkers in the optimization, default = 20
             tolerance:      tolerance for termination, default = 1e-6
             max_iter:       maximum number of iterations, default = 10000
-            dask_client:                            a DASK client, see dask package docs for explanation
+            dask_client:    a DASK client, see dask package docs for explanation
         Return:
             Nothing, call update_hyperparameters() for the result
         """
         if self.gp_initialized is False:
             raise Exception("No GP to be trained. Please call init_gp(...) before training.")
-        self.train_async(
+        opt_obj = self.train_async(
                 hyperparameter_bounds,
                 init_hyperparameters = self.hyperparameters,
                 pop_size = pop_size,
@@ -226,6 +229,7 @@ class GPOptimizer(GP):
                 max_iter = max_iter,
                 dask_client = dask_client
                 )
+        return opt_obj
 
 ##############################################################
     def train_gp(self,hyperparameter_bounds,
@@ -239,11 +243,13 @@ class GPOptimizer(GP):
             hyperparameter_bounds:                  2d np.array of bounds for the hyperparameters
         Optional Parameters:
         --------------------
-            method:         "hgdl"/"global"/"local", default = "global"
-            pop_size:       number of walkers in the optimization, default = 20
-            optimization_dict:                      default = None
-            tolerance:      tolerance for termination, default = 1e-6
-            max_iter:       maximum number of iterations, default = 120
+            method:            "hgdl"/"global"/"local", default = "global"
+            pop_size:          number of walkers in the optimization, default = 20
+            optimization_dict: default = None
+            tolerance:         tolerance for termination, default = 1e-6
+            max_iter:          maximum number of iterations, default = 120
+        Return:
+            trained hyperparameters (just for info, the GP is already updated)
         """
         if self.gp_initialized is False:
             raise Exception("No GP to be trained. Please call init_gp(...) before training.")
@@ -259,21 +265,31 @@ class GPOptimizer(GP):
         return self.hyperparameters
 
 ##############################################################
-    def stop_async_train(self):
+    def stop_async_train(self, opt_obj):
         """
         function to stop vfGP async training
         Parameters:
         -----------
             no input parameters
         """
-        try: self.stop_training()
+        try: self.stop_training(opt_obj)
+        except: pass
+
+    def kill_async_train(self, opt_obj):
+        """
+        function to stop vfGP async training
+        Parameters:
+        -----------
+            no input parameters
+        """
+        try: self.kill_training(opt_obj)
         except: pass
 
 ##############################################################
-    def update_hyperparameters(self):
-        self.hyperparameters = GP.update_hyperparameters(self)
+    def update_hyperparameters(self, opt_obj):
+        hps = GP.update_hyperparameters(self, opt_obj)
         print("GPOptimizer updated the Hyperperameters: ", self.hyperparameters)
-        return self.hyperparameters
+        return hps
 
 ##############################################################
     def ask(self, position = None, n = 1,
@@ -307,7 +323,7 @@ class GPOptimizer(GP):
             x0:                                default = None, starting positions for optimizer
             dask_client:                                    default = False
         """
-        print("aks() initiated with hyperparameters:",self.hyperparameters)
+        print("ask() initiated with hyperparameters:",self.hyperparameters)
         print("optimization method: ", method)
         print("bounds: ",bounds)
         if bounds is None: bounds = self.index_set_bounds
@@ -382,12 +398,9 @@ class GPOptimizer(GP):
 ######################################################################################
 ######################################################################################
 ######################################################################################
-
-
 class fvGPOptimizer(fvGP, GPOptimizer):
-
     """
-    GPOptimizer class: Given data, this class can determine which
+    fvGPOptimizer class: Given data, this class can determine which
     data should be collected next.
     Initialize and then use tell() to communicate data.
     Use init_gp() to initlaize a GP.
@@ -407,7 +420,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
 
 
     Example:
-        obj = GPOptimizer(3,1,2,[[0,10],[0,10],[0,10]])
+        obj = fvGPOptimizer(3,1,2,[[0,10],[0,10],[0,10]])
         obj.tell(x,y)
         obj.init_gp(...)
         obj.train_gp(...) #can be "train_gp_async()"
@@ -437,7 +450,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
         self.variances = np.empty((0, self.output_number))
         self.value_positions = np.empty((0, self.output_number, self.oput_dim))
         self.index_set_bounds = np.array(index_set_bounds)
-        self.hyperparameters = None
+        #self.hyperparameters = None
         self.gp_initialized = False
         self.cost_function_parameters = None
         self.cost_function = None
@@ -449,7 +462,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
 
     def get_data_fvGP(self):
         """
-        Provides a way to access the current class varibles.
+        Provides a way to access the current class variables.
 
         Returns
         -------
@@ -505,8 +518,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
         self.variances = variances
         self.value_positions = value_positions
 
-        if self.gp_initialized is True:
-            self.update_fvgp()
+        if self.gp_initialized is True: self.update_fvgp()
 
 ##############################################################
     def init_fvgp(
@@ -546,13 +558,13 @@ class fvGPOptimizer(fvGP, GPOptimizer):
             sparse = sparse,
             )
             self.gp_initialized = True
-            self.hyperparameters = np.array(init_hyperparameters)
+        else: print("fvGP already initialized")
 
 ##############################################################
     def update_fvgp(self):
         """
-        This function updates the data in the GP, tell(...) will call this function automatically if
-        GP is intialized
+        This function updates the data in the fvGP, tell(...) will call this function automatically if
+        GP is already intialized
         Paramaters:
         -----------
             no input parameters

@@ -12,3 +12,17 @@ todo:
 * manifold learning methods, learn distance measure for kernels
 
 
+
+tests:
+
+(1) gp_optimizer and fvgp_optimizer
+    * kernel functions
+    * acquisition functions
+    * cost functions
+    * async training
+
+(2) AutonomousExperimenterGP and fvGP
+    * communicating data
+    * cost functions
+    * acquisition functions
+
