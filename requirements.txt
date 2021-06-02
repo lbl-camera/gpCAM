@@ -11,3 +11,5 @@ distributed >= 2021.4.1
 zmq
 fvgp == 2.3.8
 hgdl == 1.0.11
+plotly
+notebook

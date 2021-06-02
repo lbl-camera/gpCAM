@@ -29,7 +29,7 @@ with open(path.join(here, 'requirements.txt')) as requirements_file:
 setup(
     author="Marcus Michael Noack",
     author_email='MarcusNoack@lbl.gov',
-    python_requires='>=3.6',
+    python_requires='>=3.7',
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
         'Intended Audience :: Developers',
@@ -52,6 +52,6 @@ setup(
     packages=find_packages(include=['gpcam', 'gpcam.*']),
     test_suite='tests',
     url='https://github.com/Marcus Noack/gpcam',
-    version='6.0.4',
+    version='7.0.0',
     zip_safe=False,
 )
