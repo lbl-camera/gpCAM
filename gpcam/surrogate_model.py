@@ -15,9 +15,9 @@ def evaluate_acquisition_function(x, gp, acquisition_function,origin = None,
     ##########################################################
     if x.ndim == 1:x = np.array([x])
     if cost_function is not None and origin is not None and cost_function_parameters is not None:
-        cost_eval = cost_function(origin,x,cost_function_parameters)
+        cost_eval = cost_function(origin,x[0],cost_function_parameters)
     else:
-        cost_eval = np.array([1.0])
+        cost_eval = 1.0
     #for user defined acquisition function
     if callable(acquisition_function):
         return -acquisition_function(x,gp)/cost_eval
