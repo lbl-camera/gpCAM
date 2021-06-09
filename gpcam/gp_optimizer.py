@@ -95,7 +95,7 @@ class GPOptimizer(GP):
         acquisition_function : default = "covariance",
                                "covariance","shannon_ig" ,..., or callable, use the same you use
                                in ask(). (The default is "covariance").
-        origin:                default = None, only important for cost considerations
+        origin:                default = None, only important for cost considerations, mandatory if costs are important
 
         Returns
         -------

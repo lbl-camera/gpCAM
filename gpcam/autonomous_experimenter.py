@@ -27,7 +27,7 @@ class AutonomousExperimenterGP():
         * acq_func = "covariance": acquisition function to be maximized in search of new measurements
         * cost_func = None
         * cost_update_func = None
-        * cost_func_parameters = {}
+        * cost_func_params = {}
         * kernel_func = None
         * prior_mean_func = None
         * run_every_iteration = None
@@ -172,6 +172,7 @@ class AutonomousExperimenterGP():
             * retrain_locally_at = [20,40,60,80,100,200,400,1000]
             * retrain_async_at = [1000,2000,5000,10000]
             * retrain_callable = []: if this is not an empty list, "training_opt_callable" has to be provided
+            * update_cost_func_at = []: list containing numbers when the cost function is updated
             * search_setting = lambda function to decide when global, local, hgdl, other ask()
             * training_opt_callable = None, callable
             * training_opt_max_iter = 20
@@ -268,7 +269,7 @@ class AutonomousExperimenterGP():
             except Exception as e: print("Data not saved due to ", str(e))
             ###########################
             #cost update
-            if i in update_cost_func_at: gp_optimizer.update_cost_function(self.c)
+            if i in update_cost_func_at: self.gp_optimizer.update_cost_function(self.c)
 
             if error < breaking_error: break
         self.kill_client()
