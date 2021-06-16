@@ -1,4 +1,4 @@
-from test_gpcam import TestgpCAM
+from tests.test_gpcam import TestgpCAM
 
 
 

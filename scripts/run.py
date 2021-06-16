@@ -5,12 +5,12 @@ import Config as c
 
 
 
-def run(init_data_files = None):
+def run(init_data_file = None):
     #initialize
     my_ae = AutonomousExperimenterGP(
             c.parameters,
             c.synthetic_function,c.gp["hyperparameters"], c.gp["hyperparameter bounds"],
-            init_dataset_size = c.initial_dataset_size, dataset = init_data_files,
+            init_dataset_size = c.initial_dataset_size, dataset = init_data_file,
             acq_func = c.gp["acquisition function"], cost_func = c.gp["cost function"],
             cost_update_func = c.gp["cost update function"], cost_func_params = c.gp["cost function parameters"],
             kernel_func = c.gp["kernel function"], prior_mean_func = c.gp["mean function"],
