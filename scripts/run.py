@@ -15,7 +15,7 @@ def run(init_data_file = None):
             cost_update_func = c.gp["cost update function"], cost_func_params = c.gp["cost function parameters"],
             kernel_func = c.gp["kernel function"], prior_mean_func = c.gp["mean function"],
             run_every_iteration = c.gp["run function in every iteration"],
-            append_data = c.append_data, compute_device = c.compute_device,
+            append_data_after_send = c.append_data_after_send, compute_device = c.compute_device,
             sparse = c.sparse,
             training_dask_client = c.training_dask_client,
             acq_func_opt_dask_client = c.prediction_dask_client)
@@ -35,7 +35,7 @@ def run(init_data_file = None):
             acq_func_opt_max_iter = c.acquisition_function_optimization_max_iter,
             acq_func_opt_pop_size = c.acquisition_function_optimization_population_size,
             acq_func_opt_tol      = c.gp["acquisition function optimization tolerance"],
-            acq_func_opt_tol_adjust = c.gp["adjust optimization threshold"],
+            acq_func_opt_tol_adjust = c.gp["adjust optimization tolerance"],
             number_of_suggested_measurements = c.number_of_suggested_measurements,
             )
 

@@ -32,7 +32,7 @@ class AutonomousExperimenterGP():
         * prior_mean_func = None
         * run_every_iteration = None
         * x = None, y = None, v = None: inital data can be supplied here
-        * append_data = False: Append data or communiate entire dataset
+        * append_data_after_send = False: Append data or communiate entire dataset
         * compute_device = "cpu"
         * sparse = False
         * training_dask_client = None
@@ -52,7 +52,7 @@ class AutonomousExperimenterGP():
             prior_mean_func = None,
             run_every_iteration = None,
             x = None, y = None, v = None, dataset = None,
-            append_data = False,
+            append_data_after_send = False,
             compute_device = "cpu",
             sparse = False,
             training_dask_client = None,
@@ -67,7 +67,7 @@ class AutonomousExperimenterGP():
         self.kernel_func = kernel_func
         self.prior_mean_func = prior_mean_func
         self.run_every_iteration = run_every_iteration
-        self.append = append_data
+        self.append = append_data_after_send
         self.async_train = False
         self.training_dask_client = training_dask_client
         self.acq_func_opt_dask_client = acq_func_opt_dask_client
@@ -300,7 +300,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
             prior_mean_func = None,
             run_every_iteration = None,
             x = None, y = None, v = None, vp = None, dataset = None,
-            append_data = False,
+            append_data_after_send = False,
             compute_device = "cpu",
             sparse = False,
             training_dask_client = None,
@@ -316,7 +316,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         self.kernel_func = kernel_func
         self.prior_mean_func = prior_mean_func
         self.run_every_iteration = run_every_iteration
-        self.append = append_data
+        self.append = append_data_after_send
         self.async_train = False
         self.training_dask_client = training_dask_client
         self.acq_func_opt_dask_client = acq_func_opt_dask_client

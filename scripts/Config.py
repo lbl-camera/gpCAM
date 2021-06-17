@@ -27,7 +27,7 @@ gp ={
         "number of returns": 1,
         "dimensionality of return": 1,
         "acquisition function optimization tolerance": 0.001,
-        "adjust optimization threshold": [True,0.1],
+        "adjust optimization tolerance": [True,0.1],
         "run function in every iteration": None,
         "data acquisition function": synthetic_function,
         #"acquisition function": "covariance",
@@ -38,9 +38,8 @@ gp ={
         "cost function parameters": {"offset": 10,"slope":[2.0,2.0]},
         "plot function": plot_function
 }
-append_data = True
+append_data_after_send = True
 breaking_error = 1e-12
-automatic_signal_variance_range_determination = True
 ########################################
 ###Variance Optimization################
 ########################################
