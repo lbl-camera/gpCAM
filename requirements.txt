@@ -3,7 +3,7 @@ numpy
 scipy
 matplotlib
 numba
-torch
+torch >= 1.9.0
 pandas
 ophyd
 dask
