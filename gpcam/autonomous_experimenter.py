@@ -121,7 +121,7 @@ class AutonomousExperimenterGP():
         self.async_train = True
 
     def kill_training(self):
-        print("async trianing is being killed")
+        print("async training is being killed")
         if self.async_train: self.gp_optimizer.stop_async_train(self.opt_obj)
         self.async_train = False
 
@@ -221,7 +221,7 @@ class AutonomousExperimenterGP():
             next_measurement_points = res["x"]
             func_evals = res["f(x)"]
             post_var = self.gp_optimizer.posterior_covariance(next_measurement_points)["v(x)"]
-            error = np.max(post_var[0])
+            error = np.max(np.sqrt(post_var[0]))
             if acq_func_opt_tol_adjust[0]:
                 acq_func_opt_tol = abs(func_evals[0]) * acq_func_opt_tol_adjust[1]
                 print("variance optimization tolerance changed to: ", acq_func_opt_tol)

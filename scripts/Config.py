@@ -29,7 +29,7 @@ gp ={
         "acquisition function optimization tolerance": 0.001,
         "adjust optimization tolerance": [True,0.1],
         "run function in every iteration": None,
-        "data acquisition function": synthetic_function,
+        "instrument function": synthetic_function,
         #"acquisition function": "covariance",
         "acquisition function": "shannon_ig",
         "mean function": None,
