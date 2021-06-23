@@ -147,7 +147,9 @@ class gpData:
     #########Cleaning##############################################
     ###############################################################
     def check_incoming_data(self):
-        return 0
+        for entry in self.dataset:
+            if entry["value"] is None:
+                raise Exception("Entry with no secified value entry in communicated list of data dictionaries")
 
     def clean_data_NaN(self):
         for entry in self.dataset:

@@ -237,6 +237,7 @@ class AutonomousExperimenterGP():
             print("Data received")
             print("Checking if data is clean ...")
             if self.data.nan_in_dataset(): self.data.clean_data_NaN()
+            self.data.check_incoming_data()
             print("done")
             #update arrays and the gp_optimizer
             self.x,self.y, self.v, self.t, self.c,vp = self.extract_data()
