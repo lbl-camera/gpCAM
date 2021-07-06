@@ -281,4 +281,8 @@ class fvgpData(gpData):
             Variance[idx_data] = self.dataset[idx_data]["variances"]
         return Variance
 
+    def check_incoming_data(self):
+        for entry in self.dataset:
+            if entry["values"] is None:
+                raise Exception("Entry with no secified value entry in communicated list of data dictionaries")
 

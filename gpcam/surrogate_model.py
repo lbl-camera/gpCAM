@@ -156,7 +156,7 @@ def find_acquisition_function_maxima(gp,acquisition_function,
     if func_eval.ndim != 1 or opti.ndim != 2:
         print("f(x): ",func_eval)
         print("x: ",opti)
-        raise Exception("The output of the acquisition function optimization is not 2 dimensional. Please check your acquisition function.")
+        raise Exception("The output of the acquisition function is 1 or 2 dimensional but should be a scalar. Please check your acquisition function.")
     return opti,func_eval
 
 ############################################################
