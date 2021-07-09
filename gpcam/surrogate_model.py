@@ -56,11 +56,11 @@ def evaluate_gp_acquisition_function(x,acquisition_function,gp):
         #x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         res = gp.shannon_information_gain(x)["sig"]
         return np.array([res])
-    elif acquisition_function == "upper_confidence":
+    elif acquisition_function == "ucb":
         #x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         m = gp.posterior_mean(x)["f(x)"]
         v = gp.posterior_covariance(x)["v(x)"]
-        return m + 3.0*v
+        return m + 3.0*np.sqrt(v)
     elif acquisition_function == "maximum":
         #x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         res = gp.posterior_mean(x)["f(x)"]
