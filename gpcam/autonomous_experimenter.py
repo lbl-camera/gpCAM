@@ -128,7 +128,7 @@ class AutonomousExperimenterGP():
         self.async_train = False
 
     def kill_client(self):
-        self.gp_optimizer.kill_async_train(self.opt_obj)
+        if self.async_train: self.gp_optimizer.kill_async_train(self.opt_obj)
 
     def update_hps(self):
         if self.async_train: self.gp_optimizer.update_hyperparameters(self.opt_obj)
