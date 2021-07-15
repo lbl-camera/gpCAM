@@ -77,15 +77,16 @@ class AutonomousExperimenterGP():
         if init_dataset_size is None and x is None and dataset is None:
             raise Exception("Either provide length of initial data or an inital dataset")
         self.data = gpData(dim, parameter_bounds)
-        if (x is None or y is None) and dataset is None:
+        if  x is None and dataset is None:
             self.data.create_random_dataset(init_dataset_size)
             self.data.dataset = self.instrument_func(self.data.dataset)
-        elif (x is None or y is None) and dataset is not None:
+        elif dataset is not None:
             self.data.inject_dataset(list(np.load(dataset, allow_pickle = True)))
             hyperparameters = self.data.dataset[-1]["hyperparameters"]
         elif x is not None and y is not None:
-            self.data.inject_arrays(x)
-            self.data.dataset = self.instrument_func(self.data.dataset)
+            self.data.dataset = self.data.inject_arrays(x,y=y,v=v)
+        elif x is not None and y is None:
+            self.data.dataset = self.instrument_func(self.data.inject_arrays(x,y=y,v=v))
         else: raise Exception("No viable option for data given!")
         if self.data.nan_in_dataset(): self.data.clean_data_NaN()
         self.x, self.y, self.v, self.t, self.c = self.data.extract_data()
@@ -123,6 +124,7 @@ class AutonomousExperimenterGP():
     def kill_training(self):
         print("async training is being killed")
         if self.async_train: self.gp_optimizer.stop_async_train(self.opt_obj)
+        else: print("no training to be killed")
         self.async_train = False
 
     def kill_client(self):
@@ -328,15 +330,16 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
             raise Exception("Either provide length of initial data or an inital dataset")
         self.data = fvgpData(dim, parameter_bounds,
                 output_number = output_number, output_dim = output_dim)
-        if (x is None or y is None) and dataset is None:
+        if x is None and dataset is None:
             self.data.create_random_dataset(init_dataset_size)
             self.data.dataset = self.instrument_func(self.data.dataset)
-        elif (x is None or y is None) and dataset is not None:
+        elif dataset is not None:
             self.data.inject_dataset(list(np.load(dataset, allow_pickle = True)))
             self.hyperparameters = self.data.dataset[-1]["hyperparameters"]
         elif x is not None and y is not None:
-            self.data.inject_arrays(x)
-            self.data.dataset = self.instrument_func(self.data.dataset)
+            self.data.dataset = self.data.inject_arrays(x,y=y,v=v)
+        elif x is not None and y is None:
+            self.data.dataset = self.instrument_func(self.data.inject_arrays(x,y=y,v=v))
         else: raise Exception("No viable option for data given!")
         if self.data.nan_in_dataset(): self.data.clean_data_NaN()
         self.x, self.y, self.v, self.t, self.c, self.vp = self.data.extract_data()

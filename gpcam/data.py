@@ -42,17 +42,24 @@ class gpData:
         self.point_number = len(self.dataset)
         self.dataset = dataset
 
-    def inject_arrays(self, x, info = None):
+    def inject_arrays(self, x, y = None , v = None, info = None):
         """
         translates numpy arrays to the data format
         """
+        if np.ndim(x) !=2: raise Exception("'inject_arrays' called with dim(x) != 2")
+        if np.ndim(y) ==2: y = y[:,0]
+        if np.ndim(v) ==2: v = v[:,0]
         data = []
         for i in range(len(x)):
-            data.append(self.npy2dataset_entry(x[i]))
+            val = None
+            var = None
+            if y is not None: val = y[i]
+            if v is not None: var = v[i]
+            data.append(self.npy2dataset_entry(x[i],val,var))
             if info is not None: data[i].update(info[i])
         return data
     ###############################################################
-    def npy2dataset_entry(self, x):
+    def npy2dataset_entry(self, x, y = None, v = None):
         """
         parameters:
         -----------
@@ -60,8 +67,8 @@ class gpData:
         """
         d = {}
         d["position"] = x
-        d["value"] = None
-        d["variance"] = None
+        d["value"] = y
+        d["variance"] = v
         d["cost"] = None
         d["id"] = str(uuid.uuid4())
         d["time stamp"] = time.time()
@@ -195,7 +202,7 @@ class fvgpData(gpData):
     def create_random_dataset(self, length):
         if self.output_number is None or self.output_dim is None:
             raise Exception("When initializing the data class for a multi-output GP, \
-                    please provide output_number AND an output_dim parameters.")
+                    please provide output_number AND output_dim parameters.")
 
         self.x = self._create_random_points(length)
         self.point_number = len(self.x)
@@ -213,17 +220,27 @@ class fvgpData(gpData):
         self.point_number = len(self.dataset)
         self.dataset = dataset
 
-    def inject_arrays(self, x, info = None):
+    def inject_arrays(self, x, y = None, v = None, info = None):
         """
         translates numpy arrays to the data format
         """
+        if np.ndim(x) !=2: raise Exception("'inject_arrays' called with dim(x) != 2")
+        if np.ndim(y) !=2 and y is not None: raise Exception("'inject_arrays' called with dim(y) != 2")
+        if np.ndim(v) !=2 and v is not None: raise Exception("'inject_arrays' called with dim(v) != 2")
+
         data = []
         for i in range(len(x)):
-            data.append(self.npy2dataset_entry(x[i]))
+            val = None
+            var = None
+            if y is not None: val = y[i]
+            if v is not None: var = v[i]
+
+            data.append(self.npy2dataset_entry(x[i],val,var))
             if info is not None: data[i].update(info[i])
         return data
 
-    def npy2dataset_entry(self, x):
+
+    def npy2dataset_entry(self, x, y = None, v = None):
         """
         parameters:
         -----------
@@ -231,8 +248,8 @@ class fvgpData(gpData):
         """
         d = {}
         d["position"] = x
-        d["values"] = None
-        d["variances"] = None
+        d["values"] = y
+        d["variances"] = v
         d["value positions"] = None
         d["cost"] = None
         d["id"] = str(uuid.uuid4())
