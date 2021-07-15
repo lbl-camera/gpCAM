@@ -282,7 +282,7 @@ class GPOptimizer(GP):
             no input parameters
         """
         try: self.kill_training(opt_obj)
-        except: pass
+        except Exception as e: print("kill not sucessful in GPOptimizer due to: ",str(e))
 
 ##############################################################
     def update_hyperparameters(self, opt_obj):
