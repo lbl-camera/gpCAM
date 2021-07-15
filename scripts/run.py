@@ -20,7 +20,10 @@ def run(init_data_file = None):
             training_dask_client = c.training_dask_client,
             acq_func_opt_dask_client = c.prediction_dask_client)
     #train
-    my_ae.train()
+    my_ae.train(pop_size = c.likelihood_optimization_population_size, 
+                tol = c.likelihood_optimization_tolerance, 
+                max_iter = c.likelihood_optimization_max_iter,
+                method = c.initial_likelihood_optimization_method)
     #start the autonomous loop
     my_ae.go(N = c.max_number_of_measurements, breaking_error = c.breaking_error,
              retrain_globally_at = c.global_likelihood_optimization_at,
