@@ -152,11 +152,10 @@ def find_acquisition_function_maxima(gp,acquisition_function,
             if func_eval.ndim != 1: func_eval = np.array([func_eval])
     else:
         raise ValueError("Invalid acquisition function optimization method given.")
-
     if func_eval.ndim != 1 or opti.ndim != 2:
         print("f(x): ",func_eval)
         print("x: ",opti)
-        raise Exception("The output of the acquisition function is 1 or 2 dimensional but should be a scalar. Please check your acquisition function.")
+        raise Exception("The output of the optimization acquisition function dim (f) != 1 or dim(x) != 2. Please check your acquisition function. It should return a 1-d numpy array")
     return opti,func_eval
 
 ############################################################

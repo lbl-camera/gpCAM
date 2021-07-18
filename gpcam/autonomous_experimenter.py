@@ -226,7 +226,7 @@ class AutonomousExperimenterGP():
             error = np.max(np.sqrt(post_var[0]))
             if acq_func_opt_tol_adjust[0]:
                 acq_func_opt_tol = abs(func_evals[0]) * acq_func_opt_tol_adjust[1]
-                print("variance optimization tolerance changed to: ", acq_func_opt_tol)
+                print("acquisition funciton optimization tolerance changed to: ", acq_func_opt_tol)
             print("Next points to be requested: ")
             print(next_measurement_points)
             #update and tell() new data
