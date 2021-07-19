@@ -228,6 +228,7 @@ class GPOptimizer(GP):
                 max_iter = max_iter,
                 dask_client = dask_client
                 )
+        print("The GPOptimizer has created an optimization object.")
         return opt_obj
 
 ##############################################################

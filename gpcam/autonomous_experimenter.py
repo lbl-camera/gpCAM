@@ -119,6 +119,7 @@ class AutonomousExperimenterGP():
         tolerance = tol,max_iter = max_iter,
         dask_client = dask_client
         )
+        print("The Autonomous Experimenter started an instance of the asynchronous training.")
         self.async_train = True
 
     def kill_training(self):
@@ -131,8 +132,11 @@ class AutonomousExperimenterGP():
         if self.async_train: self.gp_optimizer.kill_async_train(self.opt_obj)
 
     def update_hps(self):
-        if self.async_train: self.gp_optimizer.update_hyperparameters(self.opt_obj)
-        print("The Autonomus Experimenter updated the Hyperparameters")
+        print("The autonomous experimenter is trying to update the huperparameters.")
+        if self.async_train:
+            self.gp_optimizer.update_hyperparameters(self.opt_obj)
+            print("The Autonomus Experimenter updated the Hyperparameters")
+        else: print("The autonomous experimenter could not find an instance of asynchronous training. Therefore, no update.")
         print("hps: ", self.gp_optimizer.hyperparameters)
 
     def _init_costs(self,cost_func_params):
@@ -194,17 +198,18 @@ class AutonomousExperimenterGP():
         start_date_time = strftime("%Y-%m-%d_%H_%M_%S", time.localtime())
         print("Date and time:       ", start_date_time)
 
-        for i in range(self.init_dataset_size,int(N)):
+        for i in range(self.init_dataset_size,int(N)+1):
             n_measurements = len(self.x)
             print("")
             print("")
             print("")
-            print("====================")
-            print("====================")
+            print("==================================")
+            print("==================================")
             print("iteration: ",i)
             print("Run Time: ", time.time() - start_time, "     seconds")
             print("Number of measurements: ", n_measurements)
-            print("====================")
+            print("==================================")
+            print("==================================")
             #ask() for new suggestions
             current_position = self.x[-1]
             print("hps: ",self.gp_optimizer.hyperparameters)
@@ -247,26 +252,29 @@ class AutonomousExperimenterGP():
             self.tell(self.x, self.y, self.v, vp)
             ###########################
             #train()
-            print("Training ...")
-            if len(self.x) in retrain_async_at:
+            print("++++++++++++++++++++++++++")
+            print("|Training ...            |")
+            print("++++++++++++++++++++++++++")
+            if n_measurements in retrain_async_at:
+                print("    Starting  a new asynchronous training after killing the current one.")
                 self.kill_training()
-                self.opt_obj = self.train_async(pop_size = 10,tol = 1e-6,max_iter = 20,
+                self.train_async(pop_size = 10,tol = 1e-6,max_iter = 100000000,
                                  dask_client = self.training_dask_client)
-            elif len(self.x) in retrain_globally_at:
+            elif n_measurements in retrain_globally_at:
                 self.kill_training()
-                print("Fresh optimization from scratch via global optimization")
+                print("    Fresh optimization from scratch via global optimization")
                 self.train(pop_size = 10,tol = 1e-6,max_iter = 20, method = "global")
-            elif len(self.x) in retrain_locally_at:
+            elif n_measurements in retrain_locally_at:
                 self.kill_training()
-                print("Fresh optimization from scratch via global optimization")
+                print("    Fresh optimization from scratch via global optimization")
                 self.train(pop_size = 10,tol = 1e-6, max_iter = 20, method = "local")
-            elif len(self.x) in retrain_callable_at:
+            elif n_measurements in retrain_callable_at:
                 self.kill_training()
-                print("Fresh optimization from scratch via global optimization")
+                print("    Fresh optimization from scratch via user-defined optimization")
                 self.train(pop_size = 10,tol = 1e-6,max_iter = 20, method = training_opt)
             else:
+                print("    No training in this round but I am trying to update the hyperparameters")
                 self.update_hps()
-                print("No training in this round but I tried to update the hyperparameters")
             ###save some data
             try: np.save('Data_'+ start_date_time, self.data.dataset)
             except Exception as e: print("Data not saved due to ", str(e))
