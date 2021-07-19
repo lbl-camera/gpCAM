@@ -152,6 +152,9 @@ def find_acquisition_function_maxima(gp,acquisition_function,
             if func_eval.ndim != 1: func_eval = np.array([func_eval])
     else:
         raise ValueError("Invalid acquisition function optimization method given.")
+    print("The acquisition function optimization resulted in: ")
+    print("     x: ", opti)
+    print("  f(x): ", func_eval)
     if func_eval.ndim != 1 or opti.ndim != 2:
         print("f(x): ",func_eval)
         print("x: ",opti)
