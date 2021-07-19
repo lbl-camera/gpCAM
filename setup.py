@@ -52,6 +52,6 @@ setup(
     packages=find_packages(include=['gpcam', 'gpcam.*']),
     test_suite='tests',
     url='https://gpcam.lbl.gov',
-    version='7.1.5',
+    version='7.1.6',
     zip_safe=False,
 )

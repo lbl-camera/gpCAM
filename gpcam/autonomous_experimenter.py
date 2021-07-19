@@ -198,7 +198,7 @@ class AutonomousExperimenterGP():
         start_date_time = strftime("%Y-%m-%d_%H_%M_%S", time.localtime())
         print("Date and time:       ", start_date_time)
 
-        for i in range(self.init_dataset_size,int(N)+1):
+        for i in range(self.init_dataset_size,int(N)):
             n_measurements = len(self.x)
             print("")
             print("")
