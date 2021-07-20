@@ -132,10 +132,10 @@ class AutonomousExperimenterGP():
         if self.async_train: self.gp_optimizer.kill_async_train(self.opt_obj)
 
     def update_hps(self):
-        print("The autonomous experimenter is trying to update the huperparameters.")
+        print("The Autonomous Experimenter is trying to update the hyperparameters.")
         if self.async_train:
             self.gp_optimizer.update_hyperparameters(self.opt_obj)
-            print("The Autonomus Experimenter updated the Hyperparameters")
+            print("The Autonomus Experimenter updated the hyperparameters")
         else: print("The autonomous experimenter could not find an instance of asynchronous training. Therefore, no update.")
         print("hps: ", self.gp_optimizer.hyperparameters)
 

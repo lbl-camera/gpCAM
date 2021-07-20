@@ -156,7 +156,7 @@ class gpData:
     def check_incoming_data(self):
         for entry in self.dataset:
             if entry["value"] is None:
-                raise Exception("Entry with no secified value entry in communicated list of data dictionaries")
+                raise Exception("Entry with no specified value entry in communicated list of data dictionaries")
 
     def clean_data_NaN(self):
         for entry in self.dataset:
