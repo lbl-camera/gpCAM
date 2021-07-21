@@ -288,7 +288,7 @@ class GPOptimizer(GP):
 ##############################################################
     def update_hyperparameters(self, opt_obj):
         hps = GP.update_hyperparameters(self, opt_obj)
-        print("GPOptimizer updated the Hyperperameters: ", self.hyperparameters)
+        print("The GPOptimizer updated the Hyperperameters: ", self.hyperparameters)
         return hps
 
 ##############################################################
