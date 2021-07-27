@@ -236,7 +236,7 @@ class AutonomousExperimenterGP():
             print(next_measurement_points)
             #update and tell() new data
             info  = [{"hyperparameters" : self.gp_optimizer.hyperparameters,
-                      "posterior variance" : post_var[i]} for i in range(len(next_measurement_points))]
+                      "posterior std" : np.sqrt(post_var[j])} for j in range(len(next_measurement_points))]
             new_data = self.data.inject_arrays(next_measurement_points, info = info)
             print("Sending request to instrument ...")
             if self.append: self.data.dataset = self.data.dataset + self.instrument_func(new_data)
