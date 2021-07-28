@@ -276,6 +276,7 @@ class AutonomousExperimenterGP():
                 print("    No training in this round but I am trying to update the hyperparameters")
                 self.update_hps()
             ###save some data
+            if self.run_every_iteration is not None: self.run_every_iteration(self)
             try: np.save('Data_'+ start_date_time, self.data.dataset)
             except Exception as e: print("Data not saved due to ", str(e))
             ###########################
