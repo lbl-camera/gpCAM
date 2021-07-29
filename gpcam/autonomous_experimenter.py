@@ -179,7 +179,7 @@ class AutonomousExperimenterGP():
             * retrain_async_at = [1000,2000,5000,10000]
             * retrain_callable = []: if this is not an empty list, "training_opt_callable" has to be provided
             * update_cost_func_at = []: list containing numbers when the cost function is updated
-            * search_setting = lambda function to decide when global, local, hgdl, other ask()
+            * acq_func_opt_setting= lambda function to decide when global, local, hgdl, other ask()
             * training_opt_callable = None, callable
             * training_opt_max_iter = 20
             * training_opt_pop_size = 10
@@ -213,13 +213,15 @@ class AutonomousExperimenterGP():
             #ask() for new suggestions
             current_position = self.x[-1]
             print("hps: ",self.gp_optimizer.hyperparameters)
+            local_method = acq_func_opt_setting(i)
+            if number_of_suggested_measurements > 1: local_method = "hgdl"
             res = self.gp_optimizer.ask(
                     position = current_position,
                     n = number_of_suggested_measurements,
                     acquisition_function = self.acq_func,
                     cost_function = self.cost_func,
                     bounds = None,
-                    method = acq_func_opt_setting(i),
+                    method = local_method,
                     pop_size = acq_func_opt_pop_size,
                     max_iter = acq_func_opt_max_iter,
                     tol = acq_func_opt_tol,

@@ -116,13 +116,14 @@ def find_acquisition_function_maxima(gp,acquisition_function,
         a = HGDL(evaluate_acquisition_function,
                     evaluate_acquisition_function_gradient,
                     evaluate_acquisition_function_hessian,
-                    optimization_bounds, number_of_walkers = optimization_pop_size,
-                    verbose = False, maxEpochs = optimization_max_iter,
-                    x0 = optimization_x0,
+                    bounds = optimization_bounds,
+                    num_epochs = optimization_max_iter,
                     args = (gp,acquisition_function,origin,cost_function,cost_function_parameters))
+
         #####optimization_max_iter, tolerance here
-        a.optimize(dask_client = dask_client)
-        res = a.get_latest(number_of_maxima_sought)
+        a.optimize(dask_client = dask_client, x0 = optimization_x0)
+        res = a.get_final(number_of_maxima_sought)
+        a.kill()
         opti = res['x']
         func_eval = res['func evals']
     elif optimization_method == "local":
