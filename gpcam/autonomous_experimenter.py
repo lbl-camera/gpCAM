@@ -113,10 +113,9 @@ class AutonomousExperimenterGP():
         method = method, pop_size = pop_size,
         tolerance = tol, max_iter = max_iter)
 
-    def train_async(self,pop_size = 10,tol = 1e-6, max_iter = 20, dask_client = None):
+    def train_async(self, max_iter = 20, dask_client = None):
         self.opt_obj = self.gp_optimizer.train_gp_async(
-        self.hyperparameter_bounds,pop_size = pop_size,
-        tolerance = tol,max_iter = max_iter,
+        self.hyperparameter_bounds,max_iter = max_iter,
         dask_client = dask_client
         )
         print("The Autonomous Experimenter started an instance of the asynchronous training.")

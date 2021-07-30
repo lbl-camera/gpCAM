@@ -200,8 +200,6 @@ class GPOptimizer(GP):
 ##############################################################
     def train_gp_async(self,
             hyperparameter_bounds,
-            pop_size = 20,
-            tolerance = 1e-6,
             max_iter = 10000,
             dask_client = None):
         """
@@ -211,8 +209,6 @@ class GPOptimizer(GP):
             hyperparameter_bounds:                  2d np.array of bounds for the hyperparameters
         Optional Parameters:
         --------------------
-            pop_size:       number of walkers in the optimization, default = 20
-            tolerance:      tolerance for termination, default = 1e-6
             max_iter:       maximum number of iterations, default = 10000
             dask_client:    a DASK client, see dask package docs for explanation
         Return:
@@ -223,8 +219,6 @@ class GPOptimizer(GP):
         opt_obj = self.train_async(
                 hyperparameter_bounds,
                 init_hyperparameters = self.hyperparameters,
-                pop_size = pop_size,
-                tolerance = tolerance,
                 max_iter = max_iter,
                 dask_client = dask_client
                 )

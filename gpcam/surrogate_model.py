@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 from functools import partial
 from scipy.optimize import differential_evolution as devo
+from hgdl.hgdl import HGDL
 
 
 def evaluate_acquisition_function(x, gp, acquisition_function,origin = None,
@@ -112,18 +113,17 @@ def find_acquisition_function_maxima(gp,acquisition_function,
     elif optimization_method == "hgdl":
         ###run differential evo first if hxdy only returns stationary points
         ###then of hgdl is successful, stack results and return
-        from hgdl.hgdl import HGDL
         a = HGDL(evaluate_acquisition_function,
                     evaluate_acquisition_function_gradient,
+                    bounds,
                     evaluate_acquisition_function_hessian,
-                    bounds = optimization_bounds,
                     num_epochs = optimization_max_iter,
                     args = (gp,acquisition_function,origin,cost_function,cost_function_parameters))
 
         #####optimization_max_iter, tolerance here
         a.optimize(dask_client = dask_client, x0 = optimization_x0)
         res = a.get_final(number_of_maxima_sought)
-        a.kill()
+        a.kill_client()
         opti = res['x']
         func_eval = res['func evals']
     elif optimization_method == "local":
