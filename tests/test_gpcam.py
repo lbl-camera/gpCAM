@@ -40,13 +40,23 @@ class TestgpCAM(unittest.TestCase):
         ######################################################
         ######################################################
         ######################################################
+        def kernel_l2_single_task(x1,x2,hyperparameters,obj):
+            hps = hyperparameters
+            distance_matrix = np.zeros((len(x1),len(x2)))
+            for i in range(len(x1[0])):
+                distance_matrix += abs(np.subtract.outer(x1[:,i],x2[:,i])/hps[i+1])**2
+            distance_matrix = np.sqrt(distance_matrix)
+            #if len(x1) == len(x2): noise = np.identity(len(x1)) * hps[2]
+            #else: noise = 0.0
+            return   hps[0] *  obj.exponential_kernel(distance_matrix,1)# + noise
+
         index_set_bounds = np.array([[0.,1.],[0.,1.]])
         hyperparameter_bounds = np.array([[0.001,1e9],[0.001,100],[0.001,100]])
         hps_guess = np.ones((3))
         ###################################################################################
         gp = GPOptimizer(dim,index_set_bounds)
         gp.tell(x,y)
-        gp.init_gp(hps_guess)
+        gp.init_gp(hps_guess, gp_kernel_function = kernel_l2_single_task)
         gp.train_gp(hyperparameter_bounds)
         ######################################################
         ######################################################
