@@ -142,6 +142,7 @@ class GPOptimizer(GP):
         print("New data communicated via tell()")
 
         if self.gp_initialized is True: self.update_gp()
+        else: print("No gp initialized yet!")
 
 ##############################################################
     def init_gp(
@@ -445,7 +446,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
         self.value_positions = np.empty((0, self.output_number, self.oput_dim))
         self.input_space_bounds = np.array(input_space_bounds)
         #self.hyperparameters = None
-        self.gp_initialized = False
+        self.fvgp_initialized = False
         self.cost_function_parameters = None
         self.cost_function = None
         self.consider_costs = False
@@ -498,7 +499,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
                                                       [[0],[1]]
                                                       ])
                                                     * 2 data points with 3 ouputs in 2d:
-                                                      value_posiitons = np.array([
+                                                      value_positions = np.array([
                                                       [[0,1],[2,3],[4,5]]
                                                       [[0,2],[4,2],[7,8]]
                                                       ])
@@ -512,7 +513,8 @@ class fvGPOptimizer(fvGP, GPOptimizer):
         self.variances = variances
         self.value_positions = value_positions
 
-        if self.gp_initialized is True: self.update_fvgp()
+        if self.fvgp_initialized is True: self.update_fvgp()
+        else: print("No fvgp initialized yet!")
 
 ##############################################################
     def init_fvgp(
@@ -551,7 +553,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
             gp_mean_function = gp_mean_function,
             sparse = sparse,
             )
-            self.gp_initialized = True
+            self.fvgp_initialized = True
         else: print("fvGP already initialized")
 
 ##############################################################
