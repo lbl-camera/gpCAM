@@ -6,6 +6,8 @@ from gpcam.data import gpData
 from gpcam.data import fvgpData
 from gpcam.gp_optimizer import GPOptimizer
 from gpcam.gp_optimizer import fvGPOptimizer
+import dask
+import dask.distributed as distributed
 
 #todo: autonomous experimenter for fvgp, data class for fvgp
 
@@ -68,9 +70,11 @@ class AutonomousExperimenterGP():
         self.prior_mean_func = prior_mean_func
         self.run_every_iteration = run_every_iteration
         self.append = append_data_after_send
-        self.async_train = False
+        self.async_train_in_progress = False
         self.training_dask_client = training_dask_client
+        if self.training_dask_client is None: self.training_dask_client = dask.distributed.Client()
         self.acq_func_opt_dask_client = acq_func_opt_dask_client
+        if self.acq_func_opt_dask_client is None: self.acq_func_opt_dask_client = self.training_dask_client
         ################################
         #getting the data ready#########
         ################################
@@ -103,7 +107,7 @@ class AutonomousExperimenterGP():
         #init costs
         self._init_costs(cost_func_params)
         print("##################################################################################")
-        print("Initialization successfully concluded")
+        print("Autonomous Experimenter initialization successfully concluded")
         print("now train(...) or train_async(...), and then go(...)")
         print("##################################################################################")
     ###################################################################################
@@ -114,25 +118,29 @@ class AutonomousExperimenterGP():
         tolerance = tol, max_iter = max_iter)
 
     def train_async(self, max_iter = 20, dask_client = None):
+        if dask_client is None: dask_client = self.training_dask_client
+        print("AutonomousExperimenter starts async training with dask client:")
+        print(dask_client)
         self.opt_obj = self.gp_optimizer.train_gp_async(
         self.hyperparameter_bounds,max_iter = max_iter,
         dask_client = dask_client
         )
         print("The Autonomous Experimenter started an instance of the asynchronous training.")
-        self.async_train = True
+        self.async_train_in_progress = True
 
     def kill_training(self):
         print("async training is being killed")
-        if self.async_train: self.gp_optimizer.stop_async_train(self.opt_obj)
+        if self.async_train_in_progress: self.gp_optimizer.stop_async_train(self.opt_obj)
         else: print("no training to be killed")
-        self.async_train = False
+        self.async_train_in_progress = False
 
     def kill_client(self):
-        if self.async_train: self.gp_optimizer.kill_async_train(self.opt_obj)
+        try: self.gp_optimizer.kill_async_train(self.opt_obj)
+        except: print("Tried to kill the client, but it appears there was none.")
 
     def update_hps(self):
         print("The Autonomous Experimenter is trying to update the hyperparameters.")
-        if self.async_train:
+        if self.async_train_in_progress:
             self.gp_optimizer.update_hyperparameters(self.opt_obj)
             print("The Autonomus Experimenter updated the hyperparameters")
         else: print("The autonomous experimenter could not find an instance of asynchronous training. Therefore, no update.")
@@ -188,10 +196,6 @@ class AutonomousExperimenterGP():
             * acq_func_opt_tol      = 1e-6
             * acq_func_opt_tol_adjust = [True, 0.1]
             * number_of_suggested_measurements = 1
-            * compute_device = cpu
-            * sparse = False
-            * training_dask_client = None
-            * acq_func_opt_dask_client = None
         """
         start_time = time.time()
         start_date_time = strftime("%Y-%m-%d_%H_%M_%S", time.localtime())
@@ -259,7 +263,7 @@ class AutonomousExperimenterGP():
             if n_measurements in retrain_async_at:
                 print("    Starting  a new asynchronous training after killing the current one.")
                 self.kill_training()
-                self.train_async(pop_size = 10,tol = 1e-6,max_iter = 100000000,
+                self.train_async(max_iter = 100000000,
                                  dask_client = self.training_dask_client)
             elif n_measurements in retrain_globally_at:
                 self.kill_training()
@@ -276,6 +280,10 @@ class AutonomousExperimenterGP():
             else:
                 print("    No training in this round but I am trying to update the hyperparameters")
                 self.update_hps()
+            print("++++++++++++++++++++++++++")
+            print("|Training Done           |")
+            print("++++++++++++++++++++++++++")
+
             ###save some data
             if self.run_every_iteration is not None: self.run_every_iteration(self)
             try: np.save('Data_'+ start_date_time, self.data.dataset)
@@ -330,9 +338,11 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         self.prior_mean_func = prior_mean_func
         self.run_every_iteration = run_every_iteration
         self.append = append_data_after_send
-        self.async_train = False
+        self.async_train_in_progress = False
         self.training_dask_client = training_dask_client
+        if self.training_dask_client is None: self.training_dask_client = dask.distributed.Client()
         self.acq_func_opt_dask_client = acq_func_opt_dask_client
+        if self.acq_func_opt_dask_client is None: self.acq_func_opt_dask_client = self.training_dask_client
         ################################
         #getting the data ready#########
         ################################
@@ -366,7 +376,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         #init costs
         self._init_costs(cost_func_params)
         print("##################################################################################")
-        print("Initialization successfully concluded")
+        print("Autonomous Experimenter fvGP initialization successfully concluded")
         print("now train(...) or train_async(...), and then go(...)")
         print("##################################################################################")
 

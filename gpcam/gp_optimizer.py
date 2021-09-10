@@ -215,6 +215,7 @@ class GPOptimizer(GP):
         Return:
             Nothing, call update_hyperparameters() for the result
         """
+        print("GPOptimizer async training was called with dask_client: ", dask_client)
         if self.gp_initialized is False:
             raise Exception("No GP to be trained. Please call init_gp(...) before training.")
         opt_obj = self.train_async(
@@ -262,7 +263,7 @@ class GPOptimizer(GP):
 ##############################################################
     def stop_async_train(self, opt_obj):
         """
-        function to stop vfGP async training
+        function to stop fvGP async training
         Parameters:
         -----------
             no input parameters
@@ -446,7 +447,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
         self.value_positions = np.empty((0, self.output_number, self.oput_dim))
         self.input_space_bounds = np.array(input_space_bounds)
         #self.hyperparameters = None
-        self.fvgp_initialized = False
+        self.gp_initialized = False
         self.cost_function_parameters = None
         self.cost_function = None
         self.consider_costs = False
@@ -513,7 +514,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
         self.variances = variances
         self.value_positions = value_positions
 
-        if self.fvgp_initialized is True: self.update_fvgp()
+        if self.gp_initialized is True: self.update_fvgp()
         else: print("No fvgp initialized yet!")
 
 ##############################################################
@@ -553,7 +554,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
             gp_mean_function = gp_mean_function,
             sparse = sparse,
             )
-            self.fvgp_initialized = True
+            self.gp_initialized = True
         else: print("fvGP already initialized")
 
 ##############################################################
