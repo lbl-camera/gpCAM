@@ -142,7 +142,6 @@ class GPOptimizer(GP):
         print("New data communicated via tell()")
 
         if self.gp_initialized is True: self.update_gp()
-        else: print("No gp initialized yet!")
 
 ##############################################################
     def init_gp(
@@ -515,7 +514,6 @@ class fvGPOptimizer(fvGP, GPOptimizer):
         self.value_positions = value_positions
 
         if self.gp_initialized is True: self.update_fvgp()
-        else: print("No fvgp initialized yet!")
 
 ##############################################################
     def init_fvgp(
