@@ -28,7 +28,7 @@ def update_l2_cost_function(costs, parameters):
     print("Cost adjustment in progress...")
     print("old cost parameters: ",parameters)
     #print(costs)
-    bounds = ...
+    bounds = 0.0
     #print(bounds)
     #input()
     ###remove out-liers:
@@ -66,7 +66,7 @@ def update_l2_cost_function(costs, parameters):
 def update_l1_cost_function(costs, parameters):
     print("Cost adjustment in progress...")
     print("old cost parameters: ",parameters)
-    bounds = 
+    bounds = 0.0
     ###remove outliers:
     origins = []
     points = []

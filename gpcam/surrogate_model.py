@@ -43,31 +43,25 @@ def evaluate_gp_acquisition_function(x,acquisition_function,gp):
     ##for the other the length == len(x)
     if len(x.shape) == 1: x = np.array([x])
     if acquisition_function == "variance":
-        #x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
-        res = gp.posterior_covariance(x)
+        res = gp.posterior_covariance(x, variance_only = True)["v(x)"]
         return res
     if acquisition_function == "covariance":
-        #x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         res = gp.posterior_covariance(x)
         b = res["S(x)"]
         sgn, logdet = np.linalg.slogdet(b)
         return np.array([np.sqrt(sgn * np.exp(logdet))])
     ###################more here: shannon_ig  for instance
     elif acquisition_function == "shannon_ig":
-        #x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         res = gp.shannon_information_gain(x)["sig"]
         return np.array([res])
     elif acquisition_function == "ucb":
-        #x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         m = gp.posterior_mean(x)["f(x)"]
-        v = gp.posterior_covariance(x)["v(x)"]
+        v = gp.posterior_covariance(x, variance_only = True)["v(x)"]
         return m + 3.0*np.sqrt(v)
     elif acquisition_function == "maximum":
-        #x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         res = gp.posterior_mean(x)["f(x)"]
         return res
     elif acquisition_function == "minimum":
-        #x = cast_to_index_set(x,gp.value_positions[-1], mode = 'cartesian product')
         res = gp.posterior_mean(x)["f(x)"]
         return -res
 
@@ -84,6 +78,7 @@ def find_acquisition_function_maxima(gp,acquisition_function,
         cost_function_parameters = None,
         dask_client = False):
     bounds = np.array(optimization_bounds)
+    opt_obj = None
     print("====================================")
     print("finding acquisition function maxima...")
     print("optimization method ",optimization_method)
@@ -123,7 +118,8 @@ def find_acquisition_function_maxima(gp,acquisition_function,
         #####optimization_max_iter, tolerance here
         a.optimize(dask_client = dask_client, x0 = optimization_x0)
         res = a.get_final(number_of_maxima_sought)
-        a.kill_client()
+        a.cancel_tasks()
+        opt_obj = a
         opti = res['x']
         func_eval = res['func evals']
     elif optimization_method == "local":
@@ -160,7 +156,7 @@ def find_acquisition_function_maxima(gp,acquisition_function,
         print("f(x): ",func_eval)
         print("x: ",opti)
         raise Exception("The output of the optimization acquisition function dim (f) != 1 or dim(x) != 2. Please check your acquisition function. It should return a 1-d numpy array")
-    return opti,func_eval
+    return opti,func_eval,opt_obj
 
 ############################################################
 ############################################################

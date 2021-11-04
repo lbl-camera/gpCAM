@@ -81,7 +81,7 @@ class GPOptimizer(GP):
             }
 
     def evaluate_acquisition_function(self,
-        x, acquisition_function="covariance", cost_function=None,
+        x, acquisition_function="variance", cost_function=None,
         origin=None):
         """
         Evaluates the acquisition function.
@@ -92,9 +92,9 @@ class GPOptimizer(GP):
 
         Optional Parameters:
         --------------------
-        acquisition_function : default = "covariance",
+        acquisition_function : default = "variance",
                                "covariance","shannon_ig" ,..., or callable, use the same you use
-                               in ask(). (The default is "covariance").
+                               in ask(). (The default is "variance").
         origin:                default = None, only important for cost considerations, mandatory if costs are important
 
         Returns
@@ -150,7 +150,7 @@ class GPOptimizer(GP):
         compute_device="cpu",
         gp_kernel_function=None,
         gp_mean_function=None,
-        sparse=False
+        sparse=False, use_inv = False
     ):
         """
         Function to initialize the GP if it has not already been initialized
@@ -175,8 +175,8 @@ class GPOptimizer(GP):
             compute_device = compute_device,
             gp_kernel_function = gp_kernel_function,
             gp_mean_function = gp_mean_function,
-            sparse = sparse,
-            normalize_y = False
+            sparse = sparse, use_inv = use_inv,
+            normalize_y = False,
             )
             self.gp_initialized = True
             print("GP successfully initiated")
@@ -288,7 +288,7 @@ class GPOptimizer(GP):
 
 ##############################################################
     def ask(self, position = None, n = 1,
-            acquisition_function = "covariance",
+            acquisition_function = "variance",
             cost_function = None,
             bounds = None,
             method = "global",
@@ -321,8 +321,9 @@ class GPOptimizer(GP):
         print("ask() initiated with hyperparameters:",self.hyperparameters)
         print("optimization method: ", method)
         print("bounds: ",bounds)
+        print("acq func: ",acquisition_function)
         if bounds is None: bounds = self.input_space_bounds
-        maxima,func_evals = sm.find_acquisition_function_maxima(
+        maxima,func_evals,opt_obj = sm.find_acquisition_function_maxima(
                 self,
                 acquisition_function,
                 position,n, bounds,
@@ -334,7 +335,7 @@ class GPOptimizer(GP):
                 cost_function_parameters = self.cost_function_parameters,
                 optimization_x0 = x0,
                 dask_client = dask_client)
-        return {'x':np.array(maxima), "f(x)" : np.array(func_evals)}
+        return {'x':np.array(maxima), "f(x)" : np.array(func_evals), "opt_obj" : opt_obj}
 
 ##############################################################
     def init_cost(self,cost_function,cost_function_parameters,cost_update_function = None):
@@ -522,7 +523,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
         compute_device="cpu",
         gp_kernel_function=None,
         gp_mean_function=None,
-        sparse=False
+        sparse=False, use_inv = False
     ):
         """
         Function to initialize the GP if it has not already been initialized
@@ -550,7 +551,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
             compute_device = compute_device,
             gp_kernel_function = gp_kernel_function,
             gp_mean_function = gp_mean_function,
-            sparse = sparse,
+            sparse = sparse, use_inv = use_inv,
             )
             self.gp_initialized = True
         else: print("fvGP already initialized")

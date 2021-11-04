@@ -38,7 +38,7 @@ gp ={
         "cost function parameters": {"offset": 10,"slope":[2.0,2.0]},
         "plot function": plot_function
 }
-append_data_after_send = True
+communicate_full_dataset = False
 breaking_error = 1e-12
 ########################################
 ###Variance Optimization################

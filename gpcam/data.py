@@ -154,9 +154,14 @@ class gpData:
     #########Cleaning##############################################
     ###############################################################
     def check_incoming_data(self):
-        for entry in self.dataset:
-            if entry["value"] is None:
-                raise Exception("Entry with no specified value entry in communicated list of data dictionaries")
+        try:
+            for entry in self.dataset:
+                if entry["value"] is None:
+                    raise Exception("Entry with no specified value in communicated list of data dictionaries")
+                if entry["position"] is None:
+                    raise Exception("Entry with no specified position in communicated list of data dictionaries")
+        except: raise Exception("Checking the incoming data could not be accomplished. This normally means that wrong formats were communicated")
+
 
     def clean_data_NaN(self):
         for entry in self.dataset:
@@ -299,7 +304,13 @@ class fvgpData(gpData):
         return Variance
 
     def check_incoming_data(self):
-        for entry in self.dataset:
-            if entry["values"] is None:
-                raise Exception("Entry with no secified value entry in communicated list of data dictionaries")
+        try:
+            for entry in self.dataset:
+                if entry["values"] is None:
+                    raise Exception("Entry with no specified value in communicated list of data dictionaries")
+                if entry["position"] is None:
+                    raise Exception("Entry with no specified position in communicated list of data dictionaries")
+                if entry["value positions"] is None:
+                    raise Exception("Entry with no specified position in communicated list of data dictionaries")
+        except: raise Exception("Checking the incoming data could not be accomplished. This normally means that wrong formats were communicated")
 

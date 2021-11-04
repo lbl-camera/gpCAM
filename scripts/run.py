@@ -15,7 +15,7 @@ def run(init_data_file = None):
             cost_update_func = c.gp["cost update function"], cost_func_params = c.gp["cost function parameters"],
             kernel_func = c.gp["kernel function"], prior_mean_func = c.gp["mean function"],
             run_every_iteration = c.gp["run function in every iteration"],
-            append_data_after_send = c.append_data_after_send, compute_device = c.compute_device,
+            communicate_full_dataset = c.communicate_full_dataset, compute_device = c.compute_device,
             sparse = c.sparse,
             training_dask_client = c.training_dask_client,
             acq_func_opt_dask_client = c.prediction_dask_client)
