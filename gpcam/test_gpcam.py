@@ -110,4 +110,3 @@ class TestgpCAM(unittest.TestCase):
         print("==================================================")
         print("data cube written in 'data_list.csv'; you can use paraview to visualize it")
         print("END")
-

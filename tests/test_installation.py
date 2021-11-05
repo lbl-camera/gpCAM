@@ -1,4 +1,4 @@
-from tests.test_gpcam import TestgpCAM
+from gpcam.test_gpcam import TestgpCAM
 
 
 t = TestgpCAM()

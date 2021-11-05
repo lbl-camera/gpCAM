@@ -23,6 +23,7 @@ class AutonomousExperimenterGP():
         * hyperparameter_bounds
     Optional Parameters:
     --------------------
+        * instrument_dict = {}
         * init_dataset_size = None: int or None, None means you have to provide intial data
         * acq_func = "variance": acquisition function to be maximized in search of new measurements
         * cost_func = None
@@ -43,6 +44,7 @@ class AutonomousExperimenterGP():
             instrument_func,
             hyperparameters,
             hyperparameter_bounds,
+            instrument_dict = {},
             init_dataset_size = None,
             acq_func = "variance",
             cost_func = None,
@@ -61,6 +63,7 @@ class AutonomousExperimenterGP():
             ):
         dim = len(parameter_bounds)
         self.instrument_func = instrument_func
+        self.instrument_dict = instrument_dict
         self.hyperparameter_bounds = hyperparameter_bounds
         self.acq_func = acq_func
         self.cost_func = cost_func
@@ -82,14 +85,14 @@ class AutonomousExperimenterGP():
         self.data = gpData(dim, parameter_bounds)
         if  x is None and dataset is None:
             self.data.create_random_dataset(init_dataset_size)
-            self.data.dataset = self.instrument_func(self.data.dataset)
+            self.data.dataset = self.instrument_func(self.data.dataset, instrument_dict = self.instrument_dict)
         elif dataset is not None:
             self.data.inject_dataset(list(np.load(dataset, allow_pickle = True)))
             hyperparameters = self.data.dataset[-1]["hyperparameters"]
         elif x is not None and y is not None:
             self.data.dataset = self.data.inject_arrays(x,y=y,v=v)
         elif x is not None and y is None:
-            self.data.dataset = self.instrument_func(self.data.inject_arrays(x,y=y,v=v))
+            self.data.dataset = self.instrument_func(self.data.inject_arrays(x,y=y,v=v), instrument_dict = self.instrument_dict)
         else: raise Exception("No viable option for data given!")
         self.data.check_incoming_data()
         if self.data.nan_in_dataset(): self.data.clean_data_NaN()
@@ -248,8 +251,8 @@ class AutonomousExperimenterGP():
                       "posterior std" : np.sqrt(post_var[j])} for j in range(len(next_measurement_points))]
             new_data = self.data.inject_arrays(next_measurement_points, info = info)
             print("Sending request to instrument ...")
-            if self.communicate_full_dataset: self.data.dataset = self.instrument_func(self.data.dataset + new_data)
-            else: self.data.dataset = self.data.dataset + self.instrument_func(new_data)
+            if self.communicate_full_dataset: self.data.dataset = self.instrument_func(self.data.dataset + new_data, instrument_dict = self.instrument_dict)
+            else: self.data.dataset = self.data.dataset + self.instrument_func(new_data, instrument_dict = self.instrument_dict)
             print("Data received")
             print("Checking if data is clean ...")
             self.data.check_incoming_data()
@@ -317,6 +320,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
             instrument_func,
             hyperparameters,
             hyperparameter_bounds,
+            instrument_dict = {},
             init_dataset_size = None,
             acq_func = "variance",
             cost_func = None,
@@ -335,6 +339,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
             ):
         dim = len(parameter_bounds)
         self.instrument_func = instrument_func
+        self.instrument_dict = instrument_dict
         self.hyperparameters = hyperparameters
         self.hyperparameter_bounds = hyperparameter_bounds
         self.acq_func = acq_func
@@ -358,14 +363,14 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
                 output_number = output_number, output_dim = output_dim)
         if x is None and dataset is None:
             self.data.create_random_dataset(init_dataset_size)
-            self.data.dataset = self.instrument_func(self.data.dataset)
+            self.data.dataset = self.instrument_func(self.data.dataset, instrument_dict = self.instrument_dict)
         elif dataset is not None:
             self.data.inject_dataset(list(np.load(dataset, allow_pickle = True)))
             self.hyperparameters = self.data.dataset[-1]["hyperparameters"]
         elif x is not None and y is not None:
             self.data.dataset = self.data.inject_arrays(x,y=y,v=v)
         elif x is not None and y is None:
-            self.data.dataset = self.instrument_func(self.data.inject_arrays(x,y=y,v=v))
+            self.data.dataset = self.instrument_func(self.data.inject_arrays(x,y=y,v=v), instrument_dict = self.instrument_dict)
         else: raise Exception("No viable option for data given!")
         self.data.check_incoming_data()
         if self.data.nan_in_dataset(): self.data.clean_data_NaN()
