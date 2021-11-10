@@ -10,6 +10,10 @@ import dask
 import dask.distributed as distributed
 
 
+
+#todo
+
+
 class AutonomousExperimenterGP():
     """
     class AutonomousExperimenterGP:
@@ -18,11 +22,11 @@ class AutonomousExperimenterGP():
     Parameters:
     -----------
         * parameter_bounds
-        * instrument_func
         * hyperparameters
         * hyperparameter_bounds
     Optional Parameters:
     --------------------
+        * instrument_func = None
         * instrument_dict = {}
         * init_dataset_size = None: int or None, None means you have to provide intial data
         * acq_func = "variance": acquisition function to be maximized in search of new measurements
@@ -41,9 +45,9 @@ class AutonomousExperimenterGP():
     """
     def __init__(self,
             parameter_bounds,
-            instrument_func,
             hyperparameters,
             hyperparameter_bounds,
+            instrument_func = None,
             instrument_dict = {},
             init_dataset_size = None,
             acq_func = "variance",
@@ -85,6 +89,7 @@ class AutonomousExperimenterGP():
         self.data = gpData(dim, parameter_bounds)
         if  x is None and dataset is None:
             self.data.create_random_dataset(init_dataset_size)
+            if instrument_func is None: raise Exception("You need to provide an instrument function.")
             self.data.dataset = self.instrument_func(self.data.dataset, instrument_dict = self.instrument_dict)
         elif dataset is not None:
             self.data.inject_dataset(list(np.load(dataset, allow_pickle = True)))
@@ -92,6 +97,7 @@ class AutonomousExperimenterGP():
         elif x is not None and y is not None:
             self.data.dataset = self.data.inject_arrays(x,y=y,v=v)
         elif x is not None and y is None:
+            if instrument_func is None: raise Exception("You need to provide an instrument function.")
             self.data.dataset = self.instrument_func(self.data.inject_arrays(x,y=y,v=v), instrument_dict = self.instrument_dict)
         else: raise Exception("No viable option for data given!")
         self.data.check_incoming_data()
@@ -313,13 +319,43 @@ class AutonomousExperimenterGP():
 ###################################################################################
 ###################################################################################
 class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
+    """
+    class AutonomousExperimenterFvGP:
+    executes the autonomous loop for a multi-task GP
+    Parameters:
+    -----------
+        * parameter_bounds
+        * output_number
+        * output_dim
+        * hyperparameters
+        * hyperparameter_bounds
+    Optional Parameters:
+    --------------------
+        * instrument_func = None
+        * instrument_dict = {}
+        * init_dataset_size = None: int or None, None means you have to provide intial data
+        * acq_func = "variance": acquisition function to be maximized in search of new measurements
+        * cost_func = None
+        * cost_update_func = None
+        * cost_func_params = {}
+        * kernel_func = None
+        * prior_mean_func = None
+        * run_every_iteration = None
+        * x = None, y = None, v = None: inital data can be supplied here
+        * communicate_full_dataset = False: Communiate entire dataset or just latest suggestions
+        * compute_device = "cpu"
+        * sparse = False
+        * training_dask_client = None
+        * acq_func_opt_dask_client = None
+    """
+
     def __init__(self,
             parameter_bounds,
             output_number,
             output_dim,
-            instrument_func,
             hyperparameters,
             hyperparameter_bounds,
+            instrument_func = None,
             instrument_dict = {},
             init_dataset_size = None,
             acq_func = "variance",
@@ -363,13 +399,15 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
                 output_number = output_number, output_dim = output_dim)
         if x is None and dataset is None:
             self.data.create_random_dataset(init_dataset_size)
+            if instrument_func is None: raise Exception("You need to provide an instrument function.")
             self.data.dataset = self.instrument_func(self.data.dataset, instrument_dict = self.instrument_dict)
         elif dataset is not None:
             self.data.inject_dataset(list(np.load(dataset, allow_pickle = True)))
             self.hyperparameters = self.data.dataset[-1]["hyperparameters"]
         elif x is not None and y is not None:
-            self.data.dataset = self.data.inject_arrays(x,y=y,v=v)
+            self.data.dataset = self.data.inject_arrays(x,y=y,v=v, vp = vp)
         elif x is not None and y is None:
+            if instrument_func is None: raise Exception("You need to provide an instrument function.")
             self.data.dataset = self.instrument_func(self.data.inject_arrays(x,y=y,v=v), instrument_dict = self.instrument_dict)
         else: raise Exception("No viable option for data given!")
         self.data.check_incoming_data()

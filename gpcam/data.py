@@ -225,27 +225,30 @@ class fvgpData(gpData):
         self.point_number = len(self.dataset)
         self.dataset = dataset
 
-    def inject_arrays(self, x, y = None, v = None, info = None):
+    def inject_arrays(self, x, y = None, v = None, vp = None, info = None):
         """
         translates numpy arrays to the data format
         """
         if np.ndim(x) !=2: raise Exception("'inject_arrays' called with dim(x) != 2")
         if np.ndim(y) !=2 and y is not None: raise Exception("'inject_arrays' called with dim(y) != 2")
         if np.ndim(v) !=2 and v is not None: raise Exception("'inject_arrays' called with dim(v) != 2")
+        if np.ndim(vp)!=3 and vp is not None:raise Exception("'inject_arrays' called with dim(vp)!= 3")
 
         data = []
         for i in range(len(x)):
             val = None
             var = None
+            valp = None
             if y is not None: val = y[i]
             if v is not None: var = v[i]
+            if vp is not None:valp= vp[i]
 
-            data.append(self.npy2dataset_entry(x[i],val,var))
+            data.append(self.npy2dataset_entry(x[i],val,var,valp))
             if info is not None: data[i].update(info[i])
         return data
 
 
-    def npy2dataset_entry(self, x, y = None, v = None):
+    def npy2dataset_entry(self, x, y = None, v = None, vp = None):
         """
         parameters:
         -----------
@@ -255,7 +258,7 @@ class fvgpData(gpData):
         d["position"] = x
         d["values"] = y
         d["variances"] = v
-        d["value positions"] = None
+        d["value positions"] = vp
         d["cost"] = None
         d["id"] = str(uuid.uuid4())
         d["time stamp"] = time.time()
