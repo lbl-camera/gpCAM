@@ -150,7 +150,8 @@ class GPOptimizer(GP):
         compute_device="cpu",
         gp_kernel_function=None,
         gp_mean_function=None,
-        sparse=False, use_inv = False
+        sparse=False, use_inv = False,
+        ram_economy = True
     ):
         """
         Function to initialize the GP if it has not already been initialized
@@ -177,6 +178,7 @@ class GPOptimizer(GP):
             gp_mean_function = gp_mean_function,
             sparse = sparse, use_inv = use_inv,
             normalize_y = False,
+            ram_economy = ram_economy
             )
             self.gp_initialized = True
             print("GP successfully initiated")
@@ -201,7 +203,9 @@ class GPOptimizer(GP):
     def train_gp_async(self,
             hyperparameter_bounds,
             max_iter = 10000,
-            dask_client = None):
+            dask_client = None,
+            local_method = "L-BFGS-B",
+            global_method = "genetic"):
         """
         Function to start fvGP asynchronous training.
         Parameters:
@@ -221,7 +225,9 @@ class GPOptimizer(GP):
                 hyperparameter_bounds,
                 init_hyperparameters = self.hyperparameters,
                 max_iter = max_iter,
-                dask_client = dask_client
+                dask_client = dask_client,
+                local_optimizer = local_method,
+                global_optimizer = global_method
                 )
         print("The GPOptimizer has created an optimization object.")
         return opt_obj
@@ -523,7 +529,8 @@ class fvGPOptimizer(fvGP, GPOptimizer):
         compute_device="cpu",
         gp_kernel_function=None,
         gp_mean_function=None,
-        sparse=False, use_inv = False
+        sparse=False, use_inv = False,
+        ram_economy = True
     ):
         """
         Function to initialize the GP if it has not already been initialized
@@ -552,6 +559,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
             gp_kernel_function = gp_kernel_function,
             gp_mean_function = gp_mean_function,
             sparse = sparse, use_inv = use_inv,
+            ram_economy = ram_economy
             )
             self.gp_initialized = True
         else: print("fvGP already initialized")

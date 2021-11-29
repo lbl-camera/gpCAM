@@ -27,7 +27,7 @@ import zlib
 #################################################
 
 
-def synthetic_function(data):
+def synthetic_function(data, instrument_dict):
     for idx_data in range(len(data)):
         if data[idx_data]["measured"] == True: continue
         x1 = data[idx_data]["position"][0]
@@ -61,7 +61,7 @@ def recv_zipped_pickle(socket,flags = 0):
 #msg = recv_zipped_pickle(socket)
 #print(msg)
 
-def comm_via_zmq(data):
+def comm_via_zmq(data, instrument_dict):
         send_zipped_pickle(data,socket)
         print("gpCAM has sent data of length: ", len(data))
         #print(data)

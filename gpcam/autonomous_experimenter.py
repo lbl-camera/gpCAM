@@ -63,7 +63,8 @@ class AutonomousExperimenterGP():
             sparse = False,
             use_inv = False,
             training_dask_client = None,
-            acq_func_opt_dask_client = None
+            acq_func_opt_dask_client = None,
+            ram_economy = True
             ):
         dim = len(parameter_bounds)
         self.instrument_func = instrument_func
@@ -112,7 +113,7 @@ class AutonomousExperimenterGP():
         self.gp_optimizer.init_gp(hyperparameters, compute_device = compute_device,
             gp_kernel_function = self.kernel_func,
             gp_mean_function = self.prior_mean_func,
-            sparse = sparse, use_inv = use_inv)
+            sparse = sparse, use_inv = use_inv, ram_economy = ram_economy)
         #init costs
         self._init_costs(cost_func_params)
         print("##################################################################################")
@@ -126,12 +127,12 @@ class AutonomousExperimenterGP():
         method = method, pop_size = pop_size,
         tolerance = tol, max_iter = max_iter)
 
-    def train_async(self, max_iter = 20, dask_client = None):
+    def train_async(self, max_iter = 10000, dask_client = None, local_method = "L-BFGS-B", global_method = "genetic"):
         if dask_client is None: dask_client = self.training_dask_client
         print("AutonomousExperimenter starts async training with dask client:")
         print(dask_client)
         self.opt_obj = self.gp_optimizer.train_gp_async(
-        self.hyperparameter_bounds,max_iter = max_iter,
+        self.hyperparameter_bounds,max_iter = max_iter,local_method = local_method,global_method = global_method,
         dask_client = dask_client
         )
         print("The Autonomous Experimenter started an instance of the asynchronous training.")
@@ -371,7 +372,8 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
             sparse = False,
             use_inv = False,
             training_dask_client = None,
-            acq_func_opt_dask_client = None
+            acq_func_opt_dask_client = None,
+            ram_economy = True
             ):
         dim = len(parameter_bounds)
         self.instrument_func = instrument_func
@@ -422,7 +424,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         self.gp_optimizer.init_fvgp(self.hyperparameters,compute_device = compute_device,
             gp_kernel_function = self.kernel_func,
             gp_mean_function = self.prior_mean_func,
-            sparse = sparse, use_inv = use_inv)
+            sparse = sparse, use_inv = use_inv, ram_economy = ram_economy)
         #init costs
         self._init_costs(cost_func_params)
         print("##################################################################################")

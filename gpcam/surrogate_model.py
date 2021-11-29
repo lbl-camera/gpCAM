@@ -71,8 +71,8 @@ def find_acquisition_function_maxima(gp,acquisition_function,
         optimization_bounds,
         optimization_method = "global",
         optimization_pop_size = 20,
-        optimization_max_iter = 200,
-        optimization_tol = 10e-6,
+        optimization_max_iter = 10,
+        optimization_tol = 1e-6,
         optimization_x0 = None,
         cost_function = None,
         cost_function_parameters = None,
@@ -113,10 +113,11 @@ def find_acquisition_function_maxima(gp,acquisition_function,
                     bounds,
                     evaluate_acquisition_function_hessian,
                     num_epochs = optimization_max_iter,
+                    local_optimizer = "L-BFGS-B",
                     args = (gp,acquisition_function,origin,cost_function,cost_function_parameters))
 
         #####optimization_max_iter, tolerance here
-        a.optimize(dask_client = dask_client, x0 = optimization_x0)
+        a.optimize(dask_client = dask_client, x0 = optimization_x0, tolerance = optimization_tol)
         res = a.get_final(number_of_maxima_sought)
         a.cancel_tasks()
         opt_obj = a
