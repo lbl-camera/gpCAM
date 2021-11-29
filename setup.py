@@ -4,7 +4,8 @@
 
 from setuptools import setup, find_packages
 from os import path
-import sys
+
+import versioneer
 
 with open('README.rst') as readme_file:
     readme = readme_file.read()
@@ -52,6 +53,7 @@ setup(
     packages=find_packages(include=['gpcam', 'gpcam.*']),
     test_suite='tests',
     url='https://gpcam.lbl.gov',
-    version='7.3.3',
+    version=versioneer.get_version(),
+    cmdclass=versioneer.get_cmdclass(),
     zip_safe=False,
 )
