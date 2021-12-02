@@ -8,11 +8,12 @@ Development Lead
 * Marcus Michael Noack <MarcusNoack@lbl.gov>
 
 
-Development Lead
-----------------
+Contributors
+------------
 
 
-* James Sethian, LBNL (lead)
+* James Sethian, LBNL
+* Ronald Pandolfi
 * Masafumi Fukuto, BNL
 * Kevin Yager, BNL
 * David Perryman, LBNL
