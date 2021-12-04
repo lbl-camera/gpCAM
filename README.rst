@@ -25,7 +25,7 @@ works, and perform publicly and display publicly, and to permit others to do so.
 
 
 * Free software: 
-* Documentation: https://www.overleaf.com/read/nrcyxxsbhvbx
+* Documentation: on website
 * website: gpcam.lbl.gov
 
 
