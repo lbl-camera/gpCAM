@@ -4,6 +4,17 @@ gpCAM
 
 
 
+ATTENTION: This repository is no longer up to date and was moved to https://github.com/lbl-camera/gpCAM more information https://gpcam.lbl.gov/
+
+
+
+
+
+===============================
+
+
+
+
 gpCAM Copyright (c) 2021, The Regents of the University of California,
 through Lawrence Berkeley National Laboratory (subject to receipt of
 any required approvals from the U.S. Dept. of Energy). All rights reserved.
