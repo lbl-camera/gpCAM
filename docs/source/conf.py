@@ -20,6 +20,7 @@ from gpcam import _version
 # -- Project information -----------------------------------------------------
 
 project = 'gpCAM'
+
 copyright = '2021, Marcus Michael Noack'
 author = 'Marcus Michael Noack'
 version = _version.get_versions()['version']
@@ -31,7 +32,11 @@ version = _version.get_versions()['version']
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'myst_parser'
 ]
+
+# MyST extensions
+myst_enable_extensions = ['colon_fence']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -48,6 +53,7 @@ exclude_patterns = []
 # a list of builtin themes.
 #
 html_theme = 'sphinx_rtd_theme'
+
 html_style = 'custom.css'
 
 # html_theme = 'theme' # use the theme in subdir 'theme'

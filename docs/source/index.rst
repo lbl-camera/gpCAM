@@ -1,16 +1,14 @@
-.. gpCAM documentation master file, created by
-   sphinx-quickstart on Thu Dec  9 14:09:25 2021.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+.. toctree::
+  :hidden:
+  :maxdepth: 1
+
+  changes-by-version.md
+  getting-started.md
+  a-brief-history.md
+  installation.md
 
 Welcome to gpCAM's documentation!
 =================================
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
-
-
 
 Indices and tables
 ==================
