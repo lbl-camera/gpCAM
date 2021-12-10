@@ -1,3 +1,5 @@
+from gpcam import _version
+
 # Configuration file for the Sphinx documentation builder.
 #
 # This file only contains a selection of the most common options. For a full
@@ -18,11 +20,10 @@
 # -- Project information -----------------------------------------------------
 
 project = 'gpCAM'
-copyright = '2021, Marcus Noack'
-author = 'Marcus Noack'
 
-# The full version, including alpha/beta/rc tags
-release = '7.3.2'
+copyright = '2021, Marcus Michael Noack'
+author = 'Marcus Michael Noack'
+version = _version.get_versions()['version']
 
 
 # -- General configuration ---------------------------------------------------
@@ -53,7 +54,23 @@ exclude_patterns = []
 #
 html_theme = 'sphinx_rtd_theme'
 
+html_style = 'custom.css'
+
+# html_theme = 'theme' # use the theme in subdir 'theme'
+# html_theme_path = ['../'] # make sphinx search for themes in current dir
+
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+
+html_logo = '_static/gpCAM_dark_bg.png'
+
+html_theme_display_version = True
+
+html_theme_options = dict(
+    logo_only=True,
+    display_version=True,
+)
+
+html_additional_pages = {'index': 'index.html'}
