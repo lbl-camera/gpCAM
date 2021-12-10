@@ -4,3 +4,14 @@
     max-width: unset;
 }
 
+.wy-side-nav-search {
+    background-color: unset;
+}
+
+#landing-logo {
+    width: 100%;
+    background-image: url('landing.png');
+    background-repeat: no-repeat;
+    background-size: 100%;
+
+}

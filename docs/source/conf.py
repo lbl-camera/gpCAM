@@ -1,3 +1,5 @@
+from gpcam import _version
+
 # Configuration file for the Sphinx documentation builder.
 #
 # This file only contains a selection of the most common options. For a full
@@ -20,6 +22,7 @@
 project = 'gpCAM'
 copyright = '2021, Marcus Michael Noack'
 author = 'Marcus Michael Noack'
+version = _version.get_versions()['version']
 
 
 # -- General configuration ---------------------------------------------------
@@ -56,3 +59,12 @@ html_style = 'custom.css'
 html_static_path = ['_static']
 
 html_logo = '_static/gpCAM_dark_bg.png'
+
+html_theme_display_version = True
+
+html_theme_options = dict(
+    logo_only=True,
+    display_version=True,
+)
+
+html_additional_pages = {'index': 'index.html'}

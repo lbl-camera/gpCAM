@@ -1,0 +1,16 @@
+{% extends "!layout.html" %}
+{% block scripts %}
+<script type="application/javascript" defer="">
+    window.onload = function () {
+        logo = document.createElement('div')
+        logo.setAttribute('id', 'landing-logo')
+        invis_image = document.createElement('img')
+        invis_image.setAttribute('src','_static/landing.png')
+        invis_image.setAttribute('visible', false)
+        logo.appendChild(invis_image)
+        logo.innerHTML = '<em>gpCAM</em></span></h2></div></div></div></div><div class="oKdM2c"><div id="h.3362346e3d12c940_12" class="hJDwNd-AhqUyc-OwsYgb jXK9ad D2fZ2 wHaque GNzUNc"><div class="jXK9ad-SmKAyb"><div class="tyJCtd mGzaTb baZpAe"><p dir="ltr" class="CDt4Ke zfr3Q" style="text-align: center;"><em>Autonomous Data Acquisition, Uncertainty Quantification and HPC Optimization</em></p><p dir="ltr" class="CDt4Ke zfr3Q" style="text-align: center;"><span style="font-size: 8pt; vertical-align: baseline;"><em>gpCAM is powered by </em></span></p><p dir="ltr" class="CDt4Ke zfr3Q" style="text-align: center;"><span style="font-size: 8pt; vertical-align: baseline;"><em>CAMERA</em></span></p><p dir="ltr" class="CDt4Ke zfr3Q" style="text-align: center;"><span style="font-size: 8pt; vertical-align: baseline;"><em> The Center for Advanced Mathematics for Energy Research Applications</em></span></p><p dir="ltr" class="CDt4Ke zfr3Q" style="text-align: center;">'
+        document.getElementsByClassName('wy-nav-content-wrap')[0].prepend(logo)
+    }
+</script>
+{{ super() }}
+{% endblock %}
