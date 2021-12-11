@@ -49,7 +49,7 @@ Artificial Intelligence Joins the Team for Smarter & Faster Experiments
 ```
 
 ---
-:img-top: _static/ILL.jpg
+:img-top: _static/ILL.PNG
 
 **Machine Learning at ILL**
 ^^^
