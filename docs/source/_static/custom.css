@@ -28,3 +28,43 @@
     justify-content: center;
     color: white;
 }
+
+.headshot-main {
+    text-align: center;
+}
+
+.headshot-main img {
+    width: 266px;
+}
+
+.headshot {
+    text-align: center;
+    font-size: 11pt;
+}
+
+.headshot img{
+    width: 167px;
+    margin: 10px;
+}
+
+.headshots {
+    width: 921px;
+    margin: auto;
+}
+
+
+/* Fix things broken by bootstrap */
+html.writer-html5 .rst-content table.docutils td > p, html.writer-html5 .rst-content table.docutils th > p {
+    line-height: unset;
+    font-size: unset;
+}
+
+body.wy-body-for-nav {
+    font-size: 16px;
+    font-family: Lato,proxima-nova,Helvetica Neue,Arial,sans-serif;
+    line-height: unset;
+}
+
+form#rtd-search-form input {
+    color: gray;
+}

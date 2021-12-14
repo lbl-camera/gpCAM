@@ -72,7 +72,8 @@ html_theme_display_version = True
 html_theme_options = dict(
     logo_only=True,
     display_version=True,
-    # collapse_navigation=False,
+    collapse_navigation=False,
+    titles_only=False
 )
 
 html_additional_pages = {'index': 'index.html'}

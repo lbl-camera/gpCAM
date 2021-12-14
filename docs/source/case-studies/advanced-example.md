@@ -30,7 +30,7 @@ with google colab.
 
 +++ {"id": "WExbsL_ITfK2"}
 
-# gpCAM Test Notebook
+## gpCAM Test Notebook
 In this notebook we will go through many features of gpCAM. Work through it 
 and you are ready for your own autonomous experiment. 
 
