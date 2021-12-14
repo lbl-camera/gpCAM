@@ -32,7 +32,7 @@ version = _version.get_versions()['version']
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'myst_parser',
+    'myst_nb',
     'sphinx_panels'
 ]
 
@@ -72,6 +72,10 @@ html_theme_display_version = True
 html_theme_options = dict(
     logo_only=True,
     display_version=True,
+    # collapse_navigation=False,
 )
 
 html_additional_pages = {'index': 'index.html'}
+
+# Configure execution (and output generation) of myst-nb files
+jupyter_execute_notebooks = "off"
