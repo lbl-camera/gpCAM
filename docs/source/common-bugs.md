@@ -1,5 +1,5 @@
 ---
-banner: _static/omega.jpg
+banner: _static/OMEGA.jpg
 banner_brightness: .5
 ---
 # Common Bugs and Fixes
