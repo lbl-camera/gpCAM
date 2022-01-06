@@ -76,7 +76,5 @@ html_theme_options = dict(
     titles_only=False
 )
 
-html_additional_pages = {'index': 'index.html'}
-
 # Configure execution (and output generation) of myst-nb files
 jupyter_execute_notebooks = "off"
