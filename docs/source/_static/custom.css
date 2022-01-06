@@ -68,3 +68,17 @@ body.wy-body-for-nav {
 form#rtd-search-form input {
     color: gray;
 }
+
+/* Landing page layout */
+.card-box .col, .card-box img {
+    width: 266px;
+    height: 275px;
+}
+
+.card-box .col {
+    padding: 15px;
+}
+
+.card-box .h3 {
+    font-weight: 700;
+}
