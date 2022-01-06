@@ -1,3 +1,8 @@
+---
+banner: _static/engine.jpg
+banner_brightness: .8
+---
+
 # What is Under the Hood
 
 gpCAM is an advanced Gaussian process tool, combined with HPC mathematical optimization. 

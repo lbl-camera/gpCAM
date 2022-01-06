@@ -1,3 +1,7 @@
+---
+banner: _static/tundra.jpg
+---
+
 # Contributors
 
 ````{div} headshots

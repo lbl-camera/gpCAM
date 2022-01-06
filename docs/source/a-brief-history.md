@@ -1,3 +1,8 @@
+---
+banner: _static/compass.jpg
+banner_brightness: .5
+---
+
 # A Brief History
 
 > On a mission to make autonomous data collection available to everyone.

@@ -1,3 +1,7 @@
+---
+banner: _static/omega.jpg
+banner_brightness: .5
+---
 # Common Bugs and Fixes
 
 | **Error Message** | **Solution** |

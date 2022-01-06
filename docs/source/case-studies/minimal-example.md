@@ -1,3 +1,8 @@
+---
+banner: ../_static/surface-plot-dots.png
+banner_text_color: black
+---
+
 # Minimal gpCAM7 Example
 
 Try the notebook

@@ -1,3 +1,10 @@
+---
+banner: _static/electrical-diagram.jpg
+banner_text_color: black
+banner_shade: 255
+banner_brightness: .5
+---
+
 # Installation
 
 To install gpCAM do the following:

@@ -1,3 +1,8 @@
+---
+banner: ../_static/inverse_cylinder.jpg
+banner_brightness: .5
+---
+
 # ZMQ Communication
 **This example shows how communication can be managed via zmq when gpCAM is run on a server.**
 1. Start this script on your instrument machine.

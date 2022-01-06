@@ -1,3 +1,8 @@
+---
+banner: _static/mac-laptop.jpg
+banner_brightness: .8
+---
+
 # Getting Started
 
 Getting started with gpCAM is simple:

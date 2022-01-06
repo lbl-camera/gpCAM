@@ -1,3 +1,8 @@
+---
+banner: _static/questions.jpg
+banner_brightness: .5
+---
+
 # Frequently asked questions
 
 

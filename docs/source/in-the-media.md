@@ -1,3 +1,8 @@
+---
+banner: _static/social-networking.jpg
+banner_align: top
+---
+
 # gpCAM in the Media
 
 :::{raw} html

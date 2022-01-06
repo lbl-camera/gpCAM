@@ -1,3 +1,8 @@
+---
+banner: ../_static/topography.png
+banner_brightness: .8
+---
+
 # US Topography
 The data for this script can be
 [downloaded here](https://drive.google.com/file/d/1BMNsdv168PoxNCHsNWR_znpDswjdFxXI/view?usp=sharing)

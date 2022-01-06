@@ -1,3 +1,7 @@
+---
+banner: _static/path.jpg
+---
+
 # Changes by Version
 
 ## 7.3.2 --> 7.4.0 (NOT AVAILABLE FROM PIPY YET)

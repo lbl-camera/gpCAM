@@ -1,4 +1,6 @@
 ---
+banner: ../_static/green-surface-plot.png
+banner_brightness: .5
 jupytext:
   text_representation:
     extension: .md
