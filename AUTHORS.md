@@ -1,19 +1,16 @@
-=======
-Credits
-=======
+# Credits
 
-Development Lead
-----------------
+---
+
+## Development Lead
 
 * Marcus Michael Noack <MarcusNoack@lbl.gov>
 
-
-Contributors
-------------
-
+# Contributors
 
 * James Sethian, LBNL
-* Ronald Pandolfi
+* Ronald Pandolfi, LBNL
+* Ian Humphrey, LBNL
 * Masafumi Fukuto, BNL
 * Kevin Yager, BNL
 * David Perryman, LBNL
