@@ -123,9 +123,9 @@ Contact [MarcusNoack@lbl.gov](mailto:MarcusNoack@lbl.gov) to get more informatio
 
 Want to transform your science with autonomous data acquisition?
 
-```{link-button} getting-started.md
+```{link-button} getting-started.html
 :text: Take action
-:classes: stretched-link btn-primary
+:classes: btn-primary
 ```
 
 ---
