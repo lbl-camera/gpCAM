@@ -1,20 +1,3 @@
-=====
-gpCAM
-=====
-
-
-
-ATTENTION: This repository is no longer up to date and was moved to https://github.com/lbl-camera/gpCAM more information https://gpcam.lbl.gov/
-
-
-
-
-
-===============================
-
-
-
-
 gpCAM Copyright (c) 2021, The Regents of the University of California,
 through Lawrence Berkeley National Laboratory (subject to receipt of
 any required approvals from the U.S. Dept. of Energy). All rights reserved.
@@ -29,28 +12,3 @@ such, the U.S. Government has been granted for itself and others acting on
 its behalf a paid-up, nonexclusive, irrevocable, worldwide license in the
 Software to reproduce, distribute copies to the public, prepare derivative
 works, and perform publicly and display publicly, and to permit others to do so.
-
-
-
-===============================================
-
-
-* Free software: 
-* Documentation: on website
-* website: gpcam.lbl.gov
-
-
-Features
---------
-
-* gpCAM is a software for autonomous experimentation
-
-Credits
--------
-
-Main Developer: Marcus Noack (MarcusNoack@lbl.gov)
-Several people from across the DOE national labs have given insights
-that led the code in it's current form.
-See "AUTHORS" for more details on that.
-
-
