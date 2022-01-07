@@ -60,3 +60,8 @@ ENV/
 env.bak/
 venv.bak/
 
+# sphinx
+docs/build/
+
+# PyCharm
+.idea/
