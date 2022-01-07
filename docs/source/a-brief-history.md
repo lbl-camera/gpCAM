@@ -16,10 +16,11 @@ CAMERA, in collaboration with the Brookhaven National Laboratory,
 quickly developed a Kriging-based framework to provide first aid.
 Later, the formulation was changed to a Gaussian Process and the tool was called gpCAM in late 2019.
 :::{figure-md} lbnl-als-bay-figure
+:align: center
 
 <img src='_static/lbnl-als-bay.png' alt='LBNL ALS Bay'>
 
-A view at the San Francisco Bay with the ALS synchrotron in the foreground
+A view of the San Francisco Bay with the ALS synchrotron in the foreground
 :::
 
 ## Where we are today
