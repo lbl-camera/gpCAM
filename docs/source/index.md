@@ -49,10 +49,14 @@ hidden: true
 maxdepth: 2
 caption: API
 ---
+api/index.md
 ```
 # gpCAM
 
-## Mission of the project
+```{div} centered-heading
+Mission of the project
+```
+
 ```{div} text-center
 
 gpCAM is an API and software designed to make autonomous data acquisition and analysis for experiments and simulations faster, simpler and more widely available. The tool is based on a flexible and powerful Gaussian process regression at the core. The flexibility stems from the modular design of gpCAM which allows the user to implement and import their own Python functions to customize and control almost every aspect of the software. That makes it possible to easily tune the algorithm to account for various kinds of physics and other domain knowledge, and to identify and find interesting features. A specialized function optimizer in gpCAM can take advantage of HPC architectures for fast analysis time and reactive autonomous data acquisition.   
@@ -115,7 +119,9 @@ For users not familiar with Python, gpCAM can be run without doing any Python co
 
 ---
 
-### Questions?
+```{div} centered-heading
+Questions?
+```
 
 ````{div} text-center
 
@@ -141,7 +147,9 @@ The Center for Advanced Mathematics for Energy Research Application
 
 ---
 
-### Partners
+```{div} centered-heading 
+Partners
+```
 
 ````{div} text-center
 
