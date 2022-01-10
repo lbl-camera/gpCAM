@@ -54,6 +54,6 @@ setup(
     cmdclass=versioneer.get_cmdclass(),
     zip_safe=False,
     extras_require={
-        'docs': ['sphinx', 'sphinx-rtd-theme', 'myst-parser', 'myst-nb', 'sphinx-panels']
+        'docs': ['sphinx', 'sphinx-rtd-theme', 'myst-parser', 'myst-nb', 'sphinx-panels', 'autodocs']
     },
 )
