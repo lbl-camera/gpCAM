@@ -1,4 +1,4 @@
-# API
+# gpCAM API Levels
 
 Starting with version 7 of gpCAM, the user has several access points (from high level to low level):
 
@@ -38,18 +38,3 @@ Write a brief description of what you saw or what you'd like to see.
 ```
 
 ````
-
-
-
-
-```{toctree}
----
-hidden: true
----
-autonomous-experimenter.md
-gpOptimizer.md
-fvgpOptimizer.md
-advanced-gpCAM.md
-fvGP.md
-HGDL.md
-```

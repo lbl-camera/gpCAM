@@ -50,7 +50,14 @@ maxdepth: 2
 caption: API
 ---
 api/index.md
+api/autonomous-experimenter.md
+api/gpOptimizer.md
+api/fvgpOptimizer.md
+api/advanced-gpCAM.md
+api/fvGP.md
+api/HGDL.md
 ```
+
 # gpCAM
 
 ```{div} centered-heading
