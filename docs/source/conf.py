@@ -33,7 +33,9 @@ version = _version.get_versions()['version']
 # ones.
 extensions = [
     'myst_nb',
-    'sphinx_panels'
+    'sphinx_panels',
+    'sphinx.ext.autodoc',
+    'sphinx.ext.napoleon'
 ]
 
 # MyST extensions
