@@ -24,7 +24,7 @@ class AutonomousExperimenterGP():
     parameter_bounds : np.ndarray
         A numpy array of floats of shape D x 2 describing the input space range
     hyperparameters : np.ndarray
-        A 1-D numpy array of floats of length. The default kernel function expects a length of D+1, where the first
+        A 1-D numpy array of floats. The default kernel function expects a length of D+1, where the first
         value is a signal variance, followed by a length scale in each direction of the input space. If a kernel
         function is provided, then the expected length is determined by that function.
     hyperparameter_bounds : np.ndarray
@@ -35,7 +35,7 @@ class AutonomousExperimenterGP():
          communicate with the instrument and perform measurements, populating fields of the data input. If
          `instrument_dict` is provided, its value is also passed in as a second argument to `instrument_func`.
     instrument_dict : dict, optional
-        A dict which is passed to instrument_func for each measurement.
+        A dict which is passed to instrument_func for each measurement. Default is `{}`.
     init_dataset_size : int, optional
         If `x` and `y` are not provided and `dataset` is not provided, `init_dataset_size` must be provided. An initial
         dataset is constructed randomly with this length. The `instrument_func` is immediately called to measure values
@@ -43,8 +43,10 @@ class AutonomousExperimenterGP():
     acq_func : Callable, optional
         The acquisition function accepts as input a numpy array of size V x D (such that V is the number of input
         points, and D is the parameter space dimensionality) and a `GPOptimizer` object. The return value is 1-D array
-        of length V providing 'scores' for each position, such that the highest scored point will be measured next. If
-        None, the default function is the `fvgp.gp.GP.posterior_covariance`.
+        of length V providing 'scores' for each position, such that the highest scored point will be measured next.
+        Built-in functions can be used by one of the following keys: `'shannon_ig'`, `'UCB'`, `'maximum'`, `'minimum'`,
+        `'covariance'`, and `'variance'`. If None, the default function is the `'variance'`, meaning
+        `fvgp.gp.GP.posterior_covariance` with variance_only = True.
     cost_func : Callable, optional
         A function encoding the cost of motion through the input space and the cost of a measurement. Its inputs are an
         `origin` (np.ndarray of size V x D), `x` (np.ndarray of size V x D), and the value of `cost_func_params`;
@@ -54,9 +56,9 @@ class AutonomousExperimenterGP():
     cost_update_func : Callable, optional
         A function that updates the `cost_func_params` which are communicated to the `cost_func`. This accepts as input
         costs (a list of cost values determined by `instrument_func`), bounds (a V x 2 numpy array) and parameters
-        object.
+        object. The default is a no-op.
     cost_func_params : Any, optional
-        An object that is communicated to the `cost_func` and `cost_update_func`.
+        An object that is communicated to the `cost_func` and `cost_update_func`. The default is `{}`.
     kernel_func : Callable, optional
         A function that calculations covariance between datapoints. It accepts as input x1 (a V x D array of positions),
         x2 (a U x D array of positions), hyperparameters (a 1-D array of length D+1 for the default kernel), and a
@@ -65,10 +67,11 @@ class AutonomousExperimenterGP():
     prior_mean_func : Callable, optional
         A function that evaluates the prior mean at an input position. It accepts as input a
         `gpcam.gp_optimizer.GPOptimizer` instance, an array of positions (of size V x D), and hyperparameters (a 1-D
-        array of length D+1 for the default kernel). The return value is a 1-D array of length V.
+        array of length D+1 for the default kernel). The return value is a 1-D array of length V. If None is provided,
+        `fvgp.gp.GP.default_mean_function` is used.
     run_every_iteration : Callable, optional
         A function that is run at every iteration. It accepts as input this
-        `gpcam.autonomous_experimenter.AutonomousExperimenterGP` instance.
+        `gpcam.autonomous_experimenter.AutonomousExperimenterGP` instance. The default is a no-op.
     x : np.ndarray, optional
         Initial datapoint positions
     y : np.ndarray, optional
@@ -77,15 +80,37 @@ class AutonomousExperimenterGP():
         Initial datapoint observation variances
     communicate_full_dataset : bool, optional
         If True, the full dataset will be communicated to the `instrument_func` on each iteration. If False, only the
-        newly suggested datapoints will be communicated.
+        newly suggested datapoints will be communicated. The default is False.
     compute_device : str, optional
-        One of "cpu" or "gpu", determines how linear system solves are run. Default is "cpu".
+        One of "cpu" or "gpu", determines how linear system solves are run. The default is "cpu".
     sparse : bool, optional
-        If True, the algorithm check for sparsity of the covariance matrix and exploits it. Default is False.
+        If True, the algorithm check for sparsity of the covariance matrix and exploits it. The default is False.
+    use_inv : bool, optional
+        If True, the algorithm retains the inverse of the covariance matrix, which makes computing the posterior faster.
+        For larger problems, this use of inversion should be avoided due to computational stability. The default is
+        False.
     training_dask_client : distributed.client.Client, optional
-        A Dask Distributed Client instance for distributed training
+        A Dask Distributed Client instance for distributed training. If None is provided, a new
+        `dask.distributed.Client` instance is constructed.
     acq_func_opt_dask_client : distributed.client.Client, optional
-        A Dask Distributed Client instance for distributed `acquisition_func` computation
+        A Dask Distributed Client instance for distributed `acquisition_func` computation. If None is provided, a new
+        `dask.distributed.Client` instance is constructed.
+
+
+    Attributes
+    ----------
+    x : np.ndarray
+        Datapoint positions
+    y : np.ndarray
+        Datapoint values
+    v : np.ndarray
+        Datapoint observation variances
+    hyperparameter_bounds : np.ndarray
+        A 2-D array of floats of size J x 2, such that J is the length matching the length of `hyperparameters` defining
+        the bounds for training.
+    gp_optimizer : gpcam.gp_optimizer.GPOptimizer
+        A GPOptimizer instance used for initializing a gaussian process and performing optimization of the posterior.
+
 
     """
     def __init__(self,
@@ -217,11 +242,11 @@ class AutonomousExperimenterGP():
         return x,y,v,t,c, None
     ###################################################################################
     def go(self, N = 1e15, breaking_error = 1e-50,
-            retrain_globally_at = [100,400,1000],
-            retrain_locally_at = [20,40,60,80,100,200,400,1000],
-            retrain_async_at = [1000,2000,5000,10000],
-            retrain_callable_at = [],
-            update_cost_func_at = [],
+            retrain_globally_at = (100,400,1000),
+            retrain_locally_at = (20,40,60,80,100,200,400,1000),
+            retrain_async_at = (1000,2000,5000,10000),
+            retrain_callable_at = tuple(),
+            update_cost_func_at = tuple,
             acq_func_opt_setting = lambda number: "global" if number % 2 == 0 else "local",
             training_opt_callable = None,
             training_opt_max_iter = 20,
@@ -230,30 +255,57 @@ class AutonomousExperimenterGP():
             acq_func_opt_max_iter = 20,
             acq_func_opt_pop_size = 20,
             acq_func_opt_tol      = 1e-6,
-            acq_func_opt_tol_adjust = [True,0.1],
+            acq_func_opt_tol_adjust = 0.1,
             number_of_suggested_measurements = 1,
             ):
+
         """
-        function to start the autonomous-data-acquisition loop
-        optional parameters:
-        -----------
-            * N = 1e15 ... run N iterations
-            * breaking_error = 1e-15 ... run until breaking_error is achieved
-            * retrain_globally_at = [100,400,1000]
-            * retrain_locally_at = [20,40,60,80,100,200,400,1000]
-            * retrain_async_at = [1000,2000,5000,10000]
-            * retrain_callable = []: if this is not an empty list, "training_opt_callable" has to be provided
-            * update_cost_func_at = []: list containing numbers when the cost function is updated
-            * acq_func_opt_setting= lambda function to decide when global, local, hgdl, other ask()
-            * training_opt_callable = None, callable
-            * training_opt_max_iter = 20
-            * training_opt_pop_size = 10
-            * training_opt_tol      = 1e-6
-            * acq_func_opt_max_iter = 20
-            * acq_func_opt_pop_size = 20
-            * acq_func_opt_tol      = 1e-6
-            * acq_func_opt_tol_adjust = [True, 0.1]
-            * number_of_suggested_measurements = 1
+        Function to start the autonomous-data-acquisition loop.
+        
+        Parameters
+        ----------
+        N : int, optional
+            Run for N iterations. The default is `1e15`.
+        breaking_error : float, optional
+            Run until breaking_error is achieved (or at max N). The default is `1e-15`.
+        retrain_globally_at : Iterable[int], optional
+            Retrains the hyperparameters at the given number of measurements using global optimization. The deafult is
+            `[100,400,1000]`.
+        retrain_locally_at : Iterable[int], optional
+            Retrains the hyperparameters at the given number of measurements using local gradient-based optimization.
+            The default is `[20,40,60,80,100,200,400,1000]`.
+        retrain_async_at : Iterable[int], optional
+            Retrains the hyperparameters at the given number of measurements using the HGDL algorithm. This training is
+            asynchronous and can be run in a distributed fashion using `training_dask_client`. The default is `[1000,2000,5000,10000]`.
+        retrain_callable_at : Iterable[int], optional
+            Retrains the hyperparameters at the given number of measurements using a callable provided by `training_opt_callable`.
+        update_cost_func_at : Iterable[int], optional
+            Calls the `update_cost_func` at the given number of measurements.
+        acq_func_opt_setting : Callable, optional
+            A callable that accepts as input the iteration index and returns either `'local'` or `'global'`. This
+            switches between local gradient-based and global optimization for the acquisition function.
+        training_opt_callable : Callable, optional
+            A callable that accepts as input a `fvgp.gp.GP` instance and returns a new vector of hyperparameters.
+        training_opt_max_iter : int, optional
+            The maximum number of iterations for any training.
+        training_opt_pop_size : int, optional
+            The population size used for any training with a global component (HGDL or standard global optimizers).
+        training_opt_tol : float, optional
+            The optimization tolerance for all training optimization.
+        acq_func_opt_max_iter : int, optional
+            The maximum number of iterations for the `acq_func` optimization.
+        acq_func_opt_pop_size : int, optional
+            The population size used for any `acq_func` optimization with a global component (HGDL or standard global
+            optimizers).
+        acq_func_opt_tol : float, optional
+            The optimization tolerance for all `acq_func` optimization.
+        acq_func_opt_tol_adjust : float, optional
+            The `acq_func` optimization tolerance is adjusted at every iteration as a fraction of this value.
+        number_of_suggested_measurements : int, optional
+            The algorithm will try to return this many suggestions for new measurements. This may be limited by how many
+            optima the algorithm may find. If greater than 1, then the `acq_func` optimization method is automatically
+            set to use HGDL. The default is 1.
+
         """
         start_time = time.time()
         start_date_time = strftime("%Y-%m-%d_%H_%M_%S", time.localtime())
@@ -293,8 +345,8 @@ class AutonomousExperimenterGP():
             func_evals = res["f(x)"]
             post_var = self.gp_optimizer.posterior_covariance(next_measurement_points)["v(x)"]
             error = np.max(np.sqrt(post_var[0]))
-            if acq_func_opt_tol_adjust[0]:
-                acq_func_opt_tol = abs(func_evals[0]) * acq_func_opt_tol_adjust[1]
+            if acq_func_opt_tol_adjust:
+                acq_func_opt_tol = abs(func_evals[0]) * acq_func_opt_tol_adjust
                 print("acquisition funciton optimization tolerance changed to: ", acq_func_opt_tol)
             print("Next points to be requested: ")
             print(next_measurement_points)
@@ -322,20 +374,20 @@ class AutonomousExperimenterGP():
             if n_measurements in retrain_async_at:
                 print("    Starting  a new asynchronous training after killing the current one.")
                 self.kill_training()
-                self.train_async(max_iter = 100000000,
+                self.train_async(max_iter = training_opt_max_iter,
                                  dask_client = self.training_dask_client)
             elif n_measurements in retrain_globally_at:
                 self.kill_training()
                 print("    Fresh optimization from scratch via global optimization")
-                self.train(pop_size = 10,tol = 1e-6,max_iter = 20, method = "global")
+                self.train(pop_size = training_opt_pop_size,tol = training_opt_tol,max_iter = training_opt_max_iter, method = "global")
             elif n_measurements in retrain_locally_at:
                 self.kill_training()
                 print("    Fresh optimization from scratch via global optimization")
-                self.train(pop_size = 10,tol = 1e-6, max_iter = 20, method = "local")
+                self.train(pop_size = training_opt_pop_size,tol = training_opt_tol, max_iter = training_opt_max_iter, method = "local")
             elif n_measurements in retrain_callable_at:
                 self.kill_training()
                 print("    Fresh optimization from scratch via user-defined optimization")
-                self.train(pop_size = 10,tol = 1e-6,max_iter = 20, method = training_opt)
+                self.train(pop_size = training_opt_pop_size,tol = training_opt_tol,max_iter = training_opt_max_iter, method = training_opt_callable)
             else:
                 print("    No training in this round but I am trying to update the hyperparameters")
                 self.update_hps()
