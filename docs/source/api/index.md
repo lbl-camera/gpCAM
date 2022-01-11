@@ -15,10 +15,10 @@ For tests and examples, download the repository and go to "./tests".  You will f
 Quick Links:
 
 - [Repository](https://github.com/lbl-camera/gpCAM/)
-- [AutonomousExperimenter (GP and fvGP)](autonomous-experimenter.html)
-- [gpOptimizer](gpOptimizer.html) and [fvgpOptimizer](fvgpOptimizer.html)
-- The [fvGP](fvGP.html) Package
-- The [HGDL](HGDL.html) Package
+- [AutonomousExperimenter (GP and fvGP)](autonomous-experimenter.md)
+- [gpOptimizer](gpOptimizer.md) and [fvgpOptimizer](fvgpOptimizer.md)
+- The [fvGP](fvGP.md) Package
+- The [HGDL](HGDL.md) Package
 
 ```{div} centered-heading
 Have suggestions for the API or found a bug?
