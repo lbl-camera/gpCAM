@@ -16,32 +16,77 @@ import dask.distributed as distributed
 
 class AutonomousExperimenterGP():
     """
-    class AutonomousExperimenterGP:
-    executes the autonomous loop for a single-task GP
-    use class AutonomousExperimenterfvGP for multi-task experiments
-    Parameters:
-    -----------
-        * parameter_bounds
-        * hyperparameters
-        * hyperparameter_bounds
-    Optional Parameters:
-    --------------------
-        * instrument_func = None
-        * instrument_dict = {}
-        * init_dataset_size = None: int or None, None means you have to provide intial data
-        * acq_func = "variance": acquisition function to be maximized in search of new measurements
-        * cost_func = None
-        * cost_update_func = None
-        * cost_func_params = {}
-        * kernel_func = None
-        * prior_mean_func = None
-        * run_every_iteration = None
-        * x = None, y = None, v = None: inital data can be supplied here
-        * communicate_full_dataset = False: Communiate entire dataset or just latest suggestions
-        * compute_device = "cpu"
-        * sparse = False
-        * training_dask_client = None
-        * acq_func_opt_dask_client = None
+    Executes the autonomous loop for a single-task gaussian process.
+    Use class AutonomousExperimenterfvGP for multi-task experiments.
+
+    Parameter
+    ---------
+    parameter_bounds : np.ndarray
+        A numpy array of floats of shape D x 2 describing the input space range
+    hyperparameters : np.ndarray
+        A 1-D numpy array of floats of length. The default kernel function expects a length of D+1, where the first
+        value is a signal variance, followed by a length scale in each direction of the input space. If a kernel
+        function is provided, then the expected length is determined by that function.
+    hyperparameter_bounds : np.ndarray
+        A 2-D array of floats of size J x 2, such that J is the length matching the length of `hyperparameters` defining
+        the bounds for training.
+    instrument_func : Callable, optional
+         A function that takes datapoints (a list of dicts), and returns a similar structure. The function is expected to
+         communicate with the instrument and perform measurements, populating fields of the data input. If
+         `instrument_dict` is provided, its value is also passed in as a second argument to `instrument_func`.
+    instrument_dict : dict, optional
+        A dict which is passed to instrument_func for each measurement.
+    init_dataset_size : int, optional
+        If `x` and `y` are not provided and `dataset` is not provided, `init_dataset_size` must be provided. An initial
+        dataset is constructed randomly with this length. The `instrument_func` is immediately called to measure values
+        at these initial points.
+    acq_func : Callable, optional
+        The acquisition function accepts as input a numpy array of size V x D (such that V is the number of input
+        points, and D is the parameter space dimensionality) and a `GPOptimizer` object. The return value is 1-D array
+        of length V providing 'scores' for each position, such that the highest scored point will be measured next. If
+        None, the default function is the `fvgp.gp.GP.posterior_covariance`.
+    cost_func : Callable, optional
+        A function encoding the cost of motion through the input space and the cost of a measurement. Its inputs are an
+        `origin` (np.ndarray of size V x D), `x` (np.ndarray of size V x D), and the value of `cost_func_params`;
+        `origin` is the starting position, and `x` is the destination position. The return value is a 1-D array of
+        length V describing the costs as floats. The 'score' from acq_func is divided by this returned cost to determine
+        the next measurement point. If None, the default is a uniform cost of 1.
+    cost_update_func : Callable, optional
+        A function that updates the `cost_func_params` which are communicated to the `cost_func`. This accepts as input
+        costs (a list of cost values determined by `instrument_func`), bounds (a V x 2 numpy array) and parameters
+        object.
+    cost_func_params : Any, optional
+        An object that is communicated to the `cost_func` and `cost_update_func`.
+    kernel_func : Callable, optional
+        A function that calculations covariance between datapoints. It accepts as input x1 (a V x D array of positions),
+        x2 (a U x D array of positions), hyperparameters (a 1-D array of length D+1 for the default kernel), and a
+        `gpcam.gp_optimizer.GPOptimizer` instance. The default is a stationary anisotropic kernel
+        (`fvgp.gp.GP.default_kernel`).
+    prior_mean_func : Callable, optional
+        A function that evaluates the prior mean at an input position. It accepts as input a
+        `gpcam.gp_optimizer.GPOptimizer` instance, an array of positions (of size V x D), and hyperparameters (a 1-D
+        array of length D+1 for the default kernel). The return value is a 1-D array of length V.
+    run_every_iteration : Callable, optional
+        A function that is run at every iteration. It accepts as input this
+        `gpcam.autonomous_experimenter.AutonomousExperimenterGP` instance.
+    x : np.ndarray, optional
+        Initial datapoint positions
+    y : np.ndarray, optional
+        Initial datapoint values
+    v : np.ndarray, optional
+        Initial datapoint observation variances
+    communicate_full_dataset : bool, optional
+        If True, the full dataset will be communicated to the `instrument_func` on each iteration. If False, only the
+        newly suggested datapoints will be communicated.
+    compute_device : str, optional
+        One of "cpu" or "gpu", determines how linear system solves are run. Default is "cpu".
+    sparse : bool, optional
+        If True, the algorithm check for sparsity of the covariance matrix and exploits it. Default is False.
+    training_dask_client : distributed.client.Client, optional
+        A Dask Distributed Client instance for distributed training
+    acq_func_opt_dask_client : distributed.client.Client, optional
+        A Dask Distributed Client instance for distributed `acquisition_func` computation
+
     """
     def __init__(self,
             parameter_bounds,
