@@ -54,6 +54,7 @@ setup(
     cmdclass=versioneer.get_cmdclass(),
     zip_safe=False,
     extras_require={
+        'tests': ['pytest', 'codecov', 'pytest-cov'],
         'docs': ['sphinx', 'sphinx-rtd-theme', 'myst-parser', 'myst-nb', 'sphinx-panels', 'autodocs']
-    },
+    }
 )
