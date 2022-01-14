@@ -94,19 +94,18 @@ def linear_cost_derivative(c, x):
 def linear_cost_derivatice2(c, x):
     return 0.0
 
-def compute_l2_cost_misfit(params, origins,points, costs):
+
+def _compute_cost_misfit(params, origins, points, costs, cost_func: Callable):
     parameters = {"offset": params[0], "slope": params[1]}
     sum1 = 0.0
     for idx in range(len(points)):
         sum1 = sum1 + (
-            (l2_cost(origins[idx],points[idx],parameters) - costs[idx]) ** 2)
+                (cost_func(origins[idx], points[idx], parameters) - costs[idx]) ** 2)
     return sum1
 
+
+def compute_l2_cost_misfit(params, origins,points, costs):
+    return _compute_cost_misfit(params, origins, points, costs, l2_cost)
 
 def compute_l1_cost_misfit(params, origins,points, costs):
-    parameters = {"offset": params[0], "slope": params[1]}
-    sum1 = 0.0
-    for idx in range(len(points)):
-        sum1 = sum1 + (
-            (l1_cost(origins[idx],points[idx],parameters) - costs[idx]) ** 2)
-    return sum1
+    return _compute_cost_misfit(params, origins, points, costs, l1_cost)
