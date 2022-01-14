@@ -77,7 +77,7 @@ def update_l2_cost_function(costs, parameters):
 
 
 def update_l1_cost_function(costs, parameters):
-    return _update_cost_function(costs, parameters, l2_cost, compute_l2_cost_misfit)
+    return _update_cost_function(costs, parameters, l1_cost, compute_l1_cost_misfit)
 
 ########################################################
 ########################################################
