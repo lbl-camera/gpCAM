@@ -6,56 +6,6 @@ from gpcam import surrogate_model as sm
 from fvgp.gp import GP
 
 
-
-        """
-        Function to start the autonomous-data-acquisition loop.
-        
-        Parameters
-        ----------
-        N : int, optional
-            Run for N iterations. The default is `1e15`.
-        breaking_error : float, optional
-            Run until breaking_error is achieved (or at max N). The default is `1e-15`.
-        retrain_globally_at : Iterable[int], optional
-            Retrains the hyperparameters at the given number of measurements using global optimization. The deafult is
-            `[100,400,1000]`.
-        retrain_locally_at : Iterable[int], optional
-            Retrains the hyperparameters at the given number of measurements using local gradient-based optimization.
-            The default is `[20,40,60,80,100,200,400,1000]`.
-        retrain_async_at : Iterable[int], optional
-            Retrains the hyperparameters at the given number of measurements using the HGDL algorithm. This training is
-            asynchronous and can be run in a distributed fashion using `training_dask_client`. The default is `[1000,2000,5000,10000]`.
-        retrain_callable_at : Iterable[int], optional
-            Retrains the hyperparameters at the given number of measurements using a callable provided by `training_opt_callable`.
-        update_cost_func_at : Iterable[int], optional
-            Calls the `update_cost_func` at the given number of measurements.
-        acq_func_opt_setting : Callable, optional
-            A callable that accepts as input the iteration index and returns either `'local'` or `'global'`. This
-            switches between local gradient-based and global optimization for the acquisition function.
-        training_opt_callable : Callable, optional
-            A callable that accepts as input a `fvgp.gp.GP` instance and returns a new vector of hyperparameters.
-        training_opt_max_iter : int, optional
-            The maximum number of iterations for any training.
-        training_opt_pop_size : int, optional
-            The population size used for any training with a global component (HGDL or standard global optimizers).
-        training_opt_tol : float, optional
-            The optimization tolerance for all training optimization.
-        acq_func_opt_max_iter : int, optional
-            The maximum number of iterations for the `acq_func` optimization.
-        acq_func_opt_pop_size : int, optional
-            The population size used for any `acq_func` optimization with a global component (HGDL or standard global
-            optimizers).
-        acq_func_opt_tol : float, optional
-            The optimization tolerance for all `acq_func` optimization.
-        acq_func_opt_tol_adjust : float, optional
-            The `acq_func` optimization tolerance is adjusted at every iteration as a fraction of this value.
-        number_of_suggested_measurements : int, optional
-            The algorithm will try to return this many suggestions for new measurements. This may be limited by how many
-            optima the algorithm may find. If greater than 1, then the `acq_func` optimization method is automatically
-            set to use HGDL. The default is 1.
-        """
-
-
 class GPOptimizer(GP):
     """
     This class is an optimization wrapper around the fvgp package.
@@ -415,7 +365,7 @@ class GPOptimizer(GP):
             method = "global",
             pop_size = 20,
             max_iter = 20,
-            tol = 10e-6,
+            tol = 1e-6,
             x0 = None,
             dask_client = False):
 
@@ -427,7 +377,7 @@ class GPOptimizer(GP):
         Parameters
         ----------
         position : np.ndarray, optional
-            Current position in th einput space. If a cost function is provided this position will be taken into account
+            Current position in the input space. If a cost function is provided this position will be taken into account
             to guarantee an cost-efficient new suggestion. The default is None.
         n  : int, optional
             The algorithm will try to return this many suggestions for new measurements. This may be limited by how many
@@ -448,38 +398,30 @@ class GPOptimizer(GP):
             the next measurement point. If None, the default is a uniform cost of 1.
         bounds : np.ndarray, optional
             A numpy array of floats of shape D x 2 describing the search range. The default is the entire input space.
-        method:
-        pop_size:
-        max_iter:
-        tol:
-        x0:
-        dask_client:
+        method: str, optional
+            A string defining the method used to find the maximum of the acquisiton function. Choose from `global`, `local`, `hgdl`.
+            The default is `global`.
+        pop_size: int, optional
+            An integerr defining the number of individuals if `global` is chosen as method. The default is 20. For `hgdl` this will be overwritten
+            by the 'dask_client` definition.
+        max_iter: int, optional
+            This number defined the number of iterations before the optimizer is terminated. The default is 20.
+        tol: float, optional
+            Termination criterion for the local optimizer. The default is 1e-6.
+        x0: np.ndarray, optional
+            A set of points as numpy array of shape V x D, used as starting location(s) for h elocal and hgdl optimization
+            algorithm. The default is None.
+        dask_client : distributed.client.Client, optional
+            A Dask Distributed Client instance for distributed `acquisition_func` computation. If None is provided, a new
+            `dask.distributed.Client` instance is constructed.
 
         Returns
         -------
-            {'x': np.array(maxima), "f(x)" : np.array(func_evals), "opt_obj" : opt_obj}
+        dictionary : {'x': np.array(maxima), "f(x)" : np.array(func_evals), "opt_obj" : opt_obj}
+            Found maxima of the acqisition function, the associated function values and and optimization object
+            that, only in case of `method` = `hgdl` can be queried for solutions.
         """
 
-
-
-        """
-        Parameters:
-        -----------
-
-        Optional Parameters:
-        --------------------
-            position (numpy array):            last measured point, default = None
-            n (int):                           how many new measurements are requested, default = 1
-            acquisition_function:              default = None, means that the class acquisition function will be used
-            cost_function:                     default = None, otherwise cost objective received from init_cost, or callable
-            bounds (2d list/None):             default = None
-            method:                            default = "global", "global"/"hgdl"
-            pop_size (int):                    default = 20
-            max_iter (int):                    default = 20
-            tol (float):                       default = 10e-6
-            x0:                                default = None, starting positions for optimizer
-            dask_client:                                    default = False
-        """
         print("ask() initiated with hyperparameters:",self.hyperparameters)
         print("optimization method: ", method)
         print("bounds: ",bounds)
@@ -500,21 +442,25 @@ class GPOptimizer(GP):
         return {'x':np.array(maxima), "f(x)" : np.array(func_evals), "opt_obj" : opt_obj}
 
 ##############################################################
-    def init_cost(self,cost_function,cost_function_parameters,cost_update_function = None):
+    def init_cost(self,cost_function,cost_function_parameters = None,cost_update_function = None):
         """
-        This function initializes the costs. If used, the acquisition function will be augmented by the costs
-        which leads to different suggestions
+        This function initializes the cost function and its parameters.
+        If used, the acquisition function will be augmented by the costs which leads to different suggestions.
 
-        Parameters:
-        -----------
-            cost_function: callable
-            cost_function_parameters: arbitrary, are passed to the user defined cost function
-
-        Optional Parameters:
-        --------------------
-            cost_update_function: a function that updates the cost_function_parameters, default = None
-            cost_function_optimization_bounds: optimization bounds for the update, default = None
-
+        Parameters
+        ----------
+        cost_function : Callable
+            A function encoding the cost of motion through the input space and the cost of a measurement. Its inputs are an
+            `origin` (np.ndarray of size V x D), `x` (np.ndarray of size V x D), and the value of `cost_func_params`;
+            `origin` is the starting position, and `x` is the destination position. The return value is a 1-D array of
+            length V describing the costs as floats. The 'score' from acquisition_function is divided by this returned cost to determine
+            the next measurement point.
+        cost_function_parameters : object, optional
+            This object is transmitted to the cost function; it can be of any type. The default is None.
+        cost_update_function : Callable, optional
+            If provided this function will be used when `gpcam.gp_optimizer.GPOptimizer.update_cost_function` is called.
+            The function `cost_update_function` accepts as input costs (a list of cost values usually determined by `instrument_func`) and a parameter
+            object. The default is a no-op.
         Return:
         -------
             cost function that can be injected into ask()
@@ -553,6 +499,10 @@ class GPOptimizer(GP):
         self.cost_function_parameters = \
         self.cost_update_function(measurement_costs, self.cost_function_parameters)
         print("cost parameters changed to: ", self.cost_function_parameters)
+######################################################################################
+######################################################################################
+######################################################################################
+######################################################################################
 ######################################################################################
 ######################################################################################
 ######################################################################################
