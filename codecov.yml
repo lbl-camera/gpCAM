@@ -1,0 +1,4 @@
+ignore:
+  - "versioneer.py"
+  - "gpcam/_version.py"
+
