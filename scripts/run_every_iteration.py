@@ -1,7 +1,9 @@
+# FIXME: unused module?
 import numpy as np
 
 
 def write_vtk_file(gp_optimizer_obj):
+    # FIXME: unused function?
     print("This will be printed in every iteration of gpCAM")
     plot_dim = [[0,28],[0,41]]
     resolution = [100,100]
@@ -13,12 +15,13 @@ def write_vtk_file(gp_optimizer_obj):
     file_name = "vid.csv."+str(len(gp_optimizer_obj.points)).zfill(5)
     file_name_p = "vid_p.csv."+str(len(gp_optimizer_obj.points)).zfill(5)
     print("writing csv file", file_name)
-    print(plot_dim[plot_indices[0]][0],plot_dim[plot_indices[0]][1],resolution[0])
-    print(plot_dim[plot_indices[1]][0],plot_dim[plot_indices[1]][1],resolution[1])
+    xs = (plot_dim[plot_indices[0]][0], plot_dim[plot_indices[0]][1], resolution[0])
+    ys = (plot_dim[plot_indices[1]][0], plot_dim[plot_indices[1]][1], resolution[1])
+    print(xs)
+    print(ys)
 
-
-    x = np.linspace(plot_dim[plot_indices[0]][0],plot_dim[plot_indices[0]][1],resolution[0])
-    y = np.linspace(plot_dim[plot_indices[1]][0],plot_dim[plot_indices[1]][1],resolution[1])
+    x = np.linspace(*xs)
+    y = np.linspace(*ys)
     mean = np.zeros((len(x)*len(y)))
     points = np.zeros((len(x)*len(y),2))
     print("plot indices:", plot_indices)
