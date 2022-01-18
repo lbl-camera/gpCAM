@@ -268,7 +268,7 @@ class GPOptimizer(GP):
 ##############################################################
     def train_gp(self,
             hyperparameter_bounds,
-            max_iter = 120
+            max_iter = 120,
             method = "global",
             pop_size = 20,
             optimization_dict = None,
