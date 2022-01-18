@@ -41,10 +41,10 @@ class EnsembleGPOptimizer(EnsembleGP):
     """
 
     def __init__(
-        self,
-        input_space_dimension,
-        input_space_bounds,
-        ):
+            self,
+            input_space_dimension,
+            input_space_bounds,
+    ):
         """
         GPOptimizer constructor
         type help(gp_optimizer) for help
@@ -72,8 +72,10 @@ class EnsembleGPOptimizer(EnsembleGP):
             class attributes. Note that if tell() has not been called, many
             of these returned values will be None.
         """
-        if self.gp_initialized: hps = self.hyperparameters
-        else: hps = None
+        if self.gp_initialized:
+            hps = self.hyperparameters
+        else:
+            hps = None
         return {
             "input dim": self.iput_dim,
             "x": self.points,
@@ -82,11 +84,11 @@ class EnsembleGPOptimizer(EnsembleGP):
             "hyperparameters": hps,
             "cost function parameters": self.cost_function_parameters,
             "consider costs": self.consider_costs,
-            }
+        }
 
     def evaluate_acquisition_function(self,
-        x, acquisition_function, cost_function=None,
-        origin=None):
+                                      x, acquisition_function, cost_function=None,
+                                      origin=None):
         """
         Evaluates the acquisition function.
 
@@ -148,14 +150,14 @@ class EnsembleGPOptimizer(EnsembleGP):
 
         if self.gp_initialized is True: self.update_gp()
 
-##############################################################
+    ##############################################################
     def init_ensemble_gp(
-        self,
-        hps_obj,
-        compute_device="cpu",
-        gp_kernel_functions= None,
-        gp_mean_functions = None,
-        sparse=False
+            self,
+            hps_obj,
+            compute_device="cpu",
+            gp_kernel_functions=None,
+            gp_mean_functions=None,
+            sparse=False
     ):
         """
         Function to initialize the GP if it has not already been initialized
@@ -171,24 +173,25 @@ class EnsembleGPOptimizer(EnsembleGP):
         """
         if self.gp_initialized is False:
             EnsembleGP.__init__(
-            self,
-            self.iput_dim,
-            self.points,
-            self.values,
-            number_of_GPs,
-            hps_obj,
-            variances = self.variances,
-            compute_device = compute_device,
-            gp_kernel_functions = gp_kernel_functions,
-            gp_mean_functions = gp_mean_functions,
-            sparse = sparse,
-            normalize_y = False
+                self,
+                self.iput_dim,
+                self.points,
+                self.values,
+                number_of_GPs,
+                hps_obj,
+                variances=self.variances,
+                compute_device=compute_device,
+                gp_kernel_functions=gp_kernel_functions,
+                gp_mean_functions=gp_mean_functions,
+                sparse=sparse,
+                normalize_y=False
             )
             self.gp_initialized = True
             print("GP successfully initiated")
-        else: print("GP already initialized")
+        else:
+            print("GP already initialized")
 
-##############################################################
+    ##############################################################
     def update_ensemble_gp(self):
         """
         This function updates the data in the GP, tell(...) will call this function automatically if
@@ -200,16 +203,16 @@ class EnsembleGPOptimizer(EnsembleGP):
         self.update_EnsembleGP_data(
             self.points,
             self.values,
-            variances = self.variances)
+            variances=self.variances)
         print("GP data updated")
 
-##############################################################
-    #def train_gp_async(self,
-    #        hyperparameter_bounds,
-    #        pop_size = 20,
-    #        tolerance = 1e-6,
-    #        max_iter = 10000,
-    #        dask_client = None):
+        ##############################################################
+        # def train_gp_async(self,
+        #        hyperparameter_bounds,
+        #        pop_size = 20,
+        #        tolerance = 1e-6,
+        #        max_iter = 10000,
+        #        dask_client = None):
         """
         Function to start fvGP asynchronous training.
         Parameters:
@@ -224,6 +227,7 @@ class EnsembleGPOptimizer(EnsembleGP):
         Return:
             Nothing, call update_hyperparameters() for the result
         """
+
     #    if self.gp_initialized is False:
     #        raise Exception("No GP to be trained. Please call init_gp(...) before training.")
     #    opt_obj = self.train_async(
@@ -236,11 +240,11 @@ class EnsembleGPOptimizer(EnsembleGP):
     #            )
     #    return opt_obj
 
-##############################################################
-    def train_ensemble_gp(self,hps_obj,
-            method = "global",pop_size = 20,
-            optimization_dict = None,tolerance = 1e-6,
-            max_iter = 120):
+    ##############################################################
+    def train_ensemble_gp(self, hps_obj,
+                          method="global", pop_size=20,
+                          optimization_dict=None, tolerance=1e-6,
+                          max_iter=120):
         """
         Function to perform fvGP training.
         Parameters:
@@ -259,14 +263,14 @@ class EnsembleGPOptimizer(EnsembleGP):
         if self.gp_initialized is False:
             raise Exception("No GP to be trained. Please call init_gp(...) before training.")
         self.train(
-                init_hps_obj = hps_obj
-                pop_size = pop_size,
-                tolerance = tolerance,
-                max_iter = max_iter
-                )
+            init_hps_obj=hps_obj
+        pop_size = pop_size,
+                   tolerance = tolerance,
+                               max_iter = max_iter
+        )
         return self.hyperparameters
 
-##############################################################
+    ##############################################################
     def stop_async_train(self, opt_obj):
         """
         function to stop vfGP async training
@@ -274,8 +278,10 @@ class EnsembleGPOptimizer(EnsembleGP):
         -----------
             no input parameters
         """
-        try: self.stop_training(opt_obj)
-        except: pass
+        try:
+            self.stop_training(opt_obj)
+        except:
+            pass
 
     def kill_async_train(self, opt_obj):
         """
@@ -284,26 +290,28 @@ class EnsembleGPOptimizer(EnsembleGP):
         -----------
             no input parameters
         """
-        try: self.kill_training(opt_obj)
-        except: pass
+        try:
+            self.kill_training(opt_obj)
+        except:
+            pass
 
-##############################################################
+    ##############################################################
     def update_hyperparameters(self, opt_obj):
         hps = GP.update_hyperparameters(self, opt_obj)
         print("GPOptimizer updated the Hyperperameters: ", self.hyperparameters)
         return hps
 
-##############################################################
-    def ask(self, position = None, n = 1,
-            acquisition_function = "covariance",
-            cost_function = None,
-            bounds = None,
-            method = "global",
-            pop_size = 20,
-            max_iter = 20,
-            tol = 10e-6,
-            x0 = None,
-            dask_client = False):
+    ##############################################################
+    def ask(self, position=None, n=1,
+            acquisition_function="covariance",
+            cost_function=None,
+            bounds=None,
+            method="global",
+            pop_size=20,
+            max_iter=20,
+            tol=10e-6,
+            x0=None,
+            dask_client=False):
         """
         Given that the acquisition device is at "position", the function ask() s for
         "n" new optimal points within certain "bounds" and using the optimization setup:
@@ -316,7 +324,8 @@ class EnsembleGPOptimizer(EnsembleGP):
             position (numpy array):            last measured point, default = None
             n (int):                           how many new measurements are requested, default = 1
             acquisition_function:              default = None, means that the class acquisition function will be used
-            cost_function:                     default = None, otherwise cost objective received from init_cost, or callable
+            cost_function:                     default = None, otherwise cost objective received from init_cost,
+            or callable
             bounds (2d list/None):             default = None
             method:                            default = "global", "global"/"hgdl"
             pop_size (int):                    default = 20
@@ -325,26 +334,26 @@ class EnsembleGPOptimizer(EnsembleGP):
             x0:                                default = None, starting positions for optimizer
             dask_client:                                    default = False
         """
-        print("ask() initiated with hyperparameters:",self.hyperparameters)
+        print("ask() initiated with hyperparameters:", self.hyperparameters)
         print("optimization method: ", method)
-        print("bounds: ",bounds)
+        print("bounds: ", bounds)
         if bounds is None: bounds = self.input_space_bounds
-        maxima,func_evals = sm.find_acquisition_function_maxima(
-                self,
-                acquisition_function,
-                position,n, bounds,
-                optimization_method = method,
-                optimization_pop_size = pop_size,
-                optimization_max_iter = max_iter,
-                optimization_tol = tol,
-                cost_function = cost_function,
-                cost_function_parameters = self.cost_function_parameters,
-                optimization_x0 = x0,
-                dask_client = dask_client)
-        return {'x':np.array(maxima), "f(x)" : np.array(func_evals)}
+        maxima, func_evals = sm.find_acquisition_function_maxima(
+            self,
+            acquisition_function,
+            position, n, bounds,
+            optimization_method=method,
+            optimization_pop_size=pop_size,
+            optimization_max_iter=max_iter,
+            optimization_tol=tol,
+            cost_function=cost_function,
+            cost_function_parameters=self.cost_function_parameters,
+            optimization_x0=x0,
+            dask_client=dask_client)
+        return {'x': np.array(maxima), "f(x)": np.array(func_evals)}
 
-##############################################################
-    def init_cost(self,cost_function,cost_function_parameters,cost_update_function = None):
+    ##############################################################
+    def init_cost(self, cost_function, cost_function_parameters, cost_update_function=None):
         """
         This function initializes the costs. If used, the acquisition function will be augmented by the costs
         which leads to different suggestions
@@ -371,8 +380,8 @@ class EnsembleGPOptimizer(EnsembleGP):
         print("Costs successfully initialized")
         return self.cost_function
 
-##############################################################
-    def update_cost_function(self,measurement_costs):
+    ##############################################################
+    def update_cost_function(self, measurement_costs):
         """
         This function updates the parameters for the cost function
         It essentially calls the user-given cost_update_function which
@@ -393,10 +402,13 @@ class EnsembleGPOptimizer(EnsembleGP):
         """
 
         print("Performing cost function update...")
-        if self.cost_function_parameters is None: raise Exception("No cost function parameters specified. Please call init_cost() first.")
+        if self.cost_function_parameters is None: raise Exception(
+            "No cost function parameters specified. Please call init_cost() first.")
         self.cost_function_parameters = \
-        self.cost_update_function(measurement_costs, self.cost_function_parameters)
+            self.cost_update_function(measurement_costs, self.cost_function_parameters)
         print("cost parameters changed to: ", self.cost_function_parameters)
+
+
 ######################################################################################
 ######################################################################################
 ######################################################################################
@@ -433,11 +445,11 @@ class EnsemblefvGPOptimizer(fvGP, GPOptimizer):
     """
 
     def __init__(
-        self,
-        input_space_dimension,
-        output_space_dimension,
-        output_number,
-        input_space_bounds,
+            self,
+            input_space_dimension,
+            output_space_dimension,
+            output_number,
+            input_space_bounds,
     ):
         """
         GPOptimizer constructor
@@ -453,15 +465,15 @@ class EnsemblefvGPOptimizer(fvGP, GPOptimizer):
         self.variances = np.empty((0, self.output_number))
         self.value_positions = np.empty((0, self.output_number, self.oput_dim))
         self.input_space_bounds = np.array(input_space_bounds)
-        #self.hyperparameters = None
+        # self.hyperparameters = None
         self.gp_initialized = False
         self.cost_function_parameters = None
         self.cost_function = None
         self.consider_costs = False
         GPOptimizer.__init__(self,
-                input_space_dimension,
-                input_space_bounds
-                )
+                             input_space_dimension,
+                             input_space_bounds
+                             )
 
     def get_data_fvGP(self):
         """
@@ -480,9 +492,8 @@ class EnsemblefvGPOptimizer(fvGP, GPOptimizer):
         res = self.get_data
         res["output number"] = self.output_number
         res["output dim"] = self.oput_dim
-        res["measurement value positions"] =  self.value_positions
+        res["measurement value positions"] = self.value_positions
         return res
-
 
     def tell(self, x, y, variances=None, value_positions=None):
         """
@@ -523,14 +534,14 @@ class EnsemblefvGPOptimizer(fvGP, GPOptimizer):
 
         if self.gp_initialized is True: self.update_fvgp()
 
-##############################################################
+    ##############################################################
     def init_fvgp(
-        self,
-        init_hyperparameters,
-        compute_device="cpu",
-        gp_kernel_function=None,
-        gp_mean_function=None,
-        sparse=False
+            self,
+            init_hyperparameters,
+            compute_device="cpu",
+            gp_kernel_function=None,
+            gp_mean_function=None,
+            sparse=False
     ):
         """
         Function to initialize the GP if it has not already been initialized
@@ -546,24 +557,25 @@ class EnsemblefvGPOptimizer(fvGP, GPOptimizer):
         """
         if self.gp_initialized is False:
             fvGP.__init__(
-            self,
-            self.iput_dim,
-            self.oput_dim,
-            self.output_number,
-            self.points,
-            self.values,
-            init_hyperparameters,
-            value_positions = self.value_positions,
-            variances = self.variances,
-            compute_device = compute_device,
-            gp_kernel_function = gp_kernel_function,
-            gp_mean_function = gp_mean_function,
-            sparse = sparse,
+                self,
+                self.iput_dim,
+                self.oput_dim,
+                self.output_number,
+                self.points,
+                self.values,
+                init_hyperparameters,
+                value_positions=self.value_positions,
+                variances=self.variances,
+                compute_device=compute_device,
+                gp_kernel_function=gp_kernel_function,
+                gp_mean_function=gp_mean_function,
+                sparse=sparse,
             )
             self.gp_initialized = True
-        else: print("fvGP already initialized")
+        else:
+            print("fvGP already initialized")
 
-##############################################################
+    ##############################################################
     def update_fvgp(self):
         """
         This function updates the data in the fvGP, tell(...) will call this function automatically if
@@ -575,6 +587,5 @@ class EnsemblefvGPOptimizer(fvGP, GPOptimizer):
         self.update_fvgp_data(
             self.points,
             self.values,
-            value_positions = self.value_positions,
-            variances = self.variances)
-
+            value_positions=self.value_positions,
+            variances=self.variances)
