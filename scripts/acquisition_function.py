@@ -1,6 +1,3 @@
-import numpy as np
-import matplotlib.pyplot as plt
-
 ###############################
 #README:
 #acquisition functions can be defined here following the templates below

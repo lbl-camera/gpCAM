@@ -1,5 +1,3 @@
-import numpy as np
-
 #####################################
 #README:
 #The mean function is defined a f = f(x), X --> R

@@ -1,12 +1,10 @@
 #!/usr/bin/env python
-import random
-import numpy as np
 import itertools
-import matplotlib.pyplot as plt
-from scipy.optimize import minimize
 from functools import partial
-from scipy.optimize import differential_evolution as devo
+
+import numpy as np
 from hgdl.hgdl import HGDL
+from scipy.optimize import differential_evolution as devo, minimize
 
 
 def evaluate_acquisition_function(x, gp, acquisition_function,origin = None,

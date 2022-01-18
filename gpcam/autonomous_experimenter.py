@@ -1,14 +1,13 @@
 #/usr/bin/env python
 import time
 from time import strftime
-import numpy as np
-from gpcam.data import gpData
-from gpcam.data import fvgpData
-from gpcam.gp_optimizer import GPOptimizer
-from gpcam.gp_optimizer import fvGPOptimizer
+
 import dask
 import dask.distributed as distributed
+import numpy as np
 
+from gpcam.data import fvgpData, gpData
+from gpcam.gp_optimizer import GPOptimizer, fvGPOptimizer
 
 
 #todo

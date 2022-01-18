@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 
 """Tests for `gpcam` package."""
-import numpy as np
-from gpcam.gp_optimizer import GPOptimizer
-import matplotlib.pyplot as plt
 import unittest
+
+import numpy as np
+
+from gpcam.gp_optimizer import GPOptimizer
+
 
 def ac_func1(x,obj):
     r1 = obj.posterior_mean(x)["f(x)"]

@@ -2,8 +2,9 @@
 
 """The setup script."""
 
-from setuptools import setup, find_packages
 from os import path
+
+from setuptools import find_packages, setup
 
 import versioneer
 

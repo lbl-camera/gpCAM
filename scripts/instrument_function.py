@@ -3,17 +3,12 @@
 ###############################################
 
 
-import numpy as np
-import os
-import random
-import time
-from scipy.interpolate import griddata
-import sys
-from shutil import copyfile
-import zmq
-from zmq import ssh
 import pickle
+import time
 import zlib
+
+import numpy as np
+
 
 #for zmq communication, when gpCAM runs on a remote server##
 #port = "5555"

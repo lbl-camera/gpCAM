@@ -9,7 +9,6 @@ def write_vtk_file(gp_optimizer_obj):
     l = [len(plot_dim[i]) for i in range(len(plot_dim))]
     plot_indices = [i for i, x in enumerate(l) if x == 2]
     slice_indices = [i for i, x in enumerate(l) if x == 1]
-    import matplotlib.pyplot as plt
     file_name = "vid.csv."+str(len(gp_optimizer_obj.points)).zfill(5)
     file_name_p = "vid_p.csv."+str(len(gp_optimizer_obj.points)).zfill(5)
     print("writing csv file", file_name)

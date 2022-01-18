@@ -1,9 +1,13 @@
 #!/usr/bin/env python
 
 import numpy as np
-from fvgp.fvgp import fvGP
-from gpcam import surrogate_model as sm
 from fvgp.ensemble_gp import EnsembleGP
+from fvgp.fvgp import fvGP
+from fvgp.gp import GP
+
+from gpcam import surrogate_model as sm
+from gpcam.gp_optimizer import GPOptimizer
+
 
 class EnsembleGPOptimizer(EnsembleGP):
     """
