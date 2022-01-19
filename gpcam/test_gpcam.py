@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 
 """Tests for `gpcam` package."""
-import numpy as np
-from gpcam.gp_optimizer import GPOptimizer
-import matplotlib.pyplot as plt
 import unittest
 
-def ac_func1(x,obj):
+import numpy as np
+
+from gpcam.gp_optimizer import GPOptimizer
+
+
+def ac_func1(x, obj):
     r1 = obj.posterior_mean(x)["f(x)"]
     r2 = obj.posterior_covariance(x)["v(x)"]
     m_index = np.argmin(obj.data_y)
@@ -14,58 +16,60 @@ def ac_func1(x,obj):
     std_model = np.sqrt(r2)
     return -(r1 + 3.0 * std_model)
 
+
 class TestgpCAM(unittest.TestCase):
     """Tests for `gpcam` package."""
 
-    def setUp(self,dim = 2, N = 20):
+    def setUp(self, dim=2, N=20):
         """Set up test fixtures, if any."""
-        x = np.random.rand(N,dim)
-        y = np.sin(x[:,0])
+        x = np.random.rand(N, dim)
+        y = np.sin(x[:, 0])
         ######################################################
         ######################################################
         ######################################################
-        index_set_bounds = np.array([[0.,1.],[0.,1.]])
-        hyperparameter_bounds = np.array([[0.001,1e9],[0.001,100],[0.001,100]])
+        index_set_bounds = np.array([[0., 1.], [0., 1.]])
+        hyperparameter_bounds = np.array([[0.001, 1e9], [0.001, 100], [0.001, 100]])
         hps_guess = np.ones((3))
         ###################################################################################
-        gp = GPOptimizer(dim,index_set_bounds)
-        gp.tell(x,y)
+        gp = GPOptimizer(dim, index_set_bounds)
+        gp.tell(x, y)
         gp.init_gp(hps_guess)
         gp.train_gp(hyperparameter_bounds)
 
-    def test_single_task(self,dim = 2, N = 20, write_data_cube = False):
+    def test_single_task(self, dim=2, N=20, write_data_cube=False):
         """Test something."""
-        x = np.random.rand(N,dim)
-        y = np.sin(x[:,0])
-        ######################################################
-        ######################################################
-        ######################################################
-        def kernel_l2_single_task(x1,x2,hyperparameters,obj):
-            hps = hyperparameters
-            distance_matrix = np.zeros((len(x1),len(x2)))
-            for i in range(len(x1[0])):
-                distance_matrix += abs(np.subtract.outer(x1[:,i],x2[:,i])/hps[i+1])**2
-            distance_matrix = np.sqrt(distance_matrix)
-            #if len(x1) == len(x2): noise = np.identity(len(x1)) * hps[2]
-            #else: noise = 0.0
-            return   hps[0] *  obj.exponential_kernel(distance_matrix,1)# + noise
+        x = np.random.rand(N, dim)
+        y = np.sin(x[:, 0])
 
-        index_set_bounds = np.array([[0.,1.],[0.,1.]])
-        hyperparameter_bounds = np.array([[0.001,1e9],[0.001,100],[0.001,100]])
+        ######################################################
+        ######################################################
+        ######################################################
+        def kernel_l2_single_task(x1, x2, hyperparameters, obj):
+            hps = hyperparameters
+            distance_matrix = np.zeros((len(x1), len(x2)))
+            for i in range(len(x1[0])):
+                distance_matrix += abs(np.subtract.outer(x1[:, i], x2[:, i]) / hps[i + 1]) ** 2
+            distance_matrix = np.sqrt(distance_matrix)
+            # if len(x1) == len(x2): noise = np.identity(len(x1)) * hps[2]
+            # else: noise = 0.0
+            return hps[0] * obj.exponential_kernel(distance_matrix, 1)  # + noise
+
+        index_set_bounds = np.array([[0., 1.], [0., 1.]])
+        hyperparameter_bounds = np.array([[0.001, 1e9], [0.001, 100], [0.001, 100]])
         hps_guess = np.ones((3))
         ###################################################################################
-        gp = GPOptimizer(dim,index_set_bounds)
-        gp.tell(x,y)
-        gp.init_gp(hps_guess, gp_kernel_function = kernel_l2_single_task)
+        gp = GPOptimizer(dim, index_set_bounds)
+        gp.tell(x, y)
+        gp.init_gp(hps_guess, gp_kernel_function=kernel_l2_single_task)
         gp.train_gp(hyperparameter_bounds)
         ######################################################
         ######################################################
         ######################################################
         print("evaluating acquisition function at [0.5,0.5,0.5]")
         print("=======================")
-        r1 = gp.evaluate_acquisition_function(np.array([0.5,0.5]),acquisition_function = "shannon_ig")
-        r2 = gp.evaluate_acquisition_function(np.array([0.5,0.5]),acquisition_function = ac_func1)
-        print("results: ",r1,r2)
+        r1 = gp.evaluate_acquisition_function(np.array([0.5, 0.5]), acquisition_function="shannon_ig")
+        r2 = gp.evaluate_acquisition_function(np.array([0.5, 0.5]), acquisition_function=ac_func1)
+        print("results: ", r1, r2)
         print()
         print("getting data from gp optimizer:")
         print("=======================")
@@ -79,11 +83,11 @@ class TestgpCAM(unittest.TestCase):
         print()
         print("getting the maximum (remember that this means getting the minimum of -f(x)):")
         print("=======================")
-        r = gp.ask(acquisition_function = "maximum")
+        r = gp.ask(acquisition_function="maximum")
         print(r)
         print("getting the minimum:")
         print("=======================")
-        r = gp.ask(acquisition_function = "minimum")
+        r = gp.ask(acquisition_function="minimum")
         print(r)
         print()
 
@@ -91,23 +95,23 @@ class TestgpCAM(unittest.TestCase):
             print("Writing interpolation to file...")
             print("=======================")
 
-            ar3d = np.empty((50,50))
-            l = np.empty((50*50,4))
-            x = np.linspace(0,1,50)
-            y = np.linspace(0,1,50)
+            ar3d = np.empty((50, 50))
+            l = np.empty((50 * 50, 4))
+            x = np.linspace(0, 1, 50)
+            y = np.linspace(0, 1, 50)
             counter = 0
             for i in range(50):
-                print("done ",((i+1.0)/50.0)*100.," percent")
+                print("done ", ((i + 1.0) / 50.0) * 100., " percent")
                 for j in range(50):
-                    res = gp.posterior_mean(np.array([[x[i],y[j]]]))
-                    ar3d[i,j] = res["f(x)"]
-                    l[counter,0] = x[i]
-                    l[counter,1] = y[j]
-                    l[counter,3] = res["f(x)"] / 10000.0
+                    res = gp.posterior_mean(np.array([[x[i], y[j]]]))
+                    ar3d[i, j] = res["f(x)"]
+                    l[counter, 0] = x[i]
+                    l[counter, 1] = y[j]
+                    l[counter, 3] = res["f(x)"] / 10000.0
                     counter += 1
 
             file_name = "data_list.csv"
-            np.savetxt(file_name,l, delimiter = ",",header = 'x coord, y coord, z_coord, scalar')
+            np.savetxt(file_name, l, delimiter=",", header='x coord, y coord, z_coord, scalar')
             print("==================================================")
             print("data cube written in 'data_list.csv'; you can use paraview to visualize it")
 
