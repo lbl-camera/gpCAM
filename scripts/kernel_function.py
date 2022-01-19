@@ -1,4 +1,5 @@
 import numpy as np
+from matplotlib import pyplot as plt
 
 
 def kernel_l2_single_task(x1, x2, hyperparameters, obj):
