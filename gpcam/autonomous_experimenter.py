@@ -19,8 +19,8 @@ class AutonomousExperimenterGP():
     Executes the autonomous loop for a single-task gaussian process.
     Use class AutonomousExperimenterfvGP for multi-task experiments.
 
-    Parameter
-    ---------
+    Parameters
+    ----------
     parameter_bounds : np.ndarray
         A numpy array of floats of shape D x 2 describing the input space range
     hyperparameters : np.ndarray
@@ -60,7 +60,7 @@ class AutonomousExperimenterGP():
     cost_func_params : Any, optional
         An object that is communicated to the `cost_func` and `cost_update_func`. The default is `{}`.
     kernel_func : Callable, optional
-        A function that calculations covariance between datapoints. It accepts as input x1 (a V x D array of positions),
+        A function that calculates the covariance between datapoints. It accepts as input x1 (a V x D array of positions),
         x2 (a U x D array of positions), hyperparameters (a 1-D array of length D+1 for the default kernel), and a
         `gpcam.gp_optimizer.GPOptimizer` instance. The default is a stationary anisotropic kernel
         (`fvgp.gp.GP.default_kernel`).
@@ -261,7 +261,7 @@ class AutonomousExperimenterGP():
 
         """
         Function to start the autonomous-data-acquisition loop.
-        
+
         Parameters
         ----------
         N : int, optional

@@ -8,8 +8,8 @@ from fvgp.gp import GP
 
 class GPOptimizer(GP):
     """
-    This class is an optimization wrapper around the fvgp package.
-    Gaussian Processes can be intialized, trained and conditioned here; also
+    This class is an optimization wrapper around the fvgp package for single-task (scalar-valued) Gaussian Processes.
+    Gaussian Processes can be intialized, trained and conditioned; also
     the posterior can be evaluated and plugged into optimizers to find
     a its maxima.
 
@@ -61,9 +61,9 @@ class GPOptimizer(GP):
         Return
         ------
         dict
-            Dictionary containing the input dim, output dim, output number,
-            x & y data, measurement variances, measurement value positions,
-            hyperparameters, cost function parameters and consider costs
+            Dictionary containing the input dim,
+            x & y data, measurement variances,
+            hyperparameters, cost function parameters and consider_costs
             class attributes. Note that if tell() has not been called, many
             of these returned values will be `None`.
         """
@@ -103,8 +103,8 @@ class GPOptimizer(GP):
         origin : np.ndarray, optional
             If a cost function is provided this 1-D numpy array of length D is used as the origin of motion.
 
-        Returns
-        -------
+        Return
+        ------
             np.ndarray
             The acquisition function evaluations at all points `x`.
         """
@@ -243,8 +243,8 @@ class GPOptimizer(GP):
             Gloabl optimization step running in `HGDL`. Choose from `genetic` or 'random'.
             The default is `genetic`
 
-        Returns
-        -------
+        Return
+        ------
             This function return an optimization object (opt_obj) that can be used to stop(opt_obj) or kill(opt_obj) the optimization.
             Call `gpcam.gp_optimizer.GPOptimizer.update_hyperparameters(opt_obj)` to update the
             current Gaussian Process with the new hyperparameters. This allows to start several optimization procedures
@@ -294,8 +294,8 @@ class GPOptimizer(GP):
         tolerance : float, optional
             Tolerance to be used to define a termination criterion for the optimizer.
 
-        Returns
-        -------
+        Return
+        ------
         hyperparameters : np.ndarray
             This is just informative, the Gaussian Process is automatically updated.
         """
@@ -348,8 +348,8 @@ class GPOptimizer(GP):
         opt_obj : object instance
             Object instance created by gpcam.gp_optimizer.GPOptimizer.train_gp_async()
 
-        Returns
-        -------
+        Return
+        ------
             hyperparameters : np.ndarray
         """
 
@@ -415,8 +415,8 @@ class GPOptimizer(GP):
             A Dask Distributed Client instance for distributed `acquisition_func` computation. If None is provided, a new
             `dask.distributed.Client` instance is constructed.
 
-        Returns
-        -------
+        Return
+        ------
         dictionary : {'x': np.array(maxima), "f(x)" : np.array(func_evals), "opt_obj" : opt_obj}
             Found maxima of the acqisition function, the associated function values and and optimization object
             that, only in case of `method` = `hgdl` can be queried for solutions.
@@ -461,8 +461,8 @@ class GPOptimizer(GP):
             If provided this function will be used when `gpcam.gp_optimizer.GPOptimizer.update_cost_function` is called.
             The function `cost_update_function` accepts as input costs (a list of cost values usually determined by `instrument_func`) and a parameter
             object. The default is a no-op.
-        Return:
-        -------
+        Return
+        ------
             cost function that can be injected into ask()
         """
 
@@ -508,35 +508,40 @@ class GPOptimizer(GP):
 ######################################################################################
 class fvGPOptimizer(fvGP, GPOptimizer):
     """
-    fvGPOptimizer class: Given data, this class can determine which
-    data should be collected next.
-    Initialize and then use tell() to communicate data.
-    Use init_gp() to initlaize a GP.
-    Use ask() to ask for the optimal next point
+    This class is an optimization wrapper around the fvgp package for multi-task (multi-variate) Gaussian Processes.
+    Gaussian Processes can be intialized, trained and conditioned; also
+    the posterior can be evaluated and plugged into optimizers to find
+    a its maxima.
 
-    symbols:
-        N: Number of points in the data set
-        n: number of return values
-        dim1: number of dimension of the input space
-        dim2: number of dimension of the output space
+    Parameters
+    ---------
+    input_space_dimension : int
+        Integer specifying the number of dimensions of the input space.
+    output_space_dimension : int
+        Integer specifying the number of dimensions of the output space. Most often 1.
+    output_number : int
+        Number of output values.
+    input_space_bounds : np.ndarray
+        A numpy array of floats of shape D x 2 describing the input space range
 
-    Attributes:
-        input_space_dimension (int):         dim1
-        output_space_dimension (int):        dim2
-        output_number (int):                 n
-        input_space_bounds (2d array):         bounds of the index set
-
-
-    Example:
-        obj = fvGPOptimizer(3,1,2,[[0,10],[0,10],[0,10]])
-        obj.tell(x,y)
-        obj.init_gp(...)
-        obj.train_gp(...) #can be "train_gp_async()"
-        obj.init_cost(...)
-        obj.update_cost_function(...)
-        prediction = obj.gp.posterior_mean(x0)
-    ------------------------------------------------------------
+    Attributes
+    ----------
+    points : np.ndarray
+        Datapoint positions
+    values : np.ndarray
+        Datapoint values
+    variances : np.ndarray
+        Datapoint observation variances
+    input_dim : int
+        Dimensionality of the input space
+    input_space_bounds : np.ndarray
+        Bounds of the input space
+    gp_initialized : bool
+        A check whether the object instance has an initialized Gaussian Process.
+    hyperparameters : np.ndarray
+        Only available after a training is executed.
     """
+
 
     def __init__(
         self,
@@ -570,16 +575,16 @@ class fvGPOptimizer(fvGP, GPOptimizer):
 
     def get_data_fvGP(self):
         """
-        Provides a way to access the current class variables.
+        Function that provides a way to access the class attributes.
 
-        Returns
-        -------
+        Return
+        ------
         dict
             Dictionary containing the input dim, output dim, output number,
             x & y data, measurement variances, measurement value positions,
-            hyperparameters, cost function parameters and consider costs
+            hyperparameters, cost function parameters and consider_costs
             class attributes. Note that if tell() has not been called, many
-            of these returned values will be None.
+            of these returned values will be `None`.
         """
 
         res = self.get_data
@@ -592,34 +597,22 @@ class fvGPOptimizer(fvGP, GPOptimizer):
     def tell(self, x, y, variances=None, value_positions=None):
         """
         This function can tell() the gp_optimizer class
-        the data that was collected. The data will instantly be use to update the gp_data
-        if a GP was previously initialized
+        the data that was collected. The data will instantly be used to update the gp_data
+        if a GP was previously initialized.
 
-        Parameters:
-        -----------
-            x (2d numpy array):                A 2d array of all the points in the data
-            values (2d numpy array):           A 2d array of all the values measured at the associated points
-
-        Optional Parameters:
-        --------------------
-            variances (2d numpy array):         A 2d array of all the variances of the measured points
-            value_positions (3d numpy array):   A 3d numpy array that stores a 
-                                                2d array of locations for each each data point
-                                                    e.g. 
-                                                    * 2 data points with 2 ouputs in 1d:
-                                                      value_posiitons = np.array([
-                                                      [[0],[1]]
-                                                      [[0],[1]]
-                                                      ])
-                                                    * 2 data points with 3 ouputs in 2d:
-                                                      value_positions = np.array([
-                                                      [[0,1],[2,3],[4,5]]
-                                                      [[0,2],[4,2],[7,8]]
-                                                      ])
-
-        Returns:
-        --------
-            no returns
+        Parameters
+        ----------
+        x : np.ndarray
+            Point positions (of shape U x D) to be communicated to the Gaussian Process.
+        y : np.ndarray
+            Point values (of shape U x 1 or U) to be communicated to the Gaussian Process.
+        variances : np.ndarray, optional
+            Point value variances (of shape U x 1 or U) to be communicated to the Gaussian Process.
+            If not provided, the GP will 1% of the y values as variances.
+        value_positions : np.ndarray, optional
+            A 3-D numpy array of shape (U x output_number x output_dim), so that for each measurement position, the outputs
+            are clearly defined by their positions in the output space. The default is np.array([[0],[1],[2],[3],...,[output_number - 1]]) for each
+            point in th einput space. The default is only permissible if output_dim is 1.
         """
         self.points = x
         self.values = y
