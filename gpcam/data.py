@@ -209,11 +209,13 @@ class gpData:
 ######################################################################
 ######################################################################
 class fvgpData(gpData):
-    def create_random_dataset(self, length):
+    def __init__(self, dim, parameter_bounds, output_number, output_dim):
         if self.output_number is None or self.output_dim is None:
             raise Exception("When initializing the data class for a multi-output GP, \
                     please provide output_number AND output_dim parameters.")
+        super(fvgpData, self).__init__(dim, parameter_bounds, output_number, output_dim)
 
+    def create_random_dataset(self, length):
         self.x = self._create_random_points(length)
         self.point_number = len(self.x)
         self.dataset = self.inject_arrays(self.x)
@@ -223,10 +225,6 @@ class fvgpData(gpData):
         initializes a previously-collected dataset
         !!!for intitiation only!!! just use the "+" operator to update the existing dataset
         """
-        if self.output_number is None or self.output_dim is None:
-            raise Exception("When initializing the data class for a multi-output GP, \
-                    please provide output_number AND an output_dim parameters.")
-
         self.point_number = len(self.dataset)
         self.dataset = dataset
 
