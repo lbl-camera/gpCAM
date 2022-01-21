@@ -10,8 +10,6 @@ from gpcam.data import fvgpData, gpData
 from gpcam.gp_optimizer import GPOptimizer, fvGPOptimizer
 
 
-# todo
-
 
 class AutonomousExperimenterGP():
     """
@@ -213,7 +211,7 @@ class AutonomousExperimenterGP():
         self.async_train_in_progress = True
 
     def kill_training(self):
-        print("async training is being killed")
+        #print("async training is being killed")
         if self.async_train_in_progress:
             self.gp_optimizer.stop_async_train(self.opt_obj)
         else:
@@ -221,7 +219,7 @@ class AutonomousExperimenterGP():
         self.async_train_in_progress = False
 
     def kill_client(self):
-        print("AutonomousExperimenter is trying to kill training and acq func opt client.")
+        #print("AutonomousExperimenter is trying to kill training and acq func opt client.")
         try:
             self.gp_optimizer.kill_async_train(self.opt_obj)
         except:
@@ -232,7 +230,7 @@ class AutonomousExperimenterGP():
             print("Tried to kill the acq func opt client, but it appears there was none.")
 
     def update_hps(self):
-        print("The Autonomous Experimenter is trying to update the hyperparameters.")
+        #print("The Autonomous Experimenter is trying to update the hyperparameters.")
         if self.async_train_in_progress:
             self.gp_optimizer.update_hyperparameters(self.opt_obj)
             print("The Autonomus Experimenter updated the hyperparameters")
@@ -297,28 +295,36 @@ class AutonomousExperimenterGP():
         retrain_callable_at : Iterable[int], optional
             Retrains the hyperparameters at the given number of measurements using a callable provided by
             `training_opt_callable`.
+            Default = ()
         update_cost_func_at : Iterable[int], optional
             Calls the `update_cost_func` at the given number of measurements.
+            Default = ()
         acq_func_opt_setting : Callable, optional
             A callable that accepts as input the iteration index and returns either `'local'` or `'global'`. This
             switches between local gradient-based and global optimization for the acquisition function.
+            The default is `lambda number: "global" if number % 2 == 0 else "local"`.
         training_opt_callable : Callable, optional
             A callable that accepts as input a `fvgp.gp.GP` instance and returns a new vector of hyperparameters.
+            The default value is None..
         training_opt_max_iter : int, optional
             The maximum number of iterations for any training.
+            The default value is 20.
         training_opt_pop_size : int, optional
             The population size used for any training with a global component (HGDL or standard global optimizers).
+            The default value is 10.
         training_opt_tol : float, optional
-            The optimization tolerance for all training optimization.
+            The optimization tolerance for all training optimization. The default is 1e-6.
         acq_func_opt_max_iter : int, optional
-            The maximum number of iterations for the `acq_func` optimization.
+            The maximum number of iterations for the `acq_func` optimization. The defaukt is 20.
         acq_func_opt_pop_size : int, optional
             The population size used for any `acq_func` optimization with a global component (HGDL or standard global
-            optimizers).
+            optimizers). The default value is 20.
         acq_func_opt_tol : float, optional
             The optimization tolerance for all `acq_func` optimization.
+            The default value is 1e-6
         acq_func_opt_tol_adjust : float, optional
             The `acq_func` optimization tolerance is adjusted at every iteration as a fraction of this value.
+            The default value is 0.1 .
         number_of_suggested_measurements : int, optional
             The algorithm will try to return this many suggestions for new measurements. This may be limited by how many
             optima the algorithm may find. If greater than 1, then the `acq_func` optimization method is automatically

@@ -210,7 +210,7 @@ class gpData:
 ######################################################################
 class fvgpData(gpData):
     def __init__(self, dim, parameter_bounds, output_number, output_dim):
-        if self.output_number is None or self.output_dim is None:
+        if output_number is None or output_dim is None:
             raise Exception("When initializing the data class for a multi-output GP, \
                     please provide output_number AND output_dim parameters.")
         super(fvgpData, self).__init__(dim, parameter_bounds, output_number, output_dim)
