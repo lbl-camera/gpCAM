@@ -3,22 +3,23 @@ from typing import Callable
 import numpy as np
 from scipy.optimize import differential_evolution as devo
 
-#define global variable here:
-#a = 1.0
+
+# define global variable here:
+# a = 1.0
 
 
-def l2_cost(origin,x,arguments = None):
+def l2_cost(origin, x, arguments=None):
     offset = arguments["offset"]
     slope = arguments["slope"]
-    return slope*np.linalg.norm(np.abs(np.subtract(origin,x)), axis = 1)+offset
+    return slope * np.linalg.norm(np.abs(np.subtract(origin, x)), axis=1) + offset
 
 
-def l1_cost(origin,x,arguments = None):
+def l1_cost(origin, x, arguments=None):
     offset = arguments["offset"]
     slope = arguments["slope"]
-    d = np.abs(np.subtract(origin,x))
+    d = np.abs(np.subtract(origin, x))
     c = (d * slope) + offset
-    n = np.sum(c, axis = 1)
+    n = np.sum(c, axis=1)
     return n
 
 
@@ -33,6 +34,8 @@ def _update_cost_function(costs,
     print("Cost adjustment in progress...")
     print("old cost parameters: ", parameters)
     bounds = 0.0
+    # print(bounds)
+    # input()
     ###remove out-liers:
     origins = []
     points = []
@@ -79,6 +82,7 @@ def update_l2_cost_function(costs, parameters):
 def update_l1_cost_function(costs, parameters):
     return _update_cost_function(costs, parameters, l1_cost, compute_l1_cost_misfit)
 
+
 ########################################################
 ########################################################
 ########################################################
@@ -88,8 +92,10 @@ def update_l1_cost_function(costs, parameters):
 def linear_cost(c, x):
     return c * x
 
+
 def linear_cost_derivative(c, x):
     return c
+
 
 def linear_cost_derivatice2(c, x):
     return 0.0
@@ -104,8 +110,8 @@ def _compute_cost_misfit(params, origins, points, costs, cost_func: Callable):
     return sum1
 
 
-def compute_l2_cost_misfit(params, origins,points, costs):
+def compute_l2_cost_misfit(params, origins, points, costs):
     return _compute_cost_misfit(params, origins, points, costs, l2_cost)
 
-def compute_l1_cost_misfit(params, origins,points, costs):
+def compute_l1_cost_misfit(params, origins, points, costs):
     return _compute_cost_misfit(params, origins, points, costs, l1_cost)

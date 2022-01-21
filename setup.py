@@ -2,8 +2,9 @@
 
 """The setup script."""
 
-from setuptools import setup, find_packages
 from os import path
+
+from setuptools import find_packages, setup
 
 import versioneer
 
@@ -13,11 +14,11 @@ with open('README.md') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-#requirements = ["requirements.txt"]
+# requirements = ["requirements.txt"]
 
-#setup_requirements = ["requirements.txt"]
+# setup_requirements = ["requirements.txt"]
 
-#test_requirements = ["requirements.txt"]
+# test_requirements = ["requirements.txt"]
 
 
 here = path.abspath(path.dirname(__file__))
@@ -25,7 +26,6 @@ with open(path.join(here, 'requirements.txt')) as requirements_file:
     # Parse requirements.txt, ignoring any commented-out lines.
     requirements = [line for line in requirements_file.read().splitlines()
                     if not line.startswith('#')]
-
 
 setup(
     author="Marcus Michael Noack",
@@ -42,7 +42,7 @@ setup(
     ],
     description="gpCAM is a code for autonomous data acquisition",
     install_requires=requirements,
-    #license="GNU General Public License v3",
+    # license="GNU General Public License v3",
     long_description=readme + '\n\n' + history,
     include_package_data=True,
     keywords='gpcam',

@@ -25,7 +25,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
-
+*.un~
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
@@ -142,3 +142,9 @@ docs/build/
 
 # PyCharm
 .idea/
+
+# data files
+*.npy
+
+# dask locks
+*.lock
