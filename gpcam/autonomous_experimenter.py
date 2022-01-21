@@ -246,7 +246,7 @@ class AutonomousExperimenterGP():
             retrain_locally_at = (20,40,60,80,100,200,400,1000),
             retrain_async_at = (1000,2000,5000,10000),
             retrain_callable_at = tuple(),
-            update_cost_func_at = tuple,
+            update_cost_func_at = tuple(),
             acq_func_opt_setting = lambda number: "global" if number % 2 == 0 else "local",
             training_opt_callable = None,
             training_opt_max_iter = 20,
