@@ -1,4 +1,19 @@
 ignore:
-  - "versioneer.py"
   - "gpcam/_version.py"
+  - "setup.py"
+  - "versioneer.py"
 
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        paths:
+          - "gpcam"
+        informational: true
+    patch:
+      default:
+        target: auto
+        paths:
+          - "gpcam"
+        informational: true
