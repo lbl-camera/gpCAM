@@ -317,7 +317,6 @@ class GPOptimizer(GP):
             hyperparameter_bounds,
             init_hyperparameters=self.hyperparameters,
             method=method,
-            optimization_dict=optimization_dict,
             pop_size=pop_size,
             tolerance=tolerance,
             max_iter=max_iter

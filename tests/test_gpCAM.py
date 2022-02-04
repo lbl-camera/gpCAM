@@ -91,28 +91,5 @@ class TestgpCAM(unittest.TestCase):
         print(r)
         print()
 
-        if write_data_cube:
-            print("Writing interpolation to file...")
-            print("=======================")
-
-            ar3d = np.empty((50, 50))
-            l = np.empty((50 * 50, 4))
-            x = np.linspace(0, 1, 50)
-            y = np.linspace(0, 1, 50)
-            counter = 0
-            for i in range(50):
-                print("done ", ((i + 1.0) / 50.0) * 100., " percent")
-                for j in range(50):
-                    res = gp.posterior_mean(np.array([[x[i], y[j]]]))
-                    ar3d[i, j] = res["f(x)"]
-                    l[counter, 0] = x[i]
-                    l[counter, 1] = y[j]
-                    l[counter, 3] = res["f(x)"] / 10000.0
-                    counter += 1
-
-            file_name = "data_list.csv"
-            np.savetxt(file_name, l, delimiter=",", header='x coord, y coord, z_coord, scalar')
-            print("==================================================")
-            print("data cube written in 'data_list.csv'; you can use paraview to visualize it")
 
         print("END")
