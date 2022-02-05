@@ -31,9 +31,6 @@ class AutonomousExperimenterGP():
          A function that takes datapoints (a list of dicts), and returns a similar structure. The function is
          expected to
          communicate with the instrument and perform measurements, populating fields of the data input. If
-         `instrument_dict` is provided, its value is also passed in as a second argument to `instrument_func`.
-    instrument_dict : dict, optional
-        A dict which is passed to instrument_func for each measurement. Default is `{}`.
     init_dataset_size : int, optional
         If `x` and `y` are not provided and `dataset` is not provided, `init_dataset_size` must be provided. An initial
         dataset is constructed randomly with this length. The `instrument_func` is immediately called to measure values
@@ -117,7 +114,6 @@ class AutonomousExperimenterGP():
                  hyperparameters,
                  hyperparameter_bounds,
                  instrument_func=None,
-                 instrument_dict={},
                  init_dataset_size=None,
                  acq_func="variance",
                  cost_func=None,
@@ -137,7 +133,6 @@ class AutonomousExperimenterGP():
                  ):
         dim = len(parameter_bounds)
         self.instrument_func = instrument_func
-        self.instrument_dict = instrument_dict
         self.hyperparameter_bounds = hyperparameter_bounds
         self.acq_func = acq_func
         self.cost_func = cost_func
@@ -160,7 +155,7 @@ class AutonomousExperimenterGP():
         if x is None and dataset is None:
             self.data.create_random_dataset(init_dataset_size)
             if instrument_func is None: raise Exception("You need to provide an instrument function.")
-            self.data.dataset = self.instrument_func(self.data.dataset, instrument_dict=self.instrument_dict)
+            self.data.dataset = self.instrument_func(self.data.dataset)
         elif dataset is not None:
             self.data.inject_dataset(list(np.load(dataset, allow_pickle=True)))
             hyperparameters = self.data.dataset[-1]["hyperparameters"]
@@ -168,8 +163,7 @@ class AutonomousExperimenterGP():
             self.data.dataset = self.data.inject_arrays(x, y=y, v=v)
         elif x is not None and y is None:
             if instrument_func is None: raise Exception("You need to provide an instrument function.")
-            self.data.dataset = self.instrument_func(self.data.inject_arrays(x, y=y, v=v),
-                                                     instrument_dict=self.instrument_dict)
+            self.data.dataset = self.instrument_func(self.data.inject_arrays(x, y=y, v=v))
         else:
             raise Exception("No viable option for data given!")
         self.data.check_incoming_data()
@@ -194,12 +188,53 @@ class AutonomousExperimenterGP():
 
     ###################################################################################
     def train(self, pop_size=10, tol=1e-6, max_iter=20, method="global"):
+        """
+        Function to train the Gaussian Process. The use is entirely optional; this function will be called
+        as part of the go() command.
+
+        Parameters
+        ----------
+        pop_size : int, optional
+            The number of individuals in case method=`'global'`. Default = 10
+        tol : float, optional
+            Convergence tolerance for the local optimizer (if method = `'local'`)
+            Default = 1e-6
+        max_iter : int, optional
+            Maximum number of iterations for the global method. Default = 20
+        method : str, optional
+            Method to be used for the training. Default is `'global'` which means
+            a differetnial evolution algorithm is run with the specified parameters.
+            The options are `'global'` or `'local'`
+        """
+
         self.gp_optimizer.train_gp(
             self.hyperparameter_bounds,
             method=method, pop_size=pop_size,
             tolerance=tol, max_iter=max_iter)
 
     def train_async(self, max_iter=10000, dask_client=None, local_method="L-BFGS-B", global_method="genetic"):
+        """
+        Function to train the Gaussian Process asynchronously using the HGDL optimizer. 
+        The use is entirely optional; this function will be called
+        as part of the go() command, if so specified. This call starts a highly parallized optimization process,
+        on an architecture specified by the dask.distributed.Client. The main purpose of this function is to
+        allow for large-scale distributed training. 
+
+        Parameters
+        ----------
+        max_iter : int, optional
+            Maximum number of iterations for the global method. Default = 10000
+            It is important to remember here that the call is run asynchronously, so
+            the 10000 does not affect run time.
+        local_method : str, optional
+            Local method to be used inside HGDL. Many scipy.optimize.minimize methods
+            can be used, or a user-defined callable. Please HGDL docs for more information.
+            Default = `'L-BFGS-B'`.
+        global_method : str, optional
+            Local method to be used inside HGDL. Please HGDL docs for more information.
+            Default = `'genetic'`.
+        """
+
         if dask_client is None: dask_client = self.training_dask_client
         print("AutonomousExperimenter starts async training with dask client:")
         print(dask_client)
@@ -211,7 +246,9 @@ class AutonomousExperimenterGP():
         self.async_train_in_progress = True
 
     def kill_training(self):
-        #print("async training is being killed")
+        """
+        Function to kill an active asychronous training
+        """
         if self.async_train_in_progress:
             self.gp_optimizer.stop_async_train(self.opt_obj)
         else:
@@ -219,17 +256,24 @@ class AutonomousExperimenterGP():
         self.async_train_in_progress = False
 
     def kill_client(self):
-        #print("AutonomousExperimenter is trying to kill training and acq func opt client.")
+        """
+        Function to kill both dask.distibuted.Client instances.
+        Will be called automatically at the end of go().
+        """
         try:
-            self.gp_optimizer.kill_async_train(self.opt_obj)
+            self.training_dask_client.shutdown()
+            self.training_dask_client.close()
+            self.acq_func_opt_dask_client.shutdown()
+            self.acq_func_opt_dask_client.close()
         except:
-            print("Tried to kill the training client, but it appears there was none.")
-        try:
-            self.acq_func_max_opt_obj.kill_client()
-        except:
-            print("Tried to kill the acq func opt client, but it appears there was none.")
+            print("Killing of the clients failed. Please do so manually before initializing new ones.")
+
 
     def update_hps(self):
+        """
+        Function to update the hyperparameters if an asynchronous training is running.
+        Will be called during go() as specified.
+        """
         #print("The Autonomous Experimenter is trying to update the hyperparameters.")
         if self.async_train_in_progress:
             self.gp_optimizer.update_hyperparameters(self.opt_obj)
@@ -244,25 +288,23 @@ class AutonomousExperimenterGP():
         self.gp_optimizer.init_cost(self.cost_func, cost_func_params,
                                     cost_update_function=self.cost_update_func)
 
-    def tell(self, x, y, v, vp=None):
+    def _tell(self, x, y, v, vp=None):
         if vp is None:
             self.gp_optimizer.tell(x, y, variances=v)
         else:
             self.gp_optimizer.tell(x, y, variances=v, value_positions=vp)
 
-    def extract_data(self):
+    def _extract_data(self):
         x, y, v, t, c = self.data.extract_data()
         return x, y, v, t, c, None
 
     ###################################################################################
     def go(self, N=1e15, breaking_error=1e-50,
-           retrain_globally_at=(100, 400, 1000),
+           retrain_globally_at=(20, 50, 100, 400, 1000),
            retrain_locally_at=(20, 40, 60, 80, 100, 200, 400, 1000),
-           retrain_async_at=(1000, 2000, 5000, 10000),
-           retrain_callable_at=tuple(),
+           retrain_async_at=(),
            update_cost_func_at=tuple(),
            acq_func_opt_setting=lambda number: "global" if number % 2 == 0 else "local",
-           training_opt_callable=None,
            training_opt_max_iter=20,
            training_opt_pop_size=10,
            training_opt_tol=1e-6,
@@ -281,31 +323,23 @@ class AutonomousExperimenterGP():
         N : int, optional
             Run for N iterations. The default is `1e15`.
         breaking_error : float, optional
-            Run until breaking_error is achieved (or at max N). The default is `1e-15`.
+            Run until breaking_error is achieved (or at max N). The default is `1e-50`.
         retrain_globally_at : Iterable[int], optional
             Retrains the hyperparameters at the given number of measurements using global optimization. The deafult is
-            `[100,400,1000]`.
+            `[20,50,100,400,1000]`.
         retrain_locally_at : Iterable[int], optional
             Retrains the hyperparameters at the given number of measurements using local gradient-based optimization.
             The default is `[20,40,60,80,100,200,400,1000]`.
         retrain_async_at : Iterable[int], optional
             Retrains the hyperparameters at the given number of measurements using the HGDL algorithm. This training is
-            asynchronous and can be run in a distributed fashion using `training_dask_client`. The default is `[1000,
-            2000,5000,10000]`.
-        retrain_callable_at : Iterable[int], optional
-            Retrains the hyperparameters at the given number of measurements using a callable provided by
-            `training_opt_callable`.
-            Default = ()
+            asynchronous and can be run in a distributed fashion using `training_dask_client`. The default is `[]`.
         update_cost_func_at : Iterable[int], optional
             Calls the `update_cost_func` at the given number of measurements.
             Default = ()
         acq_func_opt_setting : Callable, optional
-            A callable that accepts as input the iteration index and returns either `'local'` or `'global'`. This
-            switches between local gradient-based and global optimization for the acquisition function.
+            A callable that accepts as input the iteration index and returns either `'local'`, `'global'` or `'hgdl'`. This
+            switches between local gradient-based, global and hybrid optimization for the acquisition function.
             The default is `lambda number: "global" if number % 2 == 0 else "local"`.
-        training_opt_callable : Callable, optional
-            A callable that accepts as input a `fvgp.gp.GP` instance and returns a new vector of hyperparameters.
-            The default value is None..
         training_opt_max_iter : int, optional
             The maximum number of iterations for any training.
             The default value is 20.
@@ -349,7 +383,7 @@ class AutonomousExperimenterGP():
             print("==================================")
             # ask() for new suggestions
             current_position = self.x[-1]
-            print("hps: ", self.gp_optimizer.hyperparameters)
+            print("current hps: ", self.gp_optimizer.hyperparameters)
             local_method = acq_func_opt_setting(i)
             if number_of_suggested_measurements > 1: local_method = "hgdl"
             res = self.gp_optimizer.ask(
@@ -380,20 +414,17 @@ class AutonomousExperimenterGP():
             new_data = self.data.inject_arrays(next_measurement_points, info=info)
             print("Sending request to instrument ...")
             if self.communicate_full_dataset:
-                self.data.dataset = self.instrument_func(self.data.dataset + new_data,
-                                                         instrument_dict=self.instrument_dict)
+                self.data.dataset = self.instrument_func(self.data.dataset + new_data)
             else:
-                self.data.dataset = self.data.dataset + self.instrument_func(new_data,
-                                                                             instrument_dict=self.instrument_dict)
+                self.data.dataset = self.data.dataset + self.instrument_func(new_data)
             print("Data received")
             print("Checking if data is clean ...")
             self.data.check_incoming_data()
             if self.data.nan_in_dataset(): self.data.clean_data_NaN()
-            print("done")
             # update arrays and the gp_optimizer
-            self.x, self.y, self.v, self.t, self.c, vp = self.extract_data()
-            print("Communicating new data to GP")
-            self.tell(self.x, self.y, self.v, vp)
+            self.x, self.y, self.v, self.t, self.c, vp = self._extract_data()
+            print("Communicating new data to the GP")
+            self._tell(self.x, self.y, self.v, vp)
             ###########################
             # train()
             print("++++++++++++++++++++++++++")
@@ -418,18 +449,11 @@ class AutonomousExperimenterGP():
                            tol=training_opt_tol,
                            max_iter=training_opt_max_iter,
                            method="local")
-            elif n_measurements in retrain_callable_at:
-                self.kill_training()
-                print("    Fresh optimization from scratch via user-defined optimization")
-                self.train(pop_size=training_opt_pop_size,
-                           tol=training_opt_tol,
-                           max_iter=training_opt_max_iter,
-                           method=training_opt_callable)
             else:
                 print("    No training in this round but I am trying to update the hyperparameters")
                 self.update_hps()
             print("++++++++++++++++++++++++++")
-            print("|Training Done           |")
+            print("|     Training Done      |")
             print("++++++++++++++++++++++++++")
 
             ###save some data
@@ -470,7 +494,6 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
     Optional Parameters:
     --------------------
         * instrument_func = None
-        * instrument_dict = {}
         * init_dataset_size = None: int or None, None means you have to provide intial data
         * acq_func = "variance": acquisition function to be maximized in search of new measurements
         * cost_func = None
@@ -494,7 +517,6 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
                  hyperparameters,
                  hyperparameter_bounds,
                  instrument_func=None,
-                 instrument_dict={},
                  init_dataset_size=None,
                  acq_func="variance",
                  cost_func=None,
@@ -514,7 +536,6 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
                  ):
         dim = len(parameter_bounds)
         self.instrument_func = instrument_func
-        self.instrument_dict = instrument_dict
         self.hyperparameters = hyperparameters
         self.hyperparameter_bounds = hyperparameter_bounds
         self.acq_func = acq_func
@@ -539,7 +560,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         if x is None and dataset is None:
             self.data.create_random_dataset(init_dataset_size)
             if instrument_func is None: raise Exception("You need to provide an instrument function.")
-            self.data.dataset = self.instrument_func(self.data.dataset, instrument_dict=self.instrument_dict)
+            self.data.dataset = self.instrument_func(self.data.dataset)
         elif dataset is not None:
             self.data.inject_dataset(list(np.load(dataset, allow_pickle=True)))
             self.hyperparameters = self.data.dataset[-1]["hyperparameters"]
@@ -547,8 +568,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
             self.data.dataset = self.data.inject_arrays(x, y=y, v=v, vp=vp)
         elif x is not None and y is None:
             if instrument_func is None: raise Exception("You need to provide an instrument function.")
-            self.data.dataset = self.instrument_func(self.data.inject_arrays(x, y=y, v=v),
-                                                     instrument_dict=self.instrument_dict)
+            self.data.dataset = self.instrument_func(self.data.inject_arrays(x, y=y, v=v))
         else:
             raise Exception("No viable option for data given!")
         self.data.check_incoming_data()
@@ -571,8 +591,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         print("now train(...) or train_async(...), and then go(...)")
         print("##################################################################################")
 
-    def extract_data(self):
+    def _extract_data(self):
         x, y, v, t, c, vp = self.data.extract_data()
         return x, y, v, t, c, vp
 
-# class AutonomousExperimenterEnsembleGP():

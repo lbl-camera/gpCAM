@@ -3,7 +3,6 @@
 import numpy as np
 from fvgp.fvgp import fvGP
 from fvgp.gp import GP
-
 from gpcam import surrogate_model as sm
 
 
@@ -282,7 +281,6 @@ class GPOptimizer(GP):
                  max_iter=120,
                  method="global",
                  pop_size=20,
-                 optimization_dict=None,
                  tolerance=1e-6,
                  ):
         """
@@ -295,13 +293,11 @@ class GPOptimizer(GP):
         max_iter : int, optional
             Number of iterations before the optimization algorithm is terminated. The default is 120
         method : str or callable, optional
-            Optimization method. Choose from `local`, `global` or `hgdl`. The default is `global`.
+            Optimization method. Choose from `'local'` or `'global'`. The default is `global`.
             The argument also accepts a callable that accepts as input a `fvgp.gp.GP` 
             instance and returns a new vector of hyperparameters.
         pop_size : int, optional
             The number of individuals used if `global` is chosen as method.
-        optimization_dict : dict, optional
-            A dictionary that will be passed to the callable that is specified as `method`.
         tolerance : float, optional
             Tolerance to be used to define a termination criterion for the optimizer.
 
