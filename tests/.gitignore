@@ -1,2 +1,3 @@
 /dask-worker-space
 data_list.csv
+*.lock
