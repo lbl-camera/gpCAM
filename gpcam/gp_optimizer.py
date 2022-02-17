@@ -156,7 +156,7 @@ class GPOptimizer(GP):
             compute_device="cpu",
             gp_kernel_function=None,
             gp_mean_function=None,
-            sparse=False, use_inv=False,
+            use_inv=False,
             ram_economy=True
     ):
         """
@@ -180,8 +180,6 @@ class GPOptimizer(GP):
             array of length D+1 for the default kernel). The return value is a 1-D array of length V. If None is
             provided,
             `fvgp.gp.GP.default_mean_function` is used.
-        sparse : bool, optional
-            If True, the algorithm check for sparsity of the covariance matrix and exploits it. The default is False.
         use_inv : bool, optional
             If True, the algorithm retains the inverse of the covariance matrix, which makes computing the posterior
             faster.
@@ -202,7 +200,7 @@ class GPOptimizer(GP):
                 compute_device=compute_device,
                 gp_kernel_function=gp_kernel_function,
                 gp_mean_function=gp_mean_function,
-                sparse=sparse, use_inv=use_inv,
+                use_inv=use_inv,
                 normalize_y=False,
                 ram_economy=ram_economy
             )
@@ -574,10 +572,6 @@ class fvGPOptimizer(fvGP, GPOptimizer):
             output_number,
             input_space_bounds,
     ):
-        """
-        GPOptimizer constructor
-        type help(gp_optimizer) for help
-        """
 
         self.iput_dim = input_space_dimension
         self.oput_dim = output_space_dimension
@@ -635,7 +629,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
         value_positions : np.ndarray, optional
             A 3-D numpy array of shape (U x output_number x output_dim), so that for each measurement position, the outputs
             are clearly defined by their positions in the output space. The default is np.array([[0],[1],[2],[3],...,[output_number - 1]]) for each
-            point in th einput space. The default is only permissible if output_dim is 1.
+            point in the input space. The default is only permissible if output_dim is 1.
         """
         self.points = x
         self.values = y
@@ -651,7 +645,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
             compute_device="cpu",
             gp_kernel_function=None,
             gp_mean_function=None,
-            sparse=False, use_inv=False,
+            use_inv=False,
             ram_economy=True
     ):
         """
@@ -664,7 +658,6 @@ class fvGPOptimizer(fvGP, GPOptimizer):
             compute_device, default = cpu, others = "gpu"
             gp_kernel_function, default = fvGP default
             gp_mean_function, default = fvGP default, i.e. average of data
-            sparse, default = False
         """
         if self.gp_initialized is False:
             fvGP.__init__(
@@ -680,7 +673,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
                 compute_device=compute_device,
                 gp_kernel_function=gp_kernel_function,
                 gp_mean_function=gp_mean_function,
-                sparse=sparse, use_inv=use_inv,
+                use_inv=use_inv,
                 ram_economy=ram_economy
             )
             self.gp_initialized = True
