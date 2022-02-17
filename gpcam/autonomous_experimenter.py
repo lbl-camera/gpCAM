@@ -88,6 +88,8 @@ class AutonomousExperimenterGP():
     acq_func_opt_dask_client : distributed.client.Client, optional
         A Dask Distributed Client instance for distributed `acquisition_func` computation. If None is provided, a new
         `dask.distributed.Client` instance is constructed.
+    info : bool, optional
+        bool specifying if the should be extensive std out. Default = False
 
 
     Attributes
@@ -126,7 +128,8 @@ class AutonomousExperimenterGP():
                  use_inv=False,
                  training_dask_client=None,
                  acq_func_opt_dask_client=None,
-                 ram_economy=True
+                 ram_economy=True,
+                 info = False,
                  ):
         dim = len(parameter_bounds)
         self.instrument_func = instrument_func
@@ -167,6 +170,7 @@ class AutonomousExperimenterGP():
         if self.data.nan_in_dataset(): self.data.clean_data_NaN()
         self.x, self.y, self.v, self.t, self.c = self.data.extract_data()
         self.init_dataset_size = len(self.x)
+        self.info = info
         ######################
         ######################
         ######################
@@ -178,10 +182,11 @@ class AutonomousExperimenterGP():
                                   use_inv=use_inv, ram_economy=ram_economy)
         # init costs
         self._init_costs(cost_func_params)
-        print("##################################################################################")
-        print("Autonomous Experimenter initialization successfully concluded")
-        print("now train(...) or train_async(...), and then go(...)")
-        print("##################################################################################")
+        if info:
+            print("##################################################################################")
+            print("Autonomous Experimenter initialization successfully concluded")
+            print("now train(...) or train_async(...), and then go(...)")
+            print("##################################################################################")
 
     ###################################################################################
     def train(self, pop_size=10, tol=1e-6, max_iter=20, method="global"):
@@ -233,13 +238,12 @@ class AutonomousExperimenterGP():
         """
 
         if dask_client is None: dask_client = self.training_dask_client
-        print("AutonomousExperimenter starts async training with dask client:")
-        print(dask_client)
+        if self.info: print("AutonomousExperimenter starts async training with dask client:")
         self.opt_obj = self.gp_optimizer.train_gp_async(
             self.hyperparameter_bounds, max_iter=max_iter, local_method=local_method, global_method=global_method,
             dask_client=dask_client
         )
-        print("The Autonomous Experimenter started an instance of the asynchronous training.")
+        if self.info: print("The Autonomous Experimenter started an instance of the asynchronous training.")
         self.async_train_in_progress = True
 
     def kill_training(self):
@@ -249,7 +253,7 @@ class AutonomousExperimenterGP():
         if self.async_train_in_progress:
             self.gp_optimizer.stop_async_train(self.opt_obj)
         else:
-            print("no training to be killed")
+            if self.info: print("no training to be killed")
         self.async_train_in_progress = False
 
     def kill_client(self):
@@ -263,7 +267,7 @@ class AutonomousExperimenterGP():
             self.acq_func_opt_dask_client.shutdown()
             self.acq_func_opt_dask_client.close()
         except:
-            print("Killing of the clients failed. Please do so manually before initializing new ones.")
+            if self.info: print("Killing of the clients failed. Please do so manually before initializing new ones.")
 
 
     def update_hps(self):
@@ -271,15 +275,12 @@ class AutonomousExperimenterGP():
         Function to update the hyperparameters if an asynchronous training is running.
         Will be called during go() as specified.
         """
-        #print("The Autonomous Experimenter is trying to update the hyperparameters.")
         if self.async_train_in_progress:
             self.gp_optimizer.update_hyperparameters(self.opt_obj)
-            print("The Autonomus Experimenter updated the hyperparameters")
+            if self.info: print("The Autonomus Experimenter updated the hyperparameters")
         else:
-            print(
-                "The autonomous experimenter could not find an instance of asynchronous training. Therefore, "
-                "no update.")
-        print("hps: ", self.gp_optimizer.hyperparameters)
+            if self.info: print("The autonomous experimenter could not find an instance of asynchronous training. Therefore no update.")
+        if self.info: print("hps: ", self.gp_optimizer.hyperparameters)
 
     def _init_costs(self, cost_func_params):
         self.gp_optimizer.init_cost(self.cost_func, cost_func_params,
@@ -364,30 +365,37 @@ class AutonomousExperimenterGP():
         """
         start_time = time.time()
         start_date_time = strftime("%Y-%m-%d_%H_%M_%S", time.localtime())
-        print("Date and time:       ", start_date_time)
+        if self.info: print("Date and time:       ", start_date_time)
 
         for i in range(self.init_dataset_size, int(N)):
             n_measurements = len(self.x)
-            print("")
-            print("")
-            print("")
-            print("==================================")
-            print("==================================")
-            print("iteration: ", i)
-            print("Run Time: ", time.time() - start_time, "     seconds")
-            print("Number of measurements: ", n_measurements)
-            print("==================================")
-            print("==================================")
+            if self.info: 
+                print("")
+                print("")
+                print("")
+                print("==================================")
+                print("==================================")
+                print("iteration: ", i)
+                print("Run Time: ", time.time() - start_time, "     seconds")
+                print("Number of measurements: ", n_measurements)
+                print("==================================")
+                print("==================================")
+            else:
+                print("iteration: ", i)
+                print("Run Time: ", time.time() - start_time, "     seconds")
+                print("Number of measurements: ", n_measurements)
+                print("")
+
+
             # ask() for new suggestions
             current_position = self.x[-1]
-            print("current hps: ", self.gp_optimizer.hyperparameters)
+            if self.info:print("current hps: ", self.gp_optimizer.hyperparameters)
             local_method = acq_func_opt_setting(i)
             if number_of_suggested_measurements > 1: local_method = "hgdl"
             res = self.gp_optimizer.ask(
                 position=current_position,
                 n=number_of_suggested_measurements,
                 acquisition_function=self.acq_func,
-                cost_function=self.cost_func,
                 bounds=None,
                 method=local_method,
                 pop_size=acq_func_opt_pop_size,
@@ -402,20 +410,20 @@ class AutonomousExperimenterGP():
             error = np.max(np.sqrt(post_var[0]))
             if acq_func_opt_tol_adjust:
                 acq_func_opt_tol = abs(func_evals[0]) * acq_func_opt_tol_adjust
-                print("acquisition funciton optimization tolerance changed to: ", acq_func_opt_tol)
-            print("Next points to be requested: ")
-            print(next_measurement_points)
+                if self.info:print("acquisition funciton optimization tolerance changed to: ", acq_func_opt_tol)
+            if self.info:print("Next points to be requested: ")
+            if self.info:print(next_measurement_points)
             # update and tell() new data
             info = [{"hyperparameters": self.gp_optimizer.hyperparameters,
                      "posterior std": np.sqrt(post_var[j])} for j in range(len(next_measurement_points))]
             new_data = self.data.inject_arrays(next_measurement_points, info=info)
-            print("Sending request to instrument ...")
+            if self.info:print("Sending request to instrument ...")
             if self.communicate_full_dataset:
                 self.data.dataset = self.instrument_func(self.data.dataset + new_data)
             else:
                 self.data.dataset = self.data.dataset + self.instrument_func(new_data)
-            print("Data received")
-            print("Checking if data is clean ...")
+            if self.info:print("Data received")
+            if self.info:print("Checking if data is clean ...")
             self.data.check_incoming_data()
             if self.data.nan_in_dataset(): self.data.clean_data_NaN()
             # update arrays and the gp_optimizer
@@ -424,48 +432,51 @@ class AutonomousExperimenterGP():
             self._tell(self.x, self.y, self.v, vp)
             ###########################
             # train()
-            print("++++++++++++++++++++++++++")
-            print("|Training ...            |")
-            print("++++++++++++++++++++++++++")
+            if self.info:
+                print("++++++++++++++++++++++++++")
+                print("|Training ...            |")
+                print("++++++++++++++++++++++++++")
             if n_measurements in retrain_async_at:
-                print("    Starting  a new asynchronous training after killing the current one.")
+                print("    Starting a new asynchronous training after killing the current one.")
                 self.kill_training()
                 self.train_async(max_iter=training_opt_max_iter,
                                  dask_client=self.training_dask_client)
             elif n_measurements in retrain_globally_at:
                 self.kill_training()
-                print("    Fresh optimization from scratch via global optimization")
+                if self.info:print("    Fresh optimization from scratch via global optimization")
                 self.train(pop_size=training_opt_pop_size,
                            tol=training_opt_tol,
                            max_iter=training_opt_max_iter,
                            method="global")
             elif n_measurements in retrain_locally_at:
                 self.kill_training()
-                print("    Fresh optimization from scratch via global optimization")
+                if self.info:print("    Fresh optimization from scratch via global optimization")
                 self.train(pop_size=training_opt_pop_size,
                            tol=training_opt_tol,
                            max_iter=training_opt_max_iter,
                            method="local")
             else:
-                print("    No training in this round but I am trying to update the hyperparameters")
+                if self.info:print("    No training in this round but I am trying to update the hyperparameters")
                 self.update_hps()
-            print("++++++++++++++++++++++++++")
-            print("|     Training Done      |")
-            print("++++++++++++++++++++++++++")
+            if self.info:
+                print("++++++++++++++++++++++++++")
+                print("|     Training Done      |")
+                print("++++++++++++++++++++++++++")
 
             ###save some data
             if self.run_every_iteration is not None: self.run_every_iteration(self)
             try:
                 np.save('Data_' + start_date_time, self.data.dataset)
             except Exception as e:
-                print("Data not saved due to ", str(e))
+                if self.info: print("Data not saved due to ", str(e))
             ###########################
             # cost update
             if i in update_cost_func_at: self.gp_optimizer.update_cost_function(self.c)
 
             if error < breaking_error: break
-        print("killing the client... and then we are done")
+        if self.info:print("killing the client... and then we are done")
         self.kill_client()
+
         print("====================================================")
         print("The autonomous experiment was concluded successfully")
         print("====================================================")
@@ -588,6 +599,8 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
     acq_func_opt_dask_client : distributed.client.Client, optional
         A Dask Distributed Client instance for distributed `acquisition_func` computation. If None is provided, a new
         `dask.distributed.Client` instance is constructed.
+    info : bool, optional
+        bool specifying if the should be extensive std out. Default = False
 
 
     Attributes
@@ -628,7 +641,8 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
                  use_inv=False,
                  training_dask_client=None,
                  acq_func_opt_dask_client=None,
-                 ram_economy=True
+                 ram_economy=True,
+                 info = False,
                  ):
         dim = len(parameter_bounds)
         self.instrument_func = instrument_func
@@ -682,10 +696,11 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
                                     use_inv=use_inv, ram_economy=ram_economy)
         # init costs
         self._init_costs(cost_func_params)
-        print("##################################################################################")
-        print("Autonomous Experimenter fvGP initialization successfully concluded")
-        print("now train(...) or train_async(...), and then go(...)")
-        print("##################################################################################")
+        if info:
+            print("##################################################################################")
+            print("Autonomous Experimenter fvGP initialization successfully concluded")
+            print("now train(...) or train_async(...), and then go(...)")
+            print("##################################################################################")
 
     def _extract_data(self):
         x, y, v, t, c, vp = self.data.extract_data()

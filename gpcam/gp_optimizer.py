@@ -51,7 +51,6 @@ class GPOptimizer(GP):
         self.gp_initialized = False
         self.cost_function_parameters = None
         self.cost_function = None
-        self.consider_costs = False
 
     def get_data(self):
         """
@@ -62,7 +61,7 @@ class GPOptimizer(GP):
         dict
             Dictionary containing the input dim,
             x & y data, measurement variances,
-            hyperparameters, cost function parameters and consider_costs
+            hyperparameters and cost function parameters
             class attributes. Note that if tell() has not been called, many
             of these returned values will be `None`.
         """
@@ -78,12 +77,10 @@ class GPOptimizer(GP):
             "measurement variances": self.variances,
             "hyperparameters": hps,
             "cost function parameters": self.cost_function_parameters,
-            "consider costs": self.consider_costs,
+            "cost function": self.cost_function,
         }
 
-    def evaluate_acquisition_function(self,
-                                      x, acquisition_function="variance", cost_function=None,
-                                      origin=None):
+    def evaluate_acquisition_function(self, x, acquisition_function="variance", origin=None):
         """
         Function to evaluate the acquisition function.
 
@@ -95,13 +92,6 @@ class GPOptimizer(GP):
             Acquisiiton functio to execute. Callable with inputs (x,gpcam.gp_optimizer.GPOptimizer),
             where x is a V x D array of input points. The return value is a 1-D array of length V.
             The default is `variance`.
-        cost_function : Callable, optional
-            Function to specify the cost of motion through the input space. If provided the acquisition function
-            evaluation
-            will be divided by the cost. Its inputs are an
-            `origin` (np.ndarray of size V x D), `x` (np.ndarray of size V x D), and the value of `cost_func_params`;
-            `origin` is the starting position, and `x` is the destination position. The return value is a 1-D array of
-            length V describing the costs as floats.
         origin : np.ndarray, optional
             If a cost function is provided this 1-D numpy array of length D is used as the origin of motion.
 
@@ -117,6 +107,7 @@ class GPOptimizer(GP):
                 "See help(gp_init)."
             )
         x = np.array(x)
+        cost_function = self.cost_function
         try:
             return sm.evaluate_acquisition_function(
                 x, self, acquisition_function, origin, cost_function,
@@ -368,7 +359,6 @@ class GPOptimizer(GP):
     ##############################################################
     def ask(self, position=None, n=1,
             acquisition_function="variance",
-            cost_function=None,
             bounds=None,
             method="global",
             pop_size=20,
@@ -400,14 +390,6 @@ class GPOptimizer(GP):
             `'minimum'`,
             `'covariance'`, and `'variance'`. If None, the default function is the `'variance'`, meaning
             `fvgp.gp.GP.posterior_covariance` with variance_only = True.
-        cost_function : Callable, optional
-            A function encoding the cost of motion through the input space and the cost of a measurement. Its inputs
-            are an
-            `origin` (np.ndarray of size V x D), `x` (np.ndarray of size V x D), and the value of `cost_func_params`;
-            `origin` is the starting position, and `x` is the destination position. The return value is a 1-D array of
-            length V describing the costs as floats. The 'score' from acq_func is divided by this returned cost to
-            determine
-            the next measurement point. If None, the default is a uniform cost of 1.
         bounds : np.ndarray, optional
             A numpy array of floats of shape D x 2 describing the search range. The default is the entire input space.
         method: str, optional
@@ -451,7 +433,7 @@ class GPOptimizer(GP):
             optimization_pop_size=pop_size,
             optimization_max_iter=max_iter,
             optimization_tol=tol,
-            cost_function=cost_function,
+            cost_function=self.cost_function,
             cost_function_parameters=self.cost_function_parameters,
             optimization_x0=x0,
             dask_client=dask_client)
@@ -482,14 +464,12 @@ class GPOptimizer(GP):
             object. The default is a no-op.
         Return
         ------
-            cost function that can be injected into ask()
+            No return, cost function will autmatically be used by GPOptimizer.ask()
         """
 
         self.cost_function = cost_function
         self.cost_function_parameters = cost_function_parameters
         self.cost_update_function = cost_update_function
-        self.consider_costs = True
-        print("Costs successfully initialized")
         return self.cost_function
 
     ##############################################################
@@ -513,7 +493,6 @@ class GPOptimizer(GP):
             cost_function_parameters, default = None
         """
 
-        print("Performing cost function update...")
         if self.cost_function_parameters is None: raise Exception(
             "No cost function parameters specified. Please call init_cost() first.")
         self.cost_function_parameters = \
@@ -581,11 +560,10 @@ class fvGPOptimizer(fvGP, GPOptimizer):
         self.variances = np.empty((0, self.output_number))
         self.value_positions = np.empty((0, self.output_number, self.oput_dim))
         self.input_space_bounds = np.array(input_space_bounds)
-        # self.hyperparameters = None
         self.gp_initialized = False
         self.cost_function_parameters = None
         self.cost_function = None
-        self.consider_costs = False
+
         GPOptimizer.__init__(self,
                              input_space_dimension,
                              input_space_bounds
@@ -600,7 +578,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
         dict
             Dictionary containing the input dim, output dim, output number,
             x & y data, measurement variances, measurement value positions,
-            hyperparameters, cost function parameters and consider_costs
+            hyperparameters and cost function parameters
             class attributes. Note that if tell() has not been called, many
             of these returned values will be `None`.
         """
@@ -694,3 +672,5 @@ class fvGPOptimizer(fvGP, GPOptimizer):
             self.values,
             value_positions=self.value_positions,
             variances=self.variances)
+
+
