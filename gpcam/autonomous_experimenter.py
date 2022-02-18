@@ -79,9 +79,10 @@ class AutonomousExperimenterGP():
     compute_device : str, optional
         One of "cpu" or "gpu", determines how linear system solves are run. The default is "cpu".
     use_inv : bool, optional
-        If True, the algorithm retains the inverse of the covariance matrix, which makes computing the posterior faster.
-        For larger problems, this use of inversion should be avoided due to computational stability. The default is
-        False.
+        If True, the algorithm calculates and stores the inverse of the covariance matrix after each training or update of the dataset,
+        which makes computing the posterior covariance faster.
+        For larger problems (>2000 data points), the use of inversion should be avoided due to computational instability. The default is
+        False. Note, the training will always use a linear solve instead of the inverse for stability reasons.
     training_dask_client : distributed.client.Client, optional
         A Dask Distributed Client instance for distributed training. If None is provided, a new
         `dask.distributed.Client` instance is constructed.
@@ -369,22 +370,12 @@ class AutonomousExperimenterGP():
 
         for i in range(self.init_dataset_size, int(N)):
             n_measurements = len(self.x)
-            if self.info: 
-                print("")
-                print("")
-                print("")
-                print("==================================")
-                print("==================================")
-                print("iteration: ", i)
-                print("Run Time: ", time.time() - start_time, "     seconds")
-                print("Number of measurements: ", n_measurements)
-                print("==================================")
-                print("==================================")
-            else:
-                print("iteration: ", i)
-                print("Run Time: ", time.time() - start_time, "     seconds")
-                print("Number of measurements: ", n_measurements)
-                print("")
+            print("")
+            print("")
+            print("")
+            print("iteration: ", i)
+            print("Run Time: ", time.time() - start_time, "     seconds")
+            print("Number of measurements: ", n_measurements)
 
 
             # ask() for new suggestions
@@ -428,7 +419,7 @@ class AutonomousExperimenterGP():
             if self.data.nan_in_dataset(): self.data.clean_data_NaN()
             # update arrays and the gp_optimizer
             self.x, self.y, self.v, self.t, self.c, vp = self._extract_data()
-            print("Communicating new data to the GP")
+            if self.info: print("Communicating new data to the GP")
             self._tell(self.x, self.y, self.v, vp)
             ###########################
             # train()
@@ -492,32 +483,6 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
     """
     Executes the autonomous loop for a multi-task Gaussian process.
     Use class AutonomousExperimenterfvGP for multi-task experiments.
-
-
-
-                 parameter_bounds,
-                 output_number,
-                 output_dim,
-                 hyperparameters,
-                 hyperparameter_bounds,
-                 instrument_func=None,
-                 init_dataset_size=None,
-                 acq_func="variance",
-                 cost_func=None,
-                 cost_update_func=None,
-                 cost_func_params={},
-                 kernel_func=None,
-                 prior_mean_func=None,
-                 run_every_iteration=None,
-                 x=None, y=None, v=None, vp=None, dataset=None,
-                 communicate_full_dataset=False,
-                 compute_device="cpu",
-                 use_inv=False,
-                 training_dask_client=None,
-                 acq_func_opt_dask_client=None,
-                 ram_economy=True
-
-
 
     Parameters
     ----------
@@ -590,9 +555,10 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
     compute_device : str, optional
         One of "cpu" or "gpu", determines how linear system solves are run. The default is "cpu".
     use_inv : bool, optional
-        If True, the algorithm retains the inverse of the covariance matrix, which makes computing the posterior faster.
-        For larger problems, this use of inversion should be avoided due to computational stability. The default is
-        False.
+        If True, the algorithm calculates and stores the inverse of the covariance matrix after each training or update of the dataset,
+        which makes computing the posterior covariance faster.
+        For larger problems (>2000 data points), the use of inversion should be avoided due to computational instability. The default is
+        False. Note, the training will always use a linear solve instead of the inverse for stability reasons.
     training_dask_client : distributed.client.Client, optional
         A Dask Distributed Client instance for distributed training. If None is provided, a new
         `dask.distributed.Client` instance is constructed.
@@ -696,6 +662,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
                                     use_inv=use_inv, ram_economy=ram_economy)
         # init costs
         self._init_costs(cost_func_params)
+        self.info = info
         if info:
             print("##################################################################################")
             print("Autonomous Experimenter fvGP initialization successfully concluded")

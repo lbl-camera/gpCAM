@@ -95,16 +95,15 @@ def find_acquisition_function_maxima(gp, acquisition_function,
                                      dask_client=False):
     bounds = np.array(optimization_bounds)
     opt_obj = None
-    print("====================================")
-    print("finding acquisition function maxima...")
-    print("optimization method ", optimization_method)
-    print("tolerance: ", optimization_tol)
-    print("population size: ", optimization_pop_size)
-    print("maximum number of iterations: ", optimization_max_iter)
-    print("bounds: ")
-    print(bounds)
-    print("cost function parameters: ", cost_function_parameters)
-    print("====================================")
+    #print("====================================")
+    print("Finding acquisition function maxima via ",optimization_method," method")
+    #print("tolerance: ", optimization_tol)
+    #print("population size: ", optimization_pop_size)
+    #print("maximum number of iterations: ", optimization_max_iter)
+    #print("bounds: ")
+    #print(bounds)
+    #print("cost function parameters: ", cost_function_parameters)
+    #print("====================================")
 
     if optimization_method == "global":
         opti, func_eval = differential_evolution(
@@ -170,9 +169,9 @@ def find_acquisition_function_maxima(gp, acquisition_function,
             if func_eval.ndim != 1: func_eval = np.array([func_eval])
     else:
         raise ValueError("Invalid acquisition function optimization method given.")
-    print("The acquisition function optimization resulted in: ")
-    print("     x: ", opti)
-    print("  f(x): ", func_eval)
+    #print("The acquisition function optimization resulted in: ")
+    #print("     x: ", opti)
+    #print("  f(x): ", func_eval)
     if func_eval.ndim != 1 or opti.ndim != 2:
         print("f(x): ", func_eval)
         print("x: ", opti)
