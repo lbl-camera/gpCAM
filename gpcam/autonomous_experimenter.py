@@ -28,7 +28,7 @@ class AutonomousExperimenterGP():
         A 2-D array of floats of size J x 2, such that J is the length matching the length of `hyperparameters` defining
         the bounds for training.
     instrument_func : Callable, optional
-         A function that takes datapoints (a list of dicts), and returns a similar structure. The function is
+         A function that takes data points (a list of dicts), and returns a similar structure. The function is
          expected to
          communicate with the instrument and perform measurements, populating fields of the data input. If
     init_dataset_size : int, optional
@@ -55,7 +55,7 @@ class AutonomousExperimenterGP():
     cost_func_params : Any, optional
         An object that is communicated to the `cost_func` and `cost_update_func`. The default is `{}`.
     kernel_func : Callable, optional
-        A function that calculates the covariance between datapoints. It accepts as input x1 (a V x D array of positions),
+        A function that calculates the covariance between data points. It accepts as input x1 (a V x D array of positions),
         x2 (a U x D array of positions), hyperparameters (a 1-D array of length D+1 for the default kernel), and a
         `gpcam.gp_optimizer.GPOptimizer` instance. The default is a stationary anisotropic kernel
         (`fvgp.gp.GP.default_kernel`).
@@ -68,14 +68,14 @@ class AutonomousExperimenterGP():
         A function that is run at every iteration. It accepts as input this
         `gpcam.autonomous_experimenter.AutonomousExperimenterGP` instance. The default is a no-op.
     x : np.ndarray, optional
-        Initial datapoint positions
+        Initial data point positions
     y : np.ndarray, optional
-        Initial datapoint values
+        Initial data point values
     v : np.ndarray, optional
-        Initial datapoint observation variances
+        Initial data point observation variances
     communicate_full_dataset : bool, optional
         If True, the full dataset will be communicated to the `instrument_func` on each iteration. If False, only the
-        newly suggested datapoints will be communicated. The default is False.
+        newly suggested data points will be communicated. The default is False.
     compute_device : str, optional
         One of "cpu" or "gpu", determines how linear system solves are run. The default is "cpu".
     use_inv : bool, optional
@@ -96,11 +96,11 @@ class AutonomousExperimenterGP():
     Attributes
     ----------
     x : np.ndarray
-        Datapoint positions
+        Data point positions
     y : np.ndarray
-        Datapoint values
+        Data point values
     v : np.ndarray
-        Datapoint observation variances
+        Data point observation variances
     hyperparameter_bounds : np.ndarray
         A 2-D array of floats of size J x 2, such that J is the length matching the length of `hyperparameters` defining
         the bounds for training.
@@ -219,7 +219,7 @@ class AutonomousExperimenterGP():
         """
         Function to train the Gaussian Process asynchronously using the HGDL optimizer. 
         The use is entirely optional; this function will be called
-        as part of the go() command, if so specified. This call starts a highly parallized optimization process,
+        as part of the go() command, if so specified. This call starts a highly parallelized optimization process,
         on an architecture specified by the dask.distributed.Client. The main purpose of this function is to
         allow for large-scale distributed training. 
 
@@ -348,7 +348,7 @@ class AutonomousExperimenterGP():
         training_opt_tol : float, optional
             The optimization tolerance for all training optimization. The default is 1e-6.
         acq_func_opt_max_iter : int, optional
-            The maximum number of iterations for the `acq_func` optimization. The defaukt is 20.
+            The maximum number of iterations for the `acq_func` optimization. The default is 20.
         acq_func_opt_pop_size : int, optional
             The population size used for any `acq_func` optimization with a global component (HGDL or standard global
             optimizers). The default value is 20.
@@ -500,7 +500,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         A 2-D array of floats of size J x 2, such that J is the length matching the length of `hyperparameters` defining
         the bounds for training.
     instrument_func : Callable, optional
-         A function that takes datapoints (a list of dicts), and returns a similar structure. The function is
+         A function that takes data points (a list of dicts), and returns a similar structure. The function is
          expected to
          communicate with the instrument and perform measurements, populating fields of the data input. If
     init_dataset_size : int, optional
@@ -527,7 +527,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
     cost_func_params : Any, optional
         An object that is communicated to the `cost_func` and `cost_update_func`. The default is `{}`.
     kernel_func : Callable, optional
-        A function that calculates the covariance between datapoints. It accepts as input x1 (a V x D array of positions),
+        A function that calculates the covariance between data points. It accepts as input x1 (a V x D array of positions),
         x2 (a U x D array of positions), hyperparameters (a 1-D array of length D+1 for the default kernel), and a
         `gpcam.gp_optimizer.GPOptimizer` instance. The default is a stationary anisotropic kernel
         (`fvgp.gp.GP.default_kernel`).
@@ -540,18 +540,18 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         A function that is run at every iteration. It accepts as input this
         `gpcam.autonomous_experimenter.AutonomousExperimenterGP` instance. The default is a no-op.
     x : np.ndarray, optional
-        Initial datapoint positions
+        Initial data point positions
     y : np.ndarray, optional
-        Initial datapoint values
+        Initial data point values
     v : np.ndarray, optional
-        Initial datapoint observation variances
+        Initial data point observation variances
     vp : np.ndarray, optional
         A 3-D numpy array of shape (U x output_number x output_dim), so that for each measurement position, the outputs
         are clearly defined by their positions in the output space. The default is np.array([[0],[1],[2],[3],...,[output_number - 1]]) for each
         point in the input space. The default is only permissible if output_dim is 1.
     communicate_full_dataset : bool, optional
         If True, the full dataset will be communicated to the `instrument_func` on each iteration. If False, only the
-        newly suggested datapoints will be communicated. The default is False.
+        newly suggested data points will be communicated. The default is False.
     compute_device : str, optional
         One of "cpu" or "gpu", determines how linear system solves are run. The default is "cpu".
     use_inv : bool, optional
@@ -572,11 +572,11 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
     Attributes
     ----------
     x : np.ndarray
-        Datapoint positions
+        Data point positions
     y : np.ndarray
-        Datapoint values
+        Data point values
     v : np.ndarray
-        Datapoint observation variances
+        Data point observation variances
     hyperparameter_bounds : np.ndarray
         A 2-D array of floats of size J x 2, such that J is the length matching the length of `hyperparameters` defining
         the bounds for training.

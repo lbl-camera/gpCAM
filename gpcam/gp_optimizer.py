@@ -9,9 +9,9 @@ from gpcam import surrogate_model as sm
 class GPOptimizer(GP):
     """
     This class is an optimization wrapper around the fvgp package for single-task (scalar-valued) Gaussian Processes.
-    Gaussian Processes can be intialized, trained and conditioned; also
+    Gaussian Processes can be initialized, trained, and conditioned; also
     the posterior can be evaluated and plugged into optimizers to find
-    a its maxima.
+    its maxima.
 
     Parameters
     ---------
@@ -35,7 +35,7 @@ class GPOptimizer(GP):
     gp_initialized : bool
         A check whether the object instance has an initialized Gaussian Process.
     hyperparameters : np.ndarray
-        Only available after a training is executed.
+        Only available after training is executed.
     """
 
     def __init__(
@@ -58,12 +58,7 @@ class GPOptimizer(GP):
 
         Return
         ------
-        dict
-            Dictionary containing the input dim,
-            x & y data, measurement variances,
-            hyperparameters and cost function parameters
-            class attributes. Note that if tell() has not been called, many
-            of these returned values will be `None`.
+        dictionary of class attributes : dict
         """
 
         if self.gp_initialized:
@@ -87,7 +82,7 @@ class GPOptimizer(GP):
         Parameters
         ----------
         x : np.ndarray
-            Point positions at which the acquisition function is evaluated
+            Point positions at which the acquisition function is evaluated.
         acquisition_function : Callable, optional
             Acquisiiton functio to execute. Callable with inputs (x,gpcam.gp_optimizer.GPOptimizer),
             where x is a V x D array of input points. The return value is a 1-D array of length V.
@@ -97,8 +92,8 @@ class GPOptimizer(GP):
 
         Return
         ------
-            np.ndarray
-            The acquisition function evaluations at all points `x`.
+        The acquisition function evaluations at all points `x` : np.ndarray
+            
         """
 
         if self.gp_initialized is False:
@@ -120,7 +115,7 @@ class GPOptimizer(GP):
     def tell(self, x, y, variances=None):
         """
         This function can tell() the gp_optimizer class
-        the data that was collected. The data will instantly be used to update the gp_data
+        the data that was collected. The data will instantly be used to update the gp data
         if a GP was previously initialized.
 
         Parameters
@@ -202,7 +197,7 @@ class GPOptimizer(GP):
     def _update_gp(self):
         """
         This function updates the data in the GP, tell(...) will call this function automatically if
-        GP is intialized
+        a GP is intialized
         """
         self.update_gp_data(
             self.points,
@@ -225,7 +220,7 @@ class GPOptimizer(GP):
         hyperparameters_bounds : np.ndarray
             Bounds for the optimization of the hyperparameters of shape (V x 2)
         max_iter : int, optional
-            Number of iterations before the optimization algorithm is terminated. Since the algorithms works
+            Number of iterations before the optimization algorithm is terminated. Since the algorithm works
             asynchronously, this
             number can be high. The default is 10000
         dask_client : distributed.client.Client, optional
@@ -233,9 +228,9 @@ class GPOptimizer(GP):
             `dask.distributed.Client` instance is constructed.
         local_method : str, optional
             Controls the local optimizer running in `HGDL`. Many scipy.minimize optimizers can be used,
-            in addition "dNewton". `L-BFGS-B` is the default.
+            in addition, "dNewton". `L-BFGS-B` is the default.
         global_method : str, optional
-            Gloabl optimization step running in `HGDL`. Choose from `genetic` or 'random'.
+            Global optimization step running in `HGDL`. Choose from `genetic` or 'random'.
             The default is `genetic`
 
         Returns
@@ -362,7 +357,7 @@ class GPOptimizer(GP):
             dask_client=False):
 
         """
-        Given that the acquisition device is at "position", the function ask() s for
+        Given that the acquisition device is at "position", the function ask()s for
         "n" new optimal points within certain "bounds" and using the optimization setup:
         "acquisition_function_pop_size", "max_iter" and "tol"
 
@@ -370,7 +365,7 @@ class GPOptimizer(GP):
         ----------
         position : np.ndarray, optional
             Current position in the input space. If a cost function is provided this position will be taken into account
-            to guarantee an cost-efficient new suggestion. The default is None.
+            to guarantee a cost-efficient new suggestion. The default is None.
         n  : int, optional
             The algorithm will try to return this many suggestions for new measurements. This may be limited by how many
             optima the algorithm may find. If greater than 1, then the `acq_func` optimization method is automatically
@@ -387,11 +382,11 @@ class GPOptimizer(GP):
         bounds : np.ndarray, optional
             A numpy array of floats of shape D x 2 describing the search range. The default is the entire input space.
         method: str, optional
-            A string defining the method used to find the maximum of the acquisiton function. Choose from `global`,
+            A string defining the method used to find the maximum of the acquisition function. Choose from `global`,
             `local`, `hgdl`.
             The default is `global`.
         pop_size: int, optional
-            An integerr defining the number of individuals if `global` is chosen as method. The default is 20. For
+            An integer defining the number of individuals if `global` is chosen as method. The default is 20. For
             `hgdl` this will be overwritten
             by the 'dask_client` definition.
         max_iter: int, optional
@@ -399,7 +394,7 @@ class GPOptimizer(GP):
         tol: float, optional
             Termination criterion for the local optimizer. The default is 1e-6.
         x0: np.ndarray, optional
-            A set of points as numpy array of shape V x D, used as starting location(s) for h elocal and hgdl
+            A set of points as numpy array of shape V x D, used as starting location(s) for the local and hgdl
             optimization
             algorithm. The default is None.
         dask_client : distributed.client.Client, optional
@@ -410,7 +405,7 @@ class GPOptimizer(GP):
         Return
         ------
         dictionary : {'x': np.array(maxima), "f(x)" : np.array(func_evals), "opt_obj" : opt_obj}
-            Found maxima of the acqisition function, the associated function values and and optimization object
+            Found maxima of the acquisition function, the associated function values and optimization object
             that, only in case of `method` = `hgdl` can be queried for solutions.
         """
 
@@ -458,7 +453,7 @@ class GPOptimizer(GP):
             object. The default is a no-op.
         Return
         ------
-            No return, cost function will autmatically be used by GPOptimizer.ask()
+            No return, cost function will automatically be used by GPOptimizer.ask()
         """
 
         self.cost_function = cost_function
@@ -477,8 +472,8 @@ class GPOptimizer(GP):
         ----------
         measurement_costs: object
             An arbitrary object that describes the costs when moving in the parameter space.
-            It can be arbitrary because the the cost function using the parameters and the cost_update_function
-            updating the parameters are both user defined and this object has to be in accordance with those definitions.
+            It can be arbitrary because the cost function using the parameters and the cost_update_function
+            updating the parameters are both user-defined and this object has to be in accordance with those definitions.
         Return
         ------
             No return, the cost function parameters will automatically be updated.
@@ -501,9 +496,9 @@ class GPOptimizer(GP):
 class fvGPOptimizer(fvGP, GPOptimizer):
     """
     This class is an optimization wrapper around the fvgp package for multi-task (multi-variate) Gaussian Processes.
-    Gaussian Processes can be intialized, trained and conditioned; also
+    Gaussian Processes can be initialized, trained, and conditioned; also
     the posterior can be evaluated and plugged into optimizers to find
-    a its maxima.
+    its maxima.
 
     Parameters
     ---------
@@ -531,7 +526,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
     gp_initialized : bool
         A check whether the object instance has an initialized Gaussian Process.
     hyperparameters : np.ndarray
-        Only available after a training is executed.
+        Only available after the training is executed.
     """
 
 
@@ -566,12 +561,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
 
         Return
         ------
-        dict
-            Dictionary containing the input dim, output dim, output number,
-            x & y data, measurement variances, measurement value positions,
-            hyperparameters and cost function parameters
-            class attributes. Note that if tell() has not been called, many
-            of these returned values will be `None`.
+        dictionary of class attributes : dict
         """
 
         res = self.get_data
@@ -618,7 +608,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
             ram_economy=True
     ):
         """
-        Function to initialize the muli-task GP.
+        Function to initialize the multi-task GP.
 
         Parameters
         ----------
