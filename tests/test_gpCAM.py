@@ -2,9 +2,8 @@
 
 """Tests for `gpcam` package."""
 import unittest
-
 import numpy as np
-
+from gpcam.autonomous_experimenter import AutonomousExperimenterGP
 from gpcam.gp_optimizer import GPOptimizer
 
 
@@ -16,17 +15,20 @@ def ac_func1(x, obj):
     std_model = np.sqrt(r2)
     return -(r1 + 3.0 * std_model)
 
+def instrument(data):
+    for entry in data:
+        entry["value"] = np.sin(np.linalg.norm(entry["position"]))
+    return data
+
+
 
 class TestgpCAM(unittest.TestCase):
     """Tests for `gpcam` package."""
 
-    def setUp(self, dim=2, N=20):
+    def test_setUp(self, dim=2, N=20):
         """Set up test fixtures, if any."""
         x = np.random.rand(N, dim)
         y = np.sin(x[:, 0])
-        ######################################################
-        ######################################################
-        ######################################################
         index_set_bounds = np.array([[0., 1.], [0., 1.]])
         hyperparameter_bounds = np.array([[0.001, 1e9], [0.001, 100], [0.001, 100]])
         hps_guess = np.ones((3))
@@ -41,8 +43,6 @@ class TestgpCAM(unittest.TestCase):
         x = np.random.rand(N, dim)
         y = np.sin(x[:, 0])
 
-        ######################################################
-        ######################################################
         ######################################################
         def kernel_l2_single_task(x1, x2, hyperparameters, obj):
             hps = hyperparameters
@@ -91,5 +91,23 @@ class TestgpCAM(unittest.TestCase):
         print(r)
         print()
 
+    def test_ae(self):
+        ##set up your parameter space
+        parameters = np.array([[3.0,45.8],
+                              [4.0,47.0]])
+
+        ##set up some hyperparameters, if you have no idea, set them to 1 and make the training bounds large
+        init_hyperparameters = np.array([1,1,1])
+        hyperparameter_bounds =  np.array([[0.01,100],[0.01,100.0],[0.01,100]])
+
+        ##let's initialize the autonomous experimenter ...
+        my_ae = AutonomousExperimenterGP(parameters, init_hyperparameters,
+                                        hyperparameter_bounds,instrument_func = instrument,
+                                        init_dataset_size=10)
+        #...train...
+        my_ae.train()
+
+        #...and run. That's it. You successfully executed an autonomous experiment.
+        my_ae.go(N = 100)
 
         print("END")

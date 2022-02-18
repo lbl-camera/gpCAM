@@ -14,7 +14,7 @@ def evaluate_acquisition_function(x, gp, acquisition_function, origin=None,
     ##########################################################
     if x.ndim == 1: x = np.array([x])
     if cost_function is not None and origin is not None and cost_function_parameters is not None:
-        cost_eval = cost_function(origin, x[0], cost_function_parameters)
+        cost_eval = cost_function(origin, x, cost_function_parameters)
     else:
         cost_eval = 1.0
     # for user defined acquisition function
@@ -95,16 +95,15 @@ def find_acquisition_function_maxima(gp, acquisition_function,
                                      dask_client=False):
     bounds = np.array(optimization_bounds)
     opt_obj = None
-    print("====================================")
-    print("finding acquisition function maxima...")
-    print("optimization method ", optimization_method)
-    print("tolerance: ", optimization_tol)
-    print("population size: ", optimization_pop_size)
-    print("maximum number of iterations: ", optimization_max_iter)
-    print("bounds: ")
-    print(bounds)
-    print("cost function parameters: ", cost_function_parameters)
-    print("====================================")
+    #print("====================================")
+    print("Finding acquisition function maxima via ",optimization_method," method")
+    #print("tolerance: ", optimization_tol)
+    #print("population size: ", optimization_pop_size)
+    #print("maximum number of iterations: ", optimization_max_iter)
+    #print("bounds: ")
+    #print(bounds)
+    #print("cost function parameters: ", cost_function_parameters)
+    #print("====================================")
 
     if optimization_method == "global":
         opti, func_eval = differential_evolution(
@@ -159,6 +158,7 @@ def find_acquisition_function_maxima(gp, acquisition_function,
         )
         opti = np.array([a["x"]])
         func_eval = np.array(a["fun"])
+        if func_eval.ndim == 0: func_eval = np.array([func_eval])
         if a["success"] is False:
             print("local acquisition function optimization not successful, solution replaced with random point.")
             opti = np.array(x0)
@@ -169,14 +169,14 @@ def find_acquisition_function_maxima(gp, acquisition_function,
             if func_eval.ndim != 1: func_eval = np.array([func_eval])
     else:
         raise ValueError("Invalid acquisition function optimization method given.")
-    print("The acquisition function optimization resulted in: ")
-    print("     x: ", opti)
-    print("  f(x): ", func_eval)
+    #print("The acquisition function optimization resulted in: ")
+    #print("     x: ", opti)
+    #print("  f(x): ", func_eval)
     if func_eval.ndim != 1 or opti.ndim != 2:
         print("f(x): ", func_eval)
         print("x: ", opti)
         raise Exception(
-            "The output of the optimization acquisition function dim (f) != 1 or dim(x) != 2. Please check your "
+            "The output of the acquisition function optimization dim (f) != 1 or dim(x) != 2. Please check your "
             "acquisition function. It should return a 1-d numpy array")
     return opti, func_eval, opt_obj
 
