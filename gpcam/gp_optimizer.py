@@ -3,16 +3,15 @@
 import numpy as np
 from fvgp.fvgp import fvGP
 from fvgp.gp import GP
-
 from gpcam import surrogate_model as sm
 
 
 class GPOptimizer(GP):
     """
     This class is an optimization wrapper around the fvgp package for single-task (scalar-valued) Gaussian Processes.
-    Gaussian Processes can be intialized, trained and conditioned; also
+    Gaussian Processes can be initialized, trained, and conditioned; also
     the posterior can be evaluated and plugged into optimizers to find
-    a its maxima.
+    its maxima.
 
     Parameters
     ---------
@@ -36,7 +35,7 @@ class GPOptimizer(GP):
     gp_initialized : bool
         A check whether the object instance has an initialized Gaussian Process.
     hyperparameters : np.ndarray
-        Only available after a training is executed.
+        Only available after training is executed.
     """
 
     def __init__(
@@ -52,7 +51,6 @@ class GPOptimizer(GP):
         self.gp_initialized = False
         self.cost_function_parameters = None
         self.cost_function = None
-        self.consider_costs = False
 
     def get_data(self):
         """
@@ -60,12 +58,7 @@ class GPOptimizer(GP):
 
         Return
         ------
-        dict
-            Dictionary containing the input dim,
-            x & y data, measurement variances,
-            hyperparameters, cost function parameters and consider_costs
-            class attributes. Note that if tell() has not been called, many
-            of these returned values will be `None`.
+        dictionary of class attributes : dict
         """
 
         if self.gp_initialized:
@@ -79,37 +72,28 @@ class GPOptimizer(GP):
             "measurement variances": self.variances,
             "hyperparameters": hps,
             "cost function parameters": self.cost_function_parameters,
-            "consider costs": self.consider_costs,
+            "cost function": self.cost_function,
         }
 
-    def evaluate_acquisition_function(self,
-                                      x, acquisition_function="variance", cost_function=None,
-                                      origin=None):
+    def evaluate_acquisition_function(self, x, acquisition_function="variance", origin=None):
         """
         Function to evaluate the acquisition function.
 
         Parameters
         ----------
         x : np.ndarray
-            Point positions at which the acquisition function is evaluated
+            Point positions at which the acquisition function is evaluated.
         acquisition_function : Callable, optional
             Acquisiiton functio to execute. Callable with inputs (x,gpcam.gp_optimizer.GPOptimizer),
             where x is a V x D array of input points. The return value is a 1-D array of length V.
             The default is `variance`.
-        cost_function : Callable, optional
-            Function to specify the cost of motion through the input space. If provided the acquisition function
-            evaluation
-            will be divided by the cost. Its inputs are an
-            `origin` (np.ndarray of size V x D), `x` (np.ndarray of size V x D), and the value of `cost_func_params`;
-            `origin` is the starting position, and `x` is the destination position. The return value is a 1-D array of
-            length V describing the costs as floats.
         origin : np.ndarray, optional
             If a cost function is provided this 1-D numpy array of length D is used as the origin of motion.
 
         Return
         ------
-            np.ndarray
-            The acquisition function evaluations at all points `x`.
+        The acquisition function evaluations at all points `x` : np.ndarray
+            
         """
 
         if self.gp_initialized is False:
@@ -118,6 +102,7 @@ class GPOptimizer(GP):
                 "See help(gp_init)."
             )
         x = np.array(x)
+        cost_function = self.cost_function
         try:
             return sm.evaluate_acquisition_function(
                 x, self, acquisition_function, origin, cost_function,
@@ -130,7 +115,7 @@ class GPOptimizer(GP):
     def tell(self, x, y, variances=None):
         """
         This function can tell() the gp_optimizer class
-        the data that was collected. The data will instantly be used to update the gp_data
+        the data that was collected. The data will instantly be used to update the gp data
         if a GP was previously initialized.
 
         Parameters
@@ -146,7 +131,6 @@ class GPOptimizer(GP):
         self.points = x
         self.values = y
         self.variances = variances
-        print("New data communicated via tell()")
 
         if self.gp_initialized is True: self._update_gp()
 
@@ -157,7 +141,7 @@ class GPOptimizer(GP):
             compute_device="cpu",
             gp_kernel_function=None,
             gp_mean_function=None,
-            sparse=False, use_inv=False,
+            use_inv=False,
             ram_economy=True
     ):
         """
@@ -181,13 +165,11 @@ class GPOptimizer(GP):
             array of length D+1 for the default kernel). The return value is a 1-D array of length V. If None is
             provided,
             `fvgp.gp.GP.default_mean_function` is used.
-        sparse : bool, optional
-            If True, the algorithm check for sparsity of the covariance matrix and exploits it. The default is False.
         use_inv : bool, optional
-            If True, the algorithm retains the inverse of the covariance matrix, which makes computing the posterior
-            faster.
-            For larger problems, this use of inversion should be avoided due to computational stability. The default
-            is `False`.
+            If True, the algorithm calculates and stores the inverse of the covariance matrix after each training or update of the dataset,
+            which makes computing the posterior covariance faster.
+            For larger problems (>2000 data points), the use of inversion should be avoided due to computational instability. The default is
+            False. Note, the training will always use a linear solve instead of the inverse for stability reasons.
         ram_economy : bool, optional
             Offers a ram-efficient way to compute marginal-log-likelihood derivatives for training.
         """
@@ -203,26 +185,24 @@ class GPOptimizer(GP):
                 compute_device=compute_device,
                 gp_kernel_function=gp_kernel_function,
                 gp_mean_function=gp_mean_function,
-                sparse=sparse, use_inv=use_inv,
+                use_inv=use_inv,
                 normalize_y=False,
                 ram_economy=ram_economy
             )
             self.gp_initialized = True
-            print("GP successfully initiated")
         else:
-            print("GP already initialized")
+            print("No initialization. GP already initialized")
 
     ##############################################################
     def _update_gp(self):
         """
         This function updates the data in the GP, tell(...) will call this function automatically if
-        GP is intialized
+        a GP is intialized
         """
         self.update_gp_data(
             self.points,
             self.values,
             variances=self.variances)
-        print("GP data updated")
 
     ##############################################################
     def train_gp_async(self,
@@ -240,7 +220,7 @@ class GPOptimizer(GP):
         hyperparameters_bounds : np.ndarray
             Bounds for the optimization of the hyperparameters of shape (V x 2)
         max_iter : int, optional
-            Number of iterations before the optimization algorithm is terminated. Since the algorithms works
+            Number of iterations before the optimization algorithm is terminated. Since the algorithm works
             asynchronously, this
             number can be high. The default is 10000
         dask_client : distributed.client.Client, optional
@@ -248,9 +228,9 @@ class GPOptimizer(GP):
             `dask.distributed.Client` instance is constructed.
         local_method : str, optional
             Controls the local optimizer running in `HGDL`. Many scipy.minimize optimizers can be used,
-            in addition "dNewton". `L-BFGS-B` is the default.
+            in addition, "dNewton". `L-BFGS-B` is the default.
         global_method : str, optional
-            Gloabl optimization step running in `HGDL`. Choose from `genetic` or 'random'.
+            Global optimization step running in `HGDL`. Choose from `genetic` or 'random'.
             The default is `genetic`
 
         Returns
@@ -262,7 +242,6 @@ class GPOptimizer(GP):
             and selectively use or stop them.
         """
 
-        print("GPOptimizer async training was called with dask_client: ", dask_client)
         if self.gp_initialized is False:
             raise Exception("No GP to be trained. Please call init_gp(...) before training.")
         opt_obj = self.train_async(
@@ -273,7 +252,6 @@ class GPOptimizer(GP):
             local_optimizer=local_method,
             global_optimizer=global_method
         )
-        print("The GPOptimizer has created an optimization object.")
         return opt_obj
 
     ##############################################################
@@ -282,7 +260,6 @@ class GPOptimizer(GP):
                  max_iter=120,
                  method="global",
                  pop_size=20,
-                 optimization_dict=None,
                  tolerance=1e-6,
                  ):
         """
@@ -295,13 +272,11 @@ class GPOptimizer(GP):
         max_iter : int, optional
             Number of iterations before the optimization algorithm is terminated. The default is 120
         method : str or callable, optional
-            Optimization method. Choose from `local`, `global` or `hgdl`. The default is `global`.
+            Optimization method. Choose from `'local'` or `'global'`. The default is `global`.
             The argument also accepts a callable that accepts as input a `fvgp.gp.GP` 
             instance and returns a new vector of hyperparameters.
         pop_size : int, optional
             The number of individuals used if `global` is chosen as method.
-        optimization_dict : dict, optional
-            A dictionary that will be passed to the callable that is specified as `method`.
         tolerance : float, optional
             Tolerance to be used to define a termination criterion for the optimizer.
 
@@ -368,13 +343,11 @@ class GPOptimizer(GP):
         """
 
         hps = GP.update_hyperparameters(self, opt_obj)
-        print("The GPOptimizer updated the Hyperperameters: ", self.hyperparameters)
         return hps
 
     ##############################################################
     def ask(self, position=None, n=1,
             acquisition_function="variance",
-            cost_function=None,
             bounds=None,
             method="global",
             pop_size=20,
@@ -384,7 +357,7 @@ class GPOptimizer(GP):
             dask_client=False):
 
         """
-        Given that the acquisition device is at "position", the function ask() s for
+        Given that the acquisition device is at "position", the function ask()s for
         "n" new optimal points within certain "bounds" and using the optimization setup:
         "acquisition_function_pop_size", "max_iter" and "tol"
 
@@ -392,7 +365,7 @@ class GPOptimizer(GP):
         ----------
         position : np.ndarray, optional
             Current position in the input space. If a cost function is provided this position will be taken into account
-            to guarantee an cost-efficient new suggestion. The default is None.
+            to guarantee a cost-efficient new suggestion. The default is None.
         n  : int, optional
             The algorithm will try to return this many suggestions for new measurements. This may be limited by how many
             optima the algorithm may find. If greater than 1, then the `acq_func` optimization method is automatically
@@ -406,22 +379,14 @@ class GPOptimizer(GP):
             `'minimum'`,
             `'covariance'`, and `'variance'`. If None, the default function is the `'variance'`, meaning
             `fvgp.gp.GP.posterior_covariance` with variance_only = True.
-        cost_function : Callable, optional
-            A function encoding the cost of motion through the input space and the cost of a measurement. Its inputs
-            are an
-            `origin` (np.ndarray of size V x D), `x` (np.ndarray of size V x D), and the value of `cost_func_params`;
-            `origin` is the starting position, and `x` is the destination position. The return value is a 1-D array of
-            length V describing the costs as floats. The 'score' from acq_func is divided by this returned cost to
-            determine
-            the next measurement point. If None, the default is a uniform cost of 1.
         bounds : np.ndarray, optional
             A numpy array of floats of shape D x 2 describing the search range. The default is the entire input space.
         method: str, optional
-            A string defining the method used to find the maximum of the acquisiton function. Choose from `global`,
+            A string defining the method used to find the maximum of the acquisition function. Choose from `global`,
             `local`, `hgdl`.
             The default is `global`.
         pop_size: int, optional
-            An integerr defining the number of individuals if `global` is chosen as method. The default is 20. For
+            An integer defining the number of individuals if `global` is chosen as method. The default is 20. For
             `hgdl` this will be overwritten
             by the 'dask_client` definition.
         max_iter: int, optional
@@ -429,7 +394,7 @@ class GPOptimizer(GP):
         tol: float, optional
             Termination criterion for the local optimizer. The default is 1e-6.
         x0: np.ndarray, optional
-            A set of points as numpy array of shape V x D, used as starting location(s) for h elocal and hgdl
+            A set of points as numpy array of shape V x D, used as starting location(s) for the local and hgdl
             optimization
             algorithm. The default is None.
         dask_client : distributed.client.Client, optional
@@ -440,14 +405,14 @@ class GPOptimizer(GP):
         Return
         ------
         dictionary : {'x': np.array(maxima), "f(x)" : np.array(func_evals), "opt_obj" : opt_obj}
-            Found maxima of the acqisition function, the associated function values and and optimization object
+            Found maxima of the acquisition function, the associated function values and optimization object
             that, only in case of `method` = `hgdl` can be queried for solutions.
         """
 
         print("ask() initiated with hyperparameters:", self.hyperparameters)
-        print("optimization method: ", method)
-        print("bounds: ", bounds)
-        print("acq func: ", acquisition_function)
+        #print("optimization method: ", method)
+        #print("bounds: ", bounds)
+        #print("acq func: ", acquisition_function)
         if bounds is None: bounds = self.input_space_bounds
         maxima, func_evals, opt_obj = sm.find_acquisition_function_maxima(
             self,
@@ -457,7 +422,7 @@ class GPOptimizer(GP):
             optimization_pop_size=pop_size,
             optimization_max_iter=max_iter,
             optimization_tol=tol,
-            cost_function=cost_function,
+            cost_function=self.cost_function,
             cost_function_parameters=self.cost_function_parameters,
             optimization_x0=x0,
             dask_client=dask_client)
@@ -488,43 +453,37 @@ class GPOptimizer(GP):
             object. The default is a no-op.
         Return
         ------
-            cost function that can be injected into ask()
+            No return, cost function will automatically be used by GPOptimizer.ask()
         """
 
         self.cost_function = cost_function
         self.cost_function_parameters = cost_function_parameters
         self.cost_update_function = cost_update_function
-        self.consider_costs = True
-        print("Costs successfully initialized")
         return self.cost_function
 
     ##############################################################
     def update_cost_function(self, measurement_costs):
         """
-        This function updates the parameters for the cost function
+        This function updates the parameters for the user-defined cost function
         It essentially calls the user-given cost_update_function which
-        should return the new parameters how they are used by the user defined
-        cost function
-        Parameters:
-        -----------
-            measurement_costs:    an arbitrary structure that describes 
-                                  the costs when moving in the parameter space
-            cost_update_function: a user-defined function 
-                                  def name(measurement_costs,
-                                  cost_function_optimization_bounds,cost_function_parameters)
-                                  which returns the new parameters
-            cost_function_optimization_bounds: see above
-        Optional Parameters:
-        --------------------
-            cost_function_parameters, default = None
+        should return the new parameters how they are used by the
+        cost function.
+        Parameters
+        ----------
+        measurement_costs: object
+            An arbitrary object that describes the costs when moving in the parameter space.
+            It can be arbitrary because the cost function using the parameters and the cost_update_function
+            updating the parameters are both user-defined and this object has to be in accordance with those definitions.
+        Return
+        ------
+            No return, the cost function parameters will automatically be updated.
         """
 
-        print("Performing cost function update...")
         if self.cost_function_parameters is None: raise Exception(
             "No cost function parameters specified. Please call init_cost() first.")
         self.cost_function_parameters = \
             self.cost_update_function(measurement_costs, self.cost_function_parameters)
-        print("cost parameters changed to: ", self.cost_function_parameters)
+        #print("cost parameters changed to: ", self.cost_function_parameters)
 
 
 ######################################################################################
@@ -537,9 +496,9 @@ class GPOptimizer(GP):
 class fvGPOptimizer(fvGP, GPOptimizer):
     """
     This class is an optimization wrapper around the fvgp package for multi-task (multi-variate) Gaussian Processes.
-    Gaussian Processes can be intialized, trained and conditioned; also
+    Gaussian Processes can be initialized, trained, and conditioned; also
     the posterior can be evaluated and plugged into optimizers to find
-    a its maxima.
+    its maxima.
 
     Parameters
     ---------
@@ -567,7 +526,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
     gp_initialized : bool
         A check whether the object instance has an initialized Gaussian Process.
     hyperparameters : np.ndarray
-        Only available after a training is executed.
+        Only available after the training is executed.
     """
 
 
@@ -578,10 +537,6 @@ class fvGPOptimizer(fvGP, GPOptimizer):
             output_number,
             input_space_bounds,
     ):
-        """
-        GPOptimizer constructor
-        type help(gp_optimizer) for help
-        """
 
         self.iput_dim = input_space_dimension
         self.oput_dim = output_space_dimension
@@ -591,11 +546,10 @@ class fvGPOptimizer(fvGP, GPOptimizer):
         self.variances = np.empty((0, self.output_number))
         self.value_positions = np.empty((0, self.output_number, self.oput_dim))
         self.input_space_bounds = np.array(input_space_bounds)
-        # self.hyperparameters = None
         self.gp_initialized = False
         self.cost_function_parameters = None
         self.cost_function = None
-        self.consider_costs = False
+
         GPOptimizer.__init__(self,
                              input_space_dimension,
                              input_space_bounds
@@ -607,12 +561,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
 
         Return
         ------
-        dict
-            Dictionary containing the input dim, output dim, output number,
-            x & y data, measurement variances, measurement value positions,
-            hyperparameters, cost function parameters and consider_costs
-            class attributes. Note that if tell() has not been called, many
-            of these returned values will be `None`.
+        dictionary of class attributes : dict
         """
 
         res = self.get_data
@@ -639,7 +588,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
         value_positions : np.ndarray, optional
             A 3-D numpy array of shape (U x output_number x output_dim), so that for each measurement position, the outputs
             are clearly defined by their positions in the output space. The default is np.array([[0],[1],[2],[3],...,[output_number - 1]]) for each
-            point in th einput space. The default is only permissible if output_dim is 1.
+            point in the input space. The default is only permissible if output_dim is 1.
         """
         self.points = x
         self.values = y
@@ -655,21 +604,39 @@ class fvGPOptimizer(fvGP, GPOptimizer):
             compute_device="cpu",
             gp_kernel_function=None,
             gp_mean_function=None,
-            sparse=False, use_inv=False,
+            use_inv=False,
             ram_economy=True
     ):
         """
-        Function to initialize the GP if it has not already been initialized
-        Parameters:
-        -----------
-            init_hyperparameters:   1d numpy array containing the initial guesses for the hyperparemeters
-        Optional Parameters:
-        --------------------
-            compute_device, default = cpu, others = "gpu"
-            gp_kernel_function, default = fvGP default
-            gp_mean_function, default = fvGP default, i.e. average of data
-            sparse, default = False
+        Function to initialize the multi-task GP.
+
+        Parameters
+        ----------
+        init_hyperparameters : np.ndarray
+            Initial hyperparameters as 1-D numpy array.
+        compute_device : str, optional
+            One of "cpu" or "gpu", determines how linear system solves are run. The default is "cpu".
+        gp_kernel_function : Callable, optional
+            A function that calculates the covariance between datapoints. It accepts as input x1 (a V x D array of
+            positions),
+            x2 (a U x D array of positions), hyperparameters (a 1-D array of length D+1 for the default kernel), and a
+            `gpcam.gp_optimizer.GPOptimizer` instance. The default is a stationary anisotropic kernel
+            (`fvgp.gp.GP.default_kernel`).
+        gp_mean_function : Callable, optional
+            A function that evaluates the prior mean at an input position. It accepts as input a
+            `gpcam.gp_optimizer.GPOptimizer` instance, an array of positions (of size V x D), and hyperparameters (a 1-D
+            array of length D+1 for the default kernel). The return value is a 1-D array of length V. If None is
+            provided,
+            `fvgp.gp.GP.default_mean_function` is used.
+        use_inv : bool, optional
+            If True, the algorithm calculates and stores the inverse of the covariance matrix after each training or update of the dataset,
+            which makes computing the posterior covariance faster.
+            For larger problems (>2000 data points), the use of inversion should be avoided due to computational instability. The default is
+            False. Note, the training will always use a linear solve instead of the inverse for stability reasons.
+        ram_economy : bool, optional
+            Offers a ram-efficient way to compute marginal-log-likelihood derivatives for training.
         """
+
         if self.gp_initialized is False:
             fvGP.__init__(
                 self,
@@ -684,24 +651,23 @@ class fvGPOptimizer(fvGP, GPOptimizer):
                 compute_device=compute_device,
                 gp_kernel_function=gp_kernel_function,
                 gp_mean_function=gp_mean_function,
-                sparse=sparse, use_inv=use_inv,
+                use_inv=use_inv,
                 ram_economy=ram_economy
             )
             self.gp_initialized = True
         else:
-            print("fvGP already initialized")
+            print("No initialization. fvGP already initialized")
 
     ##############################################################
     def update_fvgp(self):
         """
         This function updates the data in the fvGP, tell(...) will call this function automatically if
         GP is already intialized
-        Paramaters:
-        -----------
-            no input parameters
         """
         self.update_fvgp_data(
             self.points,
             self.values,
             value_positions=self.value_positions,
             variances=self.variances)
+
+

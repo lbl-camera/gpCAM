@@ -8,7 +8,7 @@ ophyd
 dask >= 2021.6.2
 distributed >= 2021.6.2
 zmq
-fvgp >= 3.2.8
+fvgp >= 3.2.11
 hgdl >= 1.4.6
 plotly
 notebook
