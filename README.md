@@ -23,7 +23,7 @@ The following demonstrates a simple usage of the gpCAM API (see [interactive dem
 from gpcam.autonomous_experimenter import AutonomousExperimenterGP
 import numpy as np
 
-def instrument(data, instrument_dict = {}):
+def instrument(data):
     for entry in data:
         entry["value"] = np.sin(np.linalg.norm(entry["position"]))
     return data
