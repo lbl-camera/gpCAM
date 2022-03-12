@@ -12,3 +12,4 @@ fvgp >= 3.2.11
 hgdl >= 1.4.6
 plotly
 notebook
+loguru
