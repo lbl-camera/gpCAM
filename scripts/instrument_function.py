@@ -20,6 +20,7 @@ import numpy as np
 #################################################
 ############test with synthetic function#########
 #################################################
+from loguru import logger
 
 
 def synthetic_function(data, instrument_dict):
@@ -44,7 +45,7 @@ def send_zipped_pickle(obj, socket, flags=0, protocol=-1):
     """pack and compress an object with pickle and zlib."""
     pobj = pickle.dumps(obj, protocol)
     zobj = zlib.compress(pobj)
-    print('zipped pickle is %i bytes' % len(zobj))
+    logger.debug('zipped pickle is %i bytes' % len(zobj))
     return socket.send(zobj, flags=flags)
 
 
@@ -61,12 +62,12 @@ def recv_zipped_pickle(socket, flags=0):
 
 def comm_via_zmq(data, instrument_dict):
     send_zipped_pickle(data, socket)
-    print("gpCAM has sent data of length: ", len(data))
-    # print(data)
-    print("=================================")
+    logger.debug("gpCAM has sent data of length: ", len(data))
+    logger.debug(data)
+    logger.debug("=================================")
     data = recv_zipped_pickle(socket)
-    print("gpCAM has received data of length: ", len(data))
-    # print(data)
+    logger.debug("gpCAM has received data of length: ", len(data))
+    logger.debug(data)
     # input()
     return data
 

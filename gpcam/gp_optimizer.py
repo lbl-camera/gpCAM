@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 import numpy as np
+from loguru import logger
+
 from fvgp.fvgp import fvGP
 from fvgp.gp import GP
 from gpcam import surrogate_model as sm
@@ -107,10 +109,9 @@ class GPOptimizer(GP):
             return sm.evaluate_acquisition_function(
                 x, self, acquisition_function, origin, cost_function,
                 self.cost_function_parameters)
-        except Exception as a:
-            print("Evaluating the acquisition function was not successful.")
-            print("Error Message:")
-            print(str(a))
+        except Exception as ex:
+            logger.error(ex)
+            logger.error("Evaluating the acquisition function was not successful.")
 
     def tell(self, x, y, variances=None):
         """
@@ -324,8 +325,8 @@ class GPOptimizer(GP):
         """
         try:
             self.kill_training(opt_obj)
-        except Exception as e:
-            print("kill not sucessful in GPOptimizer due to: ", str(e))
+        except Exception as ex:
+            raise RuntimeError("kill not sucessful in GPOptimizer") from ex
 
     ##############################################################
     def update_hyperparameters(self, opt_obj):
@@ -409,10 +410,10 @@ class GPOptimizer(GP):
             that, only in case of `method` = `hgdl` can be queried for solutions.
         """
 
-        print("ask() initiated with hyperparameters:", self.hyperparameters)
-        #print("optimization method: ", method)
-        #print("bounds: ", bounds)
-        #print("acq func: ", acquisition_function)
+        logger.debug("ask() initiated with hyperparameters: {}", self.hyperparameters)
+        logger.debug("optimization method: {}", method)
+        logger.debug("bounds:\n{}", bounds)
+        logger.debug("acq func: {}", acquisition_function)
         if bounds is None: bounds = self.input_space_bounds
         maxima, func_evals, opt_obj = sm.find_acquisition_function_maxima(
             self,
@@ -656,7 +657,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
             )
             self.gp_initialized = True
         else:
-            print("No initialization. fvGP already initialized")
+            raise RuntimeError("No initialization. fvGP already initialized")
 
     ##############################################################
     def update_fvgp(self):

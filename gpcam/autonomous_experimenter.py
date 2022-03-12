@@ -1,14 +1,14 @@
 # /usr/bin/env python
+import inspect
 import time
-from time import strftime
 
 import dask
 import dask.distributed as distributed
 import numpy as np
+from loguru import logger
 
 from gpcam.data import fvgpData, gpData
 from gpcam.gp_optimizer import GPOptimizer, fvGPOptimizer
-
 
 
 class AutonomousExperimenterGP():
@@ -130,7 +130,6 @@ class AutonomousExperimenterGP():
                  training_dask_client=None,
                  acq_func_opt_dask_client=None,
                  ram_economy=True,
-                 info = False,
                  ):
         dim = len(parameter_bounds)
         self.instrument_func = instrument_func
@@ -171,7 +170,6 @@ class AutonomousExperimenterGP():
         if self.data.nan_in_dataset(): self.data.clean_data_NaN()
         self.x, self.y, self.v, self.t, self.c = self.data.extract_data()
         self.init_dataset_size = len(self.x)
-        self.info = info
         ######################
         ######################
         ######################
@@ -183,11 +181,11 @@ class AutonomousExperimenterGP():
                                   use_inv=use_inv, ram_economy=ram_economy)
         # init costs
         self._init_costs(cost_func_params)
-        if info:
-            print("##################################################################################")
-            print("Autonomous Experimenter initialization successfully concluded")
-            print("now train(...) or train_async(...), and then go(...)")
-            print("##################################################################################")
+        logger.info(inspect.cleandoc("""#
+        ##################################################################################
+        Autonomous Experimenter initialization successfully concluded
+        now train(...) or train_async(...), and then go(...)
+        ##################################################################################"""))
 
     ###################################################################################
     def train(self, pop_size=10, tol=1e-6, max_iter=20, method="global"):
@@ -239,23 +237,23 @@ class AutonomousExperimenterGP():
         """
 
         if dask_client is None: dask_client = self.training_dask_client
-        if self.info: print("AutonomousExperimenter starts async training with dask client:")
+        logger.debug("AutonomousExperimenter starts async training with dask client:")
         self.opt_obj = self.gp_optimizer.train_gp_async(
             self.hyperparameter_bounds, max_iter=max_iter, local_method=local_method, global_method=global_method,
             dask_client=dask_client
         )
-        if self.info: print("The Autonomous Experimenter started an instance of the asynchronous training.")
+        logger.debug("The Autonomous Experimenter started an instance of the asynchronous training.")
         self.async_train_in_progress = True
 
     def kill_training(self):
         """
-        Function to kill an active asychronous training
+        Function to kill an active asynchronous training
         """
         if self.async_train_in_progress:
             self.gp_optimizer.stop_async_train(self.opt_obj)
+            self.async_train_in_progress = False
         else:
-            if self.info: print("no training to be killed")
-        self.async_train_in_progress = False
+            logger.debug("no training to be killed")
 
     def kill_client(self):
         """
@@ -267,9 +265,9 @@ class AutonomousExperimenterGP():
             self.training_dask_client.close()
             self.acq_func_opt_dask_client.shutdown()
             self.acq_func_opt_dask_client.close()
-        except:
-            if self.info: print("Killing of the clients failed. Please do so manually before initializing new ones.")
-
+        except Exception as ex:
+            logger.error(str(ex))
+            logger.error("Killing of the clients failed. Please do so manually before initializing new ones.")
 
     def update_hps(self):
         """
@@ -278,14 +276,13 @@ class AutonomousExperimenterGP():
         """
         if self.async_train_in_progress:
             self.gp_optimizer.update_hyperparameters(self.opt_obj)
-            if self.info: print("The Autonomus Experimenter updated the hyperparameters")
+            logger.debug("The Autonomus Experimenter updated the hyperparameters")
         else:
-            if self.info: print("The autonomous experimenter could not find an instance of asynchronous training. Therefore no update.")
-        if self.info: print("hps: ", self.gp_optimizer.hyperparameters)
+            logger.warning("The autonomous experimenter could not find an instance of asynchronous training. Therefore no update.")
+        logger.debug("hps: {}", self.gp_optimizer.hyperparameters)
 
     def _init_costs(self, cost_func_params):
-        self.gp_optimizer.init_cost(self.cost_func, cost_func_params,
-                                    cost_update_function=self.cost_update_func)
+        self.gp_optimizer.init_cost(self.cost_func, cost_func_params, cost_update_function=self.cost_update_func)
 
     def _tell(self, x, y, v, vp=None):
         if vp is None:
@@ -365,22 +362,20 @@ class AutonomousExperimenterGP():
 
         """
         start_time = time.time()
-        start_date_time = strftime("%Y-%m-%d_%H_%M_%S", time.localtime())
-        if self.info: print("Date and time:       ", start_date_time)
+        start_date_time = time.strftime("%Y-%m-%d_%H_%M_%S", time.localtime())
+        logger.info("Starting...")
 
         for i in range(self.init_dataset_size, int(N)):
             n_measurements = len(self.x)
-            print("")
-            print("")
-            print("")
-            print("iteration: ", i)
-            print("Run Time: ", time.time() - start_time, "     seconds")
-            print("Number of measurements: ", n_measurements)
+            logger.info("----------------------------")
+            logger.info(f"iteration {i}")
+            logger.info(f"Run Time: {time.time() - start_time} seconds")
+            logger.info(f"Number of measurements {n_measurements}")
 
 
             # ask() for new suggestions
             current_position = self.x[-1]
-            if self.info:print("current hps: ", self.gp_optimizer.hyperparameters)
+            logger.debug("current hps: {}", self.gp_optimizer.hyperparameters)
             local_method = acq_func_opt_setting(i)
             if number_of_suggested_measurements > 1: local_method = "hgdl"
             res = self.gp_optimizer.ask(
@@ -401,76 +396,77 @@ class AutonomousExperimenterGP():
             error = np.max(np.sqrt(post_var[0]))
             if acq_func_opt_tol_adjust:
                 acq_func_opt_tol = abs(func_evals[0]) * acq_func_opt_tol_adjust
-                if self.info:print("acquisition funciton optimization tolerance changed to: ", acq_func_opt_tol)
-            if self.info:print("Next points to be requested: ")
-            if self.info:print(next_measurement_points)
+                logger.debug("acquisition function optimization tolerance changed to: {}", acq_func_opt_tol)
+            logger.debug("Next points to be requested: ")
+            logger.debug(next_measurement_points)
             # update and tell() new data
             info = [{"hyperparameters": self.gp_optimizer.hyperparameters,
                      "posterior std": np.sqrt(post_var[j])} for j in range(len(next_measurement_points))]
             new_data = self.data.inject_arrays(next_measurement_points, info=info)
-            if self.info:print("Sending request to instrument ...")
+            logger.debug("Sending request to instrument ...")
             if self.communicate_full_dataset:
                 self.data.dataset = self.instrument_func(self.data.dataset + new_data)
             else:
                 self.data.dataset = self.data.dataset + self.instrument_func(new_data)
-            if self.info:print("Data received")
-            if self.info:print("Checking if data is clean ...")
+            logger.debug("Data received")
+            logger.debug("Checking if data is clean ...")
             self.data.check_incoming_data()
             if self.data.nan_in_dataset(): self.data.clean_data_NaN()
             # update arrays and the gp_optimizer
             self.x, self.y, self.v, self.t, self.c, vp = self._extract_data()
-            if self.info: print("Communicating new data to the GP")
+            logger.debug("Communicating new data to the GP")
             self._tell(self.x, self.y, self.v, vp)
             ###########################
             # train()
-            if self.info:
-                print("++++++++++++++++++++++++++")
-                print("|Training ...            |")
-                print("++++++++++++++++++++++++++")
+            logger.debug(inspect.cleandoc("""#
+                ++++++++++++++++++++++++++
+                |Training ...            |
+                ++++++++++++++++++++++++++"""))
             if n_measurements in retrain_async_at:
-                print("    Starting a new asynchronous training after killing the current one.")
+                logger.debug("    Starting a new asynchronous training after killing the current one.")
                 self.kill_training()
                 self.train_async(max_iter=training_opt_max_iter,
                                  dask_client=self.training_dask_client)
             elif n_measurements in retrain_globally_at:
                 self.kill_training()
-                if self.info:print("    Fresh optimization from scratch via global optimization")
+                logger.debug("    Fresh optimization from scratch via global optimization")
                 self.train(pop_size=training_opt_pop_size,
                            tol=training_opt_tol,
                            max_iter=training_opt_max_iter,
                            method="global")
             elif n_measurements in retrain_locally_at:
                 self.kill_training()
-                if self.info:print("    Fresh optimization from scratch via global optimization")
+                logger.debug("    Fresh optimization from scratch via global optimization")
                 self.train(pop_size=training_opt_pop_size,
                            tol=training_opt_tol,
                            max_iter=training_opt_max_iter,
                            method="local")
             else:
-                if self.info:print("    No training in this round but I am trying to update the hyperparameters")
+                logger.debug("    No training in this round but I am trying to update the hyperparameters")
                 self.update_hps()
-            if self.info:
-                print("++++++++++++++++++++++++++")
-                print("|     Training Done      |")
-                print("++++++++++++++++++++++++++")
+            logger.debug(inspect.cleandoc("""#
+                ++++++++++++++++++++++++++
+                |     Training Done      |
+                ++++++++++++++++++++++++++"""))
 
             ###save some data
             if self.run_every_iteration is not None: self.run_every_iteration(self)
             try:
                 np.save('Data_' + start_date_time, self.data.dataset)
             except Exception as e:
-                if self.info: print("Data not saved due to ", str(e))
+                logger.error("Data not saved due to {}", str(e))
             ###########################
             # cost update
             if i in update_cost_func_at: self.gp_optimizer.update_cost_function(self.c)
 
             if error < breaking_error: break
-        if self.info:print("killing the client... and then we are done")
+        logger.debug("killing the client... and then we are done")
         self.kill_client()
 
-        print("====================================================")
-        print("The autonomous experiment was concluded successfully")
-        print("====================================================")
+        logger.info(inspect.cleandoc("""#
+            ====================================================
+            The autonomous experiment was concluded successfully
+            ===================================================="""))
 
 
 ###################################################################################
@@ -664,10 +660,11 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         self._init_costs(cost_func_params)
         self.info = info
         if info:
-            print("##################################################################################")
-            print("Autonomous Experimenter fvGP initialization successfully concluded")
-            print("now train(...) or train_async(...), and then go(...)")
-            print("##################################################################################")
+            logger.info(inspect.cleandoc("""#
+            ##################################################################################
+            Autonomous Experimenter fvGP initialization successfully concluded
+            now train(...) or train_async(...), and then go(...)
+            ##################################################################################"""))
 
     def _extract_data(self):
         x, y, v, t, c, vp = self.data.extract_data()
