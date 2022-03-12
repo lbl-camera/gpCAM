@@ -4,5 +4,4 @@ import sys
 
 __version__ = _version.get_versions()['version']
 
-logger.remove()
-logger.add(sys.stderr, level='ERROR')
+logger.disable('gpcam')

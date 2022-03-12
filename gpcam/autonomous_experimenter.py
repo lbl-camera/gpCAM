@@ -130,7 +130,13 @@ class AutonomousExperimenterGP():
                  training_dask_client=None,
                  acq_func_opt_dask_client=None,
                  ram_economy=True,
+                 info=False
                  ):
+        if info:
+            logger.enable('gpcam')
+            logger.enable('fvgp')
+            logger.enable('hgdl')
+
         dim = len(parameter_bounds)
         self.instrument_func = instrument_func
         self.hyperparameter_bounds = hyperparameter_bounds
