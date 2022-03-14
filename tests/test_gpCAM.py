@@ -15,7 +15,7 @@ def ac_func1(x, obj):
     std_model = np.sqrt(r2)
     return -(r1 + 3.0 * std_model)
 
-def instrument(data):
+def instrument(data, instrument_dict=None):
     for entry in data:
         entry["value"] = np.sin(np.linalg.norm(entry["position"]))
     return data

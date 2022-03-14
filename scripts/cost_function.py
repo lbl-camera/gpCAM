@@ -1,6 +1,7 @@
 from typing import Callable
 
 import numpy as np
+from loguru import logger
 from scipy.optimize import differential_evolution as devo
 
 
@@ -31,8 +32,8 @@ def _update_cost_function(costs,
                           parameters,
                           cost_func: Callable,
                           compute_cost_misfit_func: Callable):
-    print("Cost adjustment in progress...")
-    print("old cost parameters: ", parameters)
+    logger.debug("Cost adjustment in progress...")
+    logger.debug("old cost parameters: ", parameters)
     bounds = 0.0
     # print(bounds)
     # input()
@@ -66,12 +67,11 @@ def _update_cost_function(costs,
                bounds,
                args=(origins, points, c),
                tol=1e-6,
-               disp=True,
                maxiter=300,
                popsize=20,
                polish=False)
     arguments = {"offset": res["x"][0], "slope": res["x"][1]}
-    print("New cost parameters: ", arguments)
+    logger.debug("New cost parameters: ", arguments)
     return arguments
 
 

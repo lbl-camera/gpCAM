@@ -1,5 +1,6 @@
 import numpy as np
 from matplotlib import pyplot as plt
+from loguru import logger
 
 
 def kernel_l2_single_task(x1, x2, hyperparameters, obj):
@@ -102,8 +103,8 @@ def gamma(x, hps):
 def non_stat_kernel_2d(x1, x2, hps, obj):
     x1 = x1[:, :-1]
     x2 = x2[:, :-1]
-    print(x1)
-    print(x2)
+    logger.debug(x1)
+    logger.debug(x2)
     C = np.empty((len(x1), len(x2)))
     for i in range(len(x1)):
         for j in range(len(x2)):
@@ -295,7 +296,7 @@ def psd_kernel_test1(func, hps, obj):
     for i in range(100):
         x = np.random.rand(1000)
         K = func(x, x, hps, obj)
-        print("check if it is 0 or larger (allow for machine precision zero): ", np.min(np.real(np.linalg.eig(K)[0])))
+        logger.debug("check if it is 0 or larger (allow for machine precision zero): {}", np.min(np.real(np.linalg.eig(K)[0])))
 
 
 def psd_proof(N, kernel):

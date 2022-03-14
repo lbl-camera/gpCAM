@@ -3,6 +3,8 @@ import itertools
 from functools import partial
 
 import numpy as np
+from loguru import logger
+
 from hgdl.hgdl import HGDL
 from scipy.optimize import differential_evolution as devo, minimize
 
@@ -95,15 +97,15 @@ def find_acquisition_function_maxima(gp, acquisition_function,
                                      dask_client=False):
     bounds = np.array(optimization_bounds)
     opt_obj = None
-    #print("====================================")
-    print("Finding acquisition function maxima via ",optimization_method," method")
-    #print("tolerance: ", optimization_tol)
-    #print("population size: ", optimization_pop_size)
-    #print("maximum number of iterations: ", optimization_max_iter)
-    #print("bounds: ")
-    #print(bounds)
-    #print("cost function parameters: ", cost_function_parameters)
-    #print("====================================")
+    logger.debug("====================================")
+    logger.debug(f"Finding acquisition function maxima via {optimization_method} method")
+    logger.debug("tolerance: {}", optimization_tol)
+    logger.debug("population size: {}", optimization_pop_size)
+    logger.debug("maximum number of iterations: {}", optimization_max_iter)
+    logger.debug("bounds: {}")
+    logger.debug(bounds)
+    logger.debug("cost function parameters: {}", cost_function_parameters)
+    logger.debug("====================================")
 
     if optimization_method == "global":
         opti, func_eval = differential_evolution(
@@ -160,7 +162,7 @@ def find_acquisition_function_maxima(gp, acquisition_function,
         func_eval = np.array(a["fun"])
         if func_eval.ndim == 0: func_eval = np.array([func_eval])
         if a["success"] is False:
-            print("local acquisition function optimization not successful, solution replaced with random point.")
+            logger.warning("local acquisition function optimization not successful, solution replaced with random point.")
             opti = np.array(x0)
             if opti.ndim != 2: opti = np.array([opti])
             func_eval = evaluate_acquisition_function(x0,
@@ -173,8 +175,8 @@ def find_acquisition_function_maxima(gp, acquisition_function,
     #print("     x: ", opti)
     #print("  f(x): ", func_eval)
     if func_eval.ndim != 1 or opti.ndim != 2:
-        print("f(x): ", func_eval)
-        print("x: ", opti)
+        logger.error("f(x): ", func_eval)
+        logger.error("x: ", opti)
         raise Exception(
             "The output of the acquisition function optimization dim (f) != 1 or dim(x) != 2. Please check your "
             "acquisition function. It should return a 1-d numpy array")
@@ -198,7 +200,7 @@ def differential_evolution(ObjectiveFunction,
     fun = partial(ObjectiveFunction, gp=gp, acquisition_function=acquisition_function, origin=origin,
                   cost_function=cost_function, cost_function_parameters=cost_function_parameters)
     res = devo(
-        fun, bounds, tol=tol, disp=True, maxiter=max_iter, popsize=popsize, polish=False
+        fun, bounds, tol=tol, maxiter=max_iter, popsize=popsize, polish=False
     )
     return [list(res["x"])], list([res["fun"]])
 
