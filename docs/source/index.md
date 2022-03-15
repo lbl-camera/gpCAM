@@ -41,6 +41,7 @@ caption: Usage
 ---
 case-studies/index.md
 common-bugs.md
+logging.md
 ```
 
 ```{toctree}
