@@ -315,6 +315,7 @@ class AutonomousExperimenterGP():
            acq_func_opt_tol=1e-6,
            acq_func_opt_tol_adjust=0.1,
            number_of_suggested_measurements=1,
+           checkpoint_filename=None
            ):
 
         """
@@ -365,7 +366,8 @@ class AutonomousExperimenterGP():
             The algorithm will try to return this many suggestions for new measurements. This may be limited by how many
             optima the algorithm may find. If greater than 1, then the `acq_func` optimization method is automatically
             set to use HGDL. The default is 1.
-
+        checkpoint_filename : str, optional
+            When provided, a checkpoint of all the accumulated data will be written to this file on each iteration.
         """
         start_time = time.time()
         start_date_time = time.strftime("%Y-%m-%d_%H_%M_%S", time.localtime())
@@ -455,12 +457,14 @@ class AutonomousExperimenterGP():
                 |     Training Done      |
                 ++++++++++++++++++++++++++"""))
 
-            ###save some data
             if self.run_every_iteration is not None: self.run_every_iteration(self)
-            try:
-                np.save('Data_' + start_date_time, self.data.dataset)
-            except Exception as e:
-                logger.error("Data not saved due to {}", str(e))
+
+            ###save some data
+            if checkpoint_filename:
+                try:
+                    np.save(checkpoint_filename, self.data.dataset)
+                except Exception as e:
+                    raise RuntimeError("Data not saved") from e
             ###########################
             # cost update
             if i in update_cost_func_at: self.gp_optimizer.update_cost_function(self.c)
