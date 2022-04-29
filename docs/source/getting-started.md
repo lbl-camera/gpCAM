@@ -1,7 +1,7 @@
 ---
 banner: _static/mac-laptop.jpg
 banner_brightness: .8
----
+
 
 # Getting Started
 
@@ -9,8 +9,8 @@ Getting started with gpCAM is simple:
 
 1. [Install the Code](installation.md).
 
-2. Decide on the [level](case-studies/index.md) you want to run gpCAM on
-   and check out the [documentation](case-studies/index.md) based on that decision.
+2. Decide on the level you want to run gpCAM on
+   and check out the [api](api/index.md) based on that decision.
 
 3. Run your experiment or simulation autonomously! 
 

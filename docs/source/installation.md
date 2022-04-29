@@ -29,23 +29,8 @@ To install gpCAM do the following:
 To test your installation, either run the following script in Python or iPython:
 
 ```python
-from gpcam.test_gpcam import TestgpCAM
-t = TestgpCAM()
-t.setUp()
-t.test_single_task()
+from gpcam.installation_check import check
+check()
 ```
 
 Or pull the code from the repository and check out ./tests/ for some jupyter notebooks.
-
-To use the software version of gpCAM or have a closer look at the tests, do the following:
-
-1. download the code via: `git clone https://github.com/lbl-camera/gpCAM.git`
-
-2. go to the parent directory
-
-3. cd scripts
-
-4. vim [Config.py](using-gpcam-as-software.md)
-   (open the configuration file, change it with your favorite editor)
-
-5. run `python Run_gpCAM.py`
