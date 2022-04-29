@@ -24,3 +24,6 @@ Quick Links:
 Have suggestions for the API or found a bug? 
 ```
 
+````{div} text-center
+Please submit an issue on [GitHub](https://github.com/lbl-camera/gpCAM/).
+````
