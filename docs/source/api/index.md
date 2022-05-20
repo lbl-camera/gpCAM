@@ -3,13 +3,13 @@
 Starting with version 7 of gpCAM, the user has several access points (from high level to low level):
 
 - Using the AutonomousExperimenter functionality
-  - AutonomousExperimenterGP: implements an autonomous loop for a single-task GP 
-  - AutonomousExperimenterfvGP: implements an autonomous loop for multi-task GP
+  - AutonomousExperimenterGP: implements an autonomous loop for a single-task GP
+  - AutonomousExperimenterfvGP: implements an autonomous loop for a multi-task GP
 
-- The user can use the gpOptimizer (already available in version 6) functionality directly to get full control. The gpOptimizer class is a function optimization wrapper around fvGP, the same is true for the fvgpOptimizer class.
+- The user can use the gpOptimizer (already available in version 6) functionality directly to get full control. The gpOptimizer class is a function optimization wrapper around fvGP, the same is true for the fvgpOptimizer class. Using the gpOptimizer functionality means implementing your own loop
 - For GP related work only, the user can use the fvgp package directly (no suggestion capability, no native steering)
 
-For tests and examples, check out the examples on this very website or download the repository and go to "./tests".
+For tests and examples, check out the case studies on this very website, download the repository and go to "./tests", or visit the project [website](https://gpcam.lbl.gov/).
 
 
 Quick Links:
