@@ -356,7 +356,7 @@ class GPOptimizer(GP):
             max_iter=20,
             tol=1e-6,
             x0=None,
-            dask_client=False):
+            dask_client=None):
 
         """
         Given that the acquisition device is at "position", the function ask()s for
