@@ -415,6 +415,7 @@ class GPOptimizer(GP):
         logger.debug("optimization method: {}", method)
         logger.debug("bounds:\n{}", bounds)
         logger.debug("acq func: {}", acquisition_function)
+        if n > 1: method = "hgdl"
         if bounds is None: bounds = self.input_space_bounds
         maxima, func_evals, opt_obj = sm.find_acquisition_function_maxima(
             self,
