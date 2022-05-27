@@ -94,7 +94,7 @@ def find_acquisition_function_maxima(gp, acquisition_function,
                                      optimization_x0=None,
                                      cost_function=None,
                                      cost_function_parameters=None,
-                                     dask_client=False):
+                                     dask_client=None):
     bounds = np.array(optimization_bounds)
     opt_obj = None
     logger.debug("====================================")
