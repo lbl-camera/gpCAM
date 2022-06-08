@@ -93,4 +93,5 @@ def update_l2_cost_function(costs, bounds, parameters):
 
 ## Constrained Optimization
 
-This feature is currently in development.
+It is now possible to create hgdl.constraints.NonLinearConstraint object instances and communicate them to gp_optimizer.train and gp_optimizer.train_async().
+Setting this up is a little tricky but potentially very beneficial.
