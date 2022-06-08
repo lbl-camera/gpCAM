@@ -138,7 +138,6 @@ def find_acquisition_function_maxima(gp, acquisition_function,
 
         #####optimization_max_iter, tolerance here
         if optimization_x0: optimization_x0 = optimization_x0.reshape(1,-1)
-        print(dask_client)
         a.optimize(dask_client=dask_client, x0=optimization_x0, tolerance=optimization_tol)
         res = a.get_final()
         a.cancel_tasks()
