@@ -92,20 +92,21 @@ def find_acquisition_function_maxima(gp, acquisition_function,
                                      optimization_max_iter=10,
                                      optimization_tol=1e-6,
                                      optimization_x0=None,
+                                     constraints = (),
                                      cost_function=None,
                                      cost_function_parameters=None,
-                                     dask_client=False):
+                                     dask_client=None):
     bounds = np.array(optimization_bounds)
     opt_obj = None
-    logger.debug("====================================")
-    logger.debug(f"Finding acquisition function maxima via {optimization_method} method")
-    logger.debug("tolerance: {}", optimization_tol)
-    logger.debug("population size: {}", optimization_pop_size)
-    logger.debug("maximum number of iterations: {}", optimization_max_iter)
-    logger.debug("bounds: {}")
-    logger.debug(bounds)
-    logger.debug("cost function parameters: {}", cost_function_parameters)
-    logger.debug("====================================")
+    logger.info("====================================")
+    logger.info(f"Finding acquisition function maxima via {optimization_method} method")
+    logger.info("tolerance: {}", optimization_tol)
+    logger.info("population size: {}", optimization_pop_size)
+    logger.info("maximum number of iterations: {}", optimization_max_iter)
+    logger.info("bounds: {}")
+    logger.info(bounds)
+    logger.info("cost function parameters: {}", cost_function_parameters)
+    logger.info("====================================")
 
     if optimization_method == "global":
         opti, func_eval = differential_evolution(
@@ -115,6 +116,7 @@ def find_acquisition_function_maxima(gp, acquisition_function,
             popsize=optimization_pop_size,
             max_iter=optimization_max_iter,
             origin=origin,
+            constraints = constraints,
             gp=gp,
             acquisition_function=acquisition_function,
             cost_function=cost_function,
@@ -131,15 +133,19 @@ def find_acquisition_function_maxima(gp, acquisition_function,
                  evaluate_acquisition_function_hessian,
                  num_epochs=optimization_max_iter,
                  local_optimizer="L-BFGS-B",
+                 constraints = constraints,
                  args=(gp, acquisition_function, origin, cost_function, cost_function_parameters))
 
         #####optimization_max_iter, tolerance here
+        if optimization_x0: optimization_x0 = optimization_x0.reshape(1,-1)
+        print(dask_client)
         a.optimize(dask_client=dask_client, x0=optimization_x0, tolerance=optimization_tol)
-        res = a.get_final(number_of_maxima_sought)
+        res = a.get_final()
         a.cancel_tasks()
         opt_obj = a
-        opti = res['x']
-        func_eval = res['func evals']
+        opti = res['x'][0:min(len(res['x']),number_of_maxima_sought)]
+        func_eval = res['f(x)'][0:min(len(res['x']),number_of_maxima_sought)]
+
     elif optimization_method == "local":
         if optimization_x0 is not None and optimization_x0.ndim == 1:
             x0 = optimization_x0
@@ -154,6 +160,7 @@ def find_acquisition_function_maxima(gp, acquisition_function,
             method="L-BFGS-B",
             jac=evaluate_acquisition_function_gradient,
             bounds=bounds,
+            constraints = constraints,
             tol=optimization_tol,
             callback=None,
             options={"maxiter": optimization_max_iter}
@@ -171,9 +178,6 @@ def find_acquisition_function_maxima(gp, acquisition_function,
             if func_eval.ndim != 1: func_eval = np.array([func_eval])
     else:
         raise ValueError("Invalid acquisition function optimization method given.")
-    #print("The acquisition function optimization resulted in: ")
-    #print("     x: ", opti)
-    #print("  f(x): ", func_eval)
     if func_eval.ndim != 1 or opti.ndim != 2:
         logger.error("f(x): ", func_eval)
         logger.error("x: ", opti)
@@ -196,12 +200,11 @@ def differential_evolution(ObjectiveFunction,
                            gp=None,
                            acquisition_function=None,
                            cost_function=None,
+                           constraints = (),
                            cost_function_parameters=None):
     fun = partial(ObjectiveFunction, gp=gp, acquisition_function=acquisition_function, origin=origin,
                   cost_function=cost_function, cost_function_parameters=cost_function_parameters)
-    res = devo(
-        fun, bounds, tol=tol, maxiter=max_iter, popsize=popsize, polish=False
-    )
+    res = devo(fun, bounds, tol=tol, maxiter=max_iter, popsize=popsize, polish=False, constraints = constraints)
     return [list(res["x"])], list([res["fun"]])
 
 

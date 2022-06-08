@@ -134,8 +134,8 @@ class AutonomousExperimenterGP():
                  ):
         if info:
             logger.enable('gpcam')
-            logger.enable('fvgp')
-            logger.enable('hgdl')
+            #logger.enable('fvgp')
+            #logger.enable('hgdl')
 
         dim = len(parameter_bounds)
         self.instrument_func = instrument_func
@@ -243,12 +243,12 @@ class AutonomousExperimenterGP():
         """
 
         if dask_client is None: dask_client = self.training_dask_client
-        logger.debug("AutonomousExperimenter starts async training with dask client:")
+        logger.info("AutonomousExperimenter starts async training with dask client:")
         self.opt_obj = self.gp_optimizer.train_gp_async(
             self.hyperparameter_bounds, max_iter=max_iter, local_method=local_method, global_method=global_method,
             dask_client=dask_client
         )
-        logger.debug("The Autonomous Experimenter started an instance of the asynchronous training.")
+        logger.info("The Autonomous Experimenter started an instance of the asynchronous training.")
         self.async_train_in_progress = True
 
     def kill_training(self):
@@ -259,7 +259,7 @@ class AutonomousExperimenterGP():
             self.gp_optimizer.stop_async_train(self.opt_obj)
             self.async_train_in_progress = False
         else:
-            logger.debug("no training to be killed")
+            logger.info("no training to be killed")
 
     def kill_client(self):
         """
@@ -267,9 +267,7 @@ class AutonomousExperimenterGP():
         Will be called automatically at the end of go().
         """
         try:
-            self.training_dask_client.shutdown()
             self.training_dask_client.close()
-            self.acq_func_opt_dask_client.shutdown()
             self.acq_func_opt_dask_client.close()
         except Exception as ex:
             logger.error(str(ex))
@@ -282,10 +280,10 @@ class AutonomousExperimenterGP():
         """
         if self.async_train_in_progress:
             self.gp_optimizer.update_hyperparameters(self.opt_obj)
-            logger.debug("The Autonomus Experimenter updated the hyperparameters")
+            logger.info("The Autonomus Experimenter updated the hyperparameters")
         else:
             logger.warning("The autonomous experimenter could not find an instance of asynchronous training. Therefore no update.")
-        logger.debug("hps: {}", self.gp_optimizer.hyperparameters)
+        logger.info("hps: {}", self.gp_optimizer.hyperparameters)
 
     def _init_costs(self, cost_func_params):
         self.gp_optimizer.init_cost(self.cost_func, cost_func_params, cost_update_function=self.cost_update_func)
@@ -383,7 +381,7 @@ class AutonomousExperimenterGP():
 
             # ask() for new suggestions
             current_position = self.x[-1]
-            logger.debug("current hps: {}", self.gp_optimizer.hyperparameters)
+            logger.info("current hps: {}", self.gp_optimizer.hyperparameters)
             local_method = acq_func_opt_setting(i)
             if number_of_suggested_measurements > 1: local_method = "hgdl"
             res = self.gp_optimizer.ask(
@@ -404,55 +402,55 @@ class AutonomousExperimenterGP():
             error = np.max(np.sqrt(post_var[0]))
             if acq_func_opt_tol_adjust:
                 acq_func_opt_tol = abs(func_evals[0]) * acq_func_opt_tol_adjust
-                logger.debug("acquisition function optimization tolerance changed to: {}", acq_func_opt_tol)
-            logger.debug("Next points to be requested: ")
-            logger.debug(next_measurement_points)
+                logger.info("acquisition function optimization tolerance changed to: {}", acq_func_opt_tol)
+            logger.info("Next points to be requested: ")
+            logger.info(next_measurement_points)
             # update and tell() new data
             info = [{"hyperparameters": self.gp_optimizer.hyperparameters,
                      "posterior std": np.sqrt(post_var[j])} for j in range(len(next_measurement_points))]
             new_data = self.data.inject_arrays(next_measurement_points, info=info)
-            logger.debug("Sending request to instrument ...")
+            logger.info("Sending request to instrument ...")
             if self.communicate_full_dataset:
                 self.data.dataset = self.instrument_func(self.data.dataset + new_data)
             else:
                 self.data.dataset = self.data.dataset + self.instrument_func(new_data)
-            logger.debug("Data received")
-            logger.debug("Checking if data is clean ...")
+            logger.info("Data received")
+            logger.info("Checking if data is clean ...")
             self.data.check_incoming_data()
             if self.data.nan_in_dataset(): self.data.clean_data_NaN()
             # update arrays and the gp_optimizer
             self.x, self.y, self.v, self.t, self.c, vp = self._extract_data()
-            logger.debug("Communicating new data to the GP")
+            logger.info("Communicating new data to the GP")
             self._tell(self.x, self.y, self.v, vp)
             ###########################
             # train()
-            logger.debug(inspect.cleandoc("""#
+            logger.info(inspect.cleandoc("""#
                 ++++++++++++++++++++++++++
                 |Training ...            |
                 ++++++++++++++++++++++++++"""))
             if n_measurements in retrain_async_at:
-                logger.debug("    Starting a new asynchronous training after killing the current one.")
+                logger.info("    Starting a new asynchronous training after killing the current one.")
                 self.kill_training()
                 self.train_async(max_iter=training_opt_max_iter,
                                  dask_client=self.training_dask_client)
             elif n_measurements in retrain_globally_at:
                 self.kill_training()
-                logger.debug("    Fresh optimization from scratch via global optimization")
+                logger.info("    Fresh optimization from scratch via global optimization")
                 self.train(pop_size=training_opt_pop_size,
                            tol=training_opt_tol,
                            max_iter=training_opt_max_iter,
                            method="global")
             elif n_measurements in retrain_locally_at:
                 self.kill_training()
-                logger.debug("    Fresh optimization from scratch via global optimization")
+                logger.info("    Fresh optimization from scratch via global optimization")
                 self.train(pop_size=training_opt_pop_size,
                            tol=training_opt_tol,
                            max_iter=training_opt_max_iter,
                            method="local")
             else:
-                logger.debug("    No training in this round but I am trying to update the hyperparameters")
+                logger.info("    No training in this round but I am trying to update the hyperparameters")
                 self.update_hps()
-            logger.debug(inspect.cleandoc("""#
+            logger.info(inspect.cleandoc("""#
                 ++++++++++++++++++++++++++
                 |     Training Done      |
                 ++++++++++++++++++++++++++"""))
@@ -470,7 +468,7 @@ class AutonomousExperimenterGP():
             if i in update_cost_func_at: self.gp_optimizer.update_cost_function(self.c)
 
             if error < breaking_error: break
-        logger.debug("killing the client... and then we are done")
+        logger.info("killing the client... and then we are done")
         self.kill_client()
 
         logger.info(inspect.cleandoc("""#

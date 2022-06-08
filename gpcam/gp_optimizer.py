@@ -210,6 +210,7 @@ class GPOptimizer(GP):
                        hyperparameter_bounds,
                        max_iter=10000,
                        dask_client=None,
+                       constraints = (),
                        local_method="L-BFGS-B",
                        global_method="genetic"):
         """
@@ -224,6 +225,8 @@ class GPOptimizer(GP):
             Number of iterations before the optimization algorithm is terminated. Since the algorithm works
             asynchronously, this
             number can be high. The default is 10000
+        constraints: tuple of object instances, optional
+            Either a tuple of hgdl.constraints.NonLinearConstraint or scipy constraints instances, depending on the used optimizer.
         dask_client : distributed.client.Client, optional
             A Dask Distributed Client instance for distributed training. If None is provided, a local
             `dask.distributed.Client` instance is constructed.
@@ -249,6 +252,7 @@ class GPOptimizer(GP):
             hyperparameter_bounds,
             init_hyperparameters=self.hyperparameters,
             max_iter=max_iter,
+            constraints = constraints,
             dask_client=dask_client,
             local_optimizer=local_method,
             global_optimizer=global_method
@@ -262,6 +266,7 @@ class GPOptimizer(GP):
                  method="global",
                  pop_size=20,
                  tolerance=1e-6,
+                 constraints = ()
                  ):
         """
         Function to train a Gaussian Process.
@@ -280,6 +285,9 @@ class GPOptimizer(GP):
             The number of individuals used if `global` is chosen as method.
         tolerance : float, optional
             Tolerance to be used to define a termination criterion for the optimizer.
+        constraints: tuple of object instances, optional
+            Either a tuple of hgdl.constraints.NonLinearConstraint or scipy constraints instances, depending on the used optimizer.
+
 
         Return
         ------
@@ -294,6 +302,7 @@ class GPOptimizer(GP):
             init_hyperparameters=self.hyperparameters,
             method=method,
             pop_size=pop_size,
+            constraints = constraints,
             tolerance=tolerance,
             max_iter=max_iter
         )
@@ -354,8 +363,9 @@ class GPOptimizer(GP):
             pop_size=20,
             max_iter=20,
             tol=1e-6,
+            constraints = (),
             x0=None,
-            dask_client=False):
+            dask_client=None):
 
         """
         Given that the acquisition device is at "position", the function ask()s for
@@ -398,6 +408,8 @@ class GPOptimizer(GP):
             A set of points as numpy array of shape V x D, used as starting location(s) for the local and hgdl
             optimization
             algorithm. The default is None.
+        constraints: tuple of object instances, optional
+            Either a tuple of hgdl.constraints.NonLinearConstraint or scipy constraints instances, depending on the used optimizer.
         dask_client : distributed.client.Client, optional
             A Dask Distributed Client instance for distributed `acquisition_func` computation. If None is provided,
             a new
@@ -410,10 +422,10 @@ class GPOptimizer(GP):
             that, only in case of `method` = `hgdl` can be queried for solutions.
         """
 
-        logger.debug("ask() initiated with hyperparameters: {}", self.hyperparameters)
-        logger.debug("optimization method: {}", method)
-        logger.debug("bounds:\n{}", bounds)
-        logger.debug("acq func: {}", acquisition_function)
+        logger.info("ask() initiated with hyperparameters: {}", self.hyperparameters)
+        logger.info("optimization method: {}", method)
+        logger.info("bounds:\n{}", bounds)
+        logger.info("acq func: {}", acquisition_function)
         if n > 1: method = "hgdl"
         if bounds is None: bounds = self.input_space_bounds
         maxima, func_evals, opt_obj = sm.find_acquisition_function_maxima(
@@ -427,6 +439,7 @@ class GPOptimizer(GP):
             cost_function=self.cost_function,
             cost_function_parameters=self.cost_function_parameters,
             optimization_x0=x0,
+            constraints = constraints,
             dask_client=dask_client)
         return {'x': np.array(maxima), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
 
