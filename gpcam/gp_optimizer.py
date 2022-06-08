@@ -133,7 +133,8 @@ class GPOptimizer(GP):
         self.values = y
         self.variances = variances
 
-        if self.gp_initialized is True: self._update_gp()
+        if self.gp_initialized:
+            self._update_gp()
 
     ##############################################################
     def init_gp(
