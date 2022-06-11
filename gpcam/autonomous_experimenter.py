@@ -73,6 +73,8 @@ class AutonomousExperimenterGP():
         Initial data point values
     v : np.ndarray, optional
         Initial data point observation variances
+    dataset : string, optional
+        A filename of a gpcam-generated file that is used to initialize a new instance.
     communicate_full_dataset : bool, optional
         If True, the full dataset will be communicated to the `instrument_func` on each iteration. If False, only the
         newly suggested data points will be communicated. The default is False.
