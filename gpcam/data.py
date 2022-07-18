@@ -70,7 +70,7 @@ class gpData:
         d["cost"] = None
         d["id"] = str(uuid.uuid4())
         d["time stamp"] = time.time()
-        d["date time"] = datetime.datetime.now().strftime("%d/%m/%Y_%H:%M%S")
+        d["date time"] = datetime.datetime.now().strftime("%d/%m/%Y_%H:%M:%S")
         d["measured"] = False
         # d["posterior variance"] = None #post_var
         # d["hyperparameters"] = None #hps
@@ -264,7 +264,7 @@ class fvgpData(gpData):
         d["cost"] = None
         d["id"] = str(uuid.uuid4())
         d["time stamp"] = time.time()
-        d["date time"] = datetime.datetime.now().strftime("%d/%m/%Y_%H:%M%S")
+        d["date time"] = datetime.datetime.now().strftime("%d/%m/%Y_%H:%M:%S")
         d["measured"] = False
         # d["posterior variances"] = None
         # d["hyperparameters"] = None

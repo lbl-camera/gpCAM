@@ -387,9 +387,8 @@ class GPOptimizer(GP):
             points, and D is the parameter space dimensionality) and a `GPOptimizer` object. The return value is 1-D
             array
             of length V providing 'scores' for each position, such that the highest scored point will be measured next.
-            Built-in functions can be used by one of the following keys: `'shannon_ig'`, `'UCB'`, `'maximum'`,
-            `'minimum'`,
-            `'covariance'`, and `'variance'`. If None, the default function is the `'variance'`, meaning
+            Built-in functions can be used by one of the following keys: `'shannon_ig'`, `'ucb'`, `'maximum'`,
+            `'minimum'`, `'covariance'`, `'variance'`, and `'gradient'`. If None, the default function is the `'variance'`, meaning
             `fvgp.gp.GP.posterior_covariance` with variance_only = True.
         bounds : np.ndarray, optional
             A numpy array of floats of shape D x 2 describing the search range. The default is the entire input space.

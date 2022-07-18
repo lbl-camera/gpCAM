@@ -78,6 +78,14 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gp):
     elif acquisition_function == "maximum":
         res = gp.posterior_mean(x)["f(x)"]
         return res
+    elif acquisition_function == "gradient":
+        #mean = gp.posterior_mean(x)["f(x)"]
+        mean_grad = gp.posterior_mean_grad(x)["df/dx"]
+        std = np.sqrt(gp.posterior_covariance(x, variance_only = True)["v(x)"])
+        #std_grad = (gp.posterior_covariance_grad(x)["dv/dx"] / (2.*std))
+        #res = np.linalg.norm(mean_grad + 3.0 * std_grad, axis = 1)
+        res = np.linalg.norm(mean_grad, axis = 1) * std
+        return res
     elif acquisition_function == "minimum":
         res = gp.posterior_mean(x)["f(x)"]
         return -res

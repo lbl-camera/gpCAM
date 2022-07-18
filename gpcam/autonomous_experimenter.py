@@ -39,8 +39,8 @@ class AutonomousExperimenterGP():
         The acquisition function accepts as input a numpy array of size V x D (such that V is the number of input
         points, and D is the parameter space dimensionality) and a `GPOptimizer` object. The return value is 1-D array
         of length V providing 'scores' for each position, such that the highest scored point will be measured next.
-        Built-in functions can be used by one of the following keys: `'shannon_ig'`, `'UCB'`, `'maximum'`, `'minimum'`,
-        `'covariance'`, and `'variance'`. If None, the default function is the `'variance'`, meaning
+        Built-in functions can be used by one of the following keys: `'shannon_ig'`, `'ucb'`, `'maximum'`, `'minimum'`,
+        `'covariance'`, `'variance'`, and `'gradient'`. If None, the default function is the `'variance'`, meaning
         `fvgp.gp.GP.posterior_covariance` with variance_only = True.
     cost_func : Callable, optional
         A function encoding the cost of motion through the input space and the cost of a measurement. Its inputs are an
@@ -138,6 +138,7 @@ class AutonomousExperimenterGP():
             logger.enable('gpcam')
             #logger.enable('fvgp')
             #logger.enable('hgdl')
+        else: logger.disable('gpcam')
 
         dim = len(parameter_bounds)
         self.instrument_func = instrument_func
@@ -151,9 +152,8 @@ class AutonomousExperimenterGP():
         self.communicate_full_dataset = communicate_full_dataset
         self.async_train_in_progress = False
         self.training_dask_client = training_dask_client
-        if self.training_dask_client is None: self.training_dask_client = dask.distributed.Client()
         self.acq_func_opt_dask_client = acq_func_opt_dask_client
-        if self.acq_func_opt_dask_client is None: self.acq_func_opt_dask_client = self.training_dask_client
+        #if self.acq_func_opt_dask_client is None: self.acq_func_opt_dask_client = self.training_dask_client
         ################################
         # getting the data ready#########
         ################################
@@ -234,16 +234,17 @@ class AutonomousExperimenterGP():
         max_iter : int, optional
             Maximum number of iterations for the global method. Default = 10000
             It is important to remember here that the call is run asynchronously, so
-            the 10000 does not affect run time.
+            this number does not affect run time.
         local_method : str, optional
             Local method to be used inside HGDL. Many scipy.optimize.minimize methods
-            can be used, or a user-defined callable. Please HGDL docs for more information.
+            can be used, or a user-defined callable. Please read the HGDL docs for more information.
             Default = `'L-BFGS-B'`.
         global_method : str, optional
-            Local method to be used inside HGDL. Please HGDL docs for more information.
+            Local method to be used inside HGDL. Please read the HGDL docs for more information.
             Default = `'genetic'`.
         """
 
+        if self.training_dask_client is None: self.training_dask_client = dask.distributed.Client()
         if dask_client is None: dask_client = self.training_dask_client
         logger.info("AutonomousExperimenter starts async training with dask client:")
         self.opt_obj = self.gp_optimizer.train_gp_async(
@@ -273,7 +274,7 @@ class AutonomousExperimenterGP():
             self.acq_func_opt_dask_client.close()
         except Exception as ex:
             logger.error(str(ex))
-            logger.error("Killing of the clients failed. Please do so manually before initializing new ones.")
+            logger.error("Killing of the clients failed. Please do so manually before initializing a new one.")
 
     def update_hps(self):
         """
@@ -369,6 +370,7 @@ class AutonomousExperimenterGP():
         checkpoint_filename : str, optional
             When provided, a checkpoint of all the accumulated data will be written to this file on each iteration.
         """
+        if self.training_dask_client is None: self.training_dask_client = dask.distributed.Client()
         start_time = time.time()
         start_date_time = time.strftime("%Y-%m-%d_%H_%M_%S", time.localtime())
         logger.info("Starting...")
@@ -386,6 +388,8 @@ class AutonomousExperimenterGP():
             logger.info("current hps: {}", self.gp_optimizer.hyperparameters)
             local_method = acq_func_opt_setting(i)
             if number_of_suggested_measurements > 1: local_method = "hgdl"
+            if local_method == "hgdl" and self.acq_func_opt_dask_client is None:
+                self.acq_func_opt_dask_client = dask.distributed.Client()
             res = self.gp_optimizer.ask(
                 position=current_position,
                 n=number_of_suggested_measurements,
@@ -401,7 +405,7 @@ class AutonomousExperimenterGP():
             next_measurement_points = res["x"]
             func_evals = res["f(x)"]
             post_var = self.gp_optimizer.posterior_covariance(next_measurement_points)["v(x)"]
-            error = np.max(np.sqrt(post_var[0]))
+            error = np.max(np.sqrt(post_var))
             if acq_func_opt_tol_adjust:
                 acq_func_opt_tol = abs(func_evals[0]) * acq_func_opt_tol_adjust
                 logger.info("acquisition function optimization tolerance changed to: {}", acq_func_opt_tol)
@@ -432,6 +436,7 @@ class AutonomousExperimenterGP():
                 ++++++++++++++++++++++++++"""))
             if n_measurements in retrain_async_at:
                 logger.info("    Starting a new asynchronous training after killing the current one.")
+                print("    Starting a new asynchronous training after killing the current one.")
                 self.kill_training()
                 self.train_async(max_iter=training_opt_max_iter,
                                  dask_client=self.training_dask_client)
