@@ -316,7 +316,8 @@ class AutonomousExperimenterGP():
            acq_func_opt_tol=1e-6,
            acq_func_opt_tol_adjust=0.1,
            number_of_suggested_measurements=1,
-           checkpoint_filename=None
+           checkpoint_filename=None,
+           constraints = ()
            ):
 
         """
@@ -369,6 +370,9 @@ class AutonomousExperimenterGP():
             set to use HGDL. The default is 1.
         checkpoint_filename : str, optional
             When provided, a checkpoint of all the accumulated data will be written to this file on each iteration.
+        constraints : tuple, optional
+            If provided, this subjects the acquisition function optimization to constraints. For the definition of the constraints, follow
+            the structure your chosen optimizer requires.
         """
         if self.training_dask_client is None: self.training_dask_client = dask.distributed.Client()
         start_time = time.time()
@@ -399,6 +403,7 @@ class AutonomousExperimenterGP():
                 pop_size=acq_func_opt_pop_size,
                 max_iter=acq_func_opt_max_iter,
                 tol=acq_func_opt_tol,
+                constraints = constraints,
                 dask_client=self.acq_func_opt_dask_client)
             #########################
             self.acq_func_max_opt_obj = res["opt_obj"]
