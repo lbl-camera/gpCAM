@@ -379,7 +379,10 @@ class AutonomousExperimenterGP():
         start_date_time = time.strftime("%Y-%m-%d_%H_%M_%S", time.localtime())
         logger.info("Starting...")
 
-        for i in range(self.init_dataset_size, int(N)):
+        i = 0
+        n_measurements = len(self.x)
+        while n_measurements < N:
+            i += 1
             n_measurements = len(self.x)
             logger.info("----------------------------")
             logger.info(f"iteration {i}")
