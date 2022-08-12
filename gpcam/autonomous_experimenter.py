@@ -442,20 +442,20 @@ class AutonomousExperimenterGP():
                 ++++++++++++++++++++++++++
                 |Training ...            |
                 ++++++++++++++++++++++++++"""))
-            if n_measurements in retrain_async_at:
+            if n_measurements in retrain_async_at and n_measurements<N:
                 logger.info("    Starting a new asynchronous training after killing the current one.")
                 print("    Starting a new asynchronous training after killing the current one.")
                 self.kill_training()
                 self.train_async(max_iter=training_opt_max_iter,
                                  dask_client=self.training_dask_client)
-            elif n_measurements in retrain_globally_at:
+            elif n_measurements in retrain_globally_at and n_measurements<N:
                 self.kill_training()
                 logger.info("    Fresh optimization from scratch via global optimization")
                 self.train(pop_size=training_opt_pop_size,
                            tol=training_opt_tol,
                            max_iter=training_opt_max_iter,
                            method="global")
-            elif n_measurements in retrain_locally_at:
+            elif n_measurements in retrain_locally_at and n_measurements<N:
                 self.kill_training()
                 logger.info("    Fresh optimization from scratch via global optimization")
                 self.train(pop_size=training_opt_pop_size,
