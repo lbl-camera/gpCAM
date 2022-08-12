@@ -326,7 +326,7 @@ class AutonomousExperimenterGP():
         Parameters
         ----------
         N : int, optional
-            Run for N iterations. The default is `1e15`.
+            Run until N points are measured. The default is `1e15`.
         breaking_error : float, optional
             Run until breaking_error is achieved (or at max N). The default is `1e-50`.
         retrain_globally_at : Iterable[int], optional
