@@ -461,7 +461,6 @@ class AutonomousExperimenterGP():
                            max_iter=training_opt_max_iter,
                            method="local")
             else:
-                print('no training at len',len(self.x))
                 logger.info("    No training in this round but I am trying to update the hyperparameters")
                 self.update_hps()
             logger.info(inspect.cleandoc("""#
