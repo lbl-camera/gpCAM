@@ -221,16 +221,22 @@ _acq_function_vectorized_blacklist = set()
 def acq_function_vectorization_wrapper(x, func):
     # find inner func
     inner_func = func
-    while hasattr(inner_func, 'func'):
-        # strip away partials
-        inner_func = getattr(func, 'func')
+    args = tuple()
+    kwargs = dict()
+    # strip away partials
+    if hasattr(inner_func, 'func'):
+        inner_func = func.func
+        args = func.args
+        kwargs = func.keywords.copy()
+        del kwargs['gp']
+        del kwargs['origin']
 
     # don't attempt to feed func vectorized data if it has already failed
     if inner_func not in _acq_function_vectorized_blacklist:
         acq = func(x.T)
         if len(acq) != x.shape[1]:
             # return shape is inappropriate given input data from differential evolution
-            _acq_function_vectorized_blacklist.add(inner_func)
+            _acq_function_vectorized_blacklist.add((inner_func, args, *kwargs.items()))
         else:
             return acq
     # if func doesn't accept multiple points, fallback to map
