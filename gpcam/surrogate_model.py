@@ -71,6 +71,9 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gp):
     elif acquisition_function == "shannon_ig":
         res = gp.shannon_information_gain(x)["sig"]
         return np.array([res])
+    elif acquisition_function == "shannon_ig_vec":
+        res = gp.shannon_information_gain_vec(x)["sig(x)"]
+        return res
     elif acquisition_function == "ucb":
         m = gp.posterior_mean(x)["f(x)"]
         v = gp.posterior_covariance(x, variance_only=True)["v(x)"]

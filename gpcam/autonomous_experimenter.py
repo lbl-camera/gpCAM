@@ -39,7 +39,7 @@ class AutonomousExperimenterGP():
         The acquisition function accepts as input a numpy array of size V x D (such that V is the number of input
         points, and D is the parameter space dimensionality) and a `GPOptimizer` object. The return value is 1-D array
         of length V providing 'scores' for each position, such that the highest scored point will be measured next.
-        Built-in functions can be used by one of the following keys: `'shannon_ig'`, `'ucb'`, `'maximum'`, `'minimum'`,
+        Built-in functions can be used by one of the following keys: `'shannon_ig'`, `'shannon_ig_vec'`, `'ucb'`, `'maximum'`, `'minimum'`,
         `'covariance'`, `'variance'`, and `'gradient'`. If None, the default function is the `'variance'`, meaning
         `fvgp.gp.GP.posterior_covariance` with variance_only = True.
     cost_func : Callable, optional
@@ -530,7 +530,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         The acquisition function accepts as input a numpy array of size V x D (such that V is the number of input
         points, and D is the parameter space dimensionality) and a `GPOptimizer` object. The return value is 1-D array
         of length V providing 'scores' for each position, such that the highest scored point will be measured next.
-        Built-in functions can be used by one of the following keys: `'shannon_ig'`, `'UCB'`, `'maximum'`, `'minimum'`,
+        Built-in functions can be used by one of the following keys: `'shannon_ig'`, `'shannon_ig_vec'`, `'UCB'`, `'maximum'`, `'minimum'`,
         `'covariance'`, and `'variance'`. If None, the default function is the `'variance'`, meaning
         `fvgp.gp.GP.posterior_covariance` with variance_only = True.
     cost_func : Callable, optional
