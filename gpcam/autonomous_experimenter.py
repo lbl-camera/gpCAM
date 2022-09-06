@@ -326,7 +326,7 @@ class AutonomousExperimenterGP():
         Parameters
         ----------
         N : int, optional
-            Run for N iterations. The default is `1e15`.
+            Run until N points are measured. The default is `1e15`.
         breaking_error : float, optional
             Run until breaking_error is achieved (or at max N). The default is `1e-50`.
         retrain_globally_at : Iterable[int], optional
@@ -379,8 +379,9 @@ class AutonomousExperimenterGP():
         start_date_time = time.strftime("%Y-%m-%d_%H_%M_%S", time.localtime())
         logger.info("Starting...")
 
-        for i in range(self.init_dataset_size, int(N)):
-            n_measurements = len(self.x)
+        i = 0
+        n_measurements = len(self.x)
+        while n_measurements < N:
             logger.info("----------------------------")
             logger.info(f"iteration {i}")
             logger.info(f"Run Time: {time.time() - start_time} seconds")
@@ -439,22 +440,22 @@ class AutonomousExperimenterGP():
                 ++++++++++++++++++++++++++
                 |Training ...            |
                 ++++++++++++++++++++++++++"""))
-            if n_measurements in retrain_async_at:
+            if any(n in retrain_async_at for n in range(n_measurements,len(self.x))) and n_measurements<N:
                 logger.info("    Starting a new asynchronous training after killing the current one.")
                 print("    Starting a new asynchronous training after killing the current one.")
                 self.kill_training()
                 self.train_async(max_iter=training_opt_max_iter,
                                  dask_client=self.training_dask_client)
-            elif n_measurements in retrain_globally_at:
+            elif any(n in retrain_globally_at for n in range(n_measurements,len(self.x))) and n_measurements<N:
                 self.kill_training()
                 logger.info("    Fresh optimization from scratch via global optimization")
                 self.train(pop_size=training_opt_pop_size,
                            tol=training_opt_tol,
                            max_iter=training_opt_max_iter,
                            method="global")
-            elif n_measurements in retrain_locally_at:
+            elif any(n in retrain_locally_at for n in range(n_measurements,len(self.x))) and n_measurements<N:
                 self.kill_training()
-                logger.info("    Fresh optimization from scratch via global optimization")
+                logger.info("    Fresh optimization from scratch via local optimization")
                 self.train(pop_size=training_opt_pop_size,
                            tol=training_opt_tol,
                            max_iter=training_opt_max_iter,
@@ -480,6 +481,8 @@ class AutonomousExperimenterGP():
             if i in update_cost_func_at: self.gp_optimizer.update_cost_function(self.c)
 
             if error < breaking_error: break
+            i += 1
+            n_measurements = len(self.x)
         logger.info("killing the client... and then we are done")
         self.kill_client()
 
