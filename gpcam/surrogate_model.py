@@ -90,6 +90,8 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gp):
         res = gp.posterior_mean(x)["f(x)"]
         return -res
 
+    raise ValueError(f'The requested acquisition function "{acquisition_function}" does not exist.')
+
 
 ##########################################################################
 def find_acquisition_function_maxima(gp, acquisition_function,
