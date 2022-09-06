@@ -211,8 +211,36 @@ def differential_evolution(ObjectiveFunction,
                            cost_function_parameters=None):
     fun = partial(ObjectiveFunction, gp=gp, acquisition_function=acquisition_function, origin=origin,
                   cost_function=cost_function, cost_function_parameters=cost_function_parameters)
-    res = devo(fun, bounds, tol=tol, maxiter=max_iter, popsize=popsize, polish=False, constraints = constraints)
+    res = devo(partial(acq_function_vectorization_wrapper, func=fun), bounds, tol=tol, maxiter=max_iter, popsize=popsize, polish=False, constraints = constraints, vectorized=True)
     return [list(res["x"])], list([res["fun"]])
+
+
+_acq_function_vectorized_blacklist = set()
+
+
+def acq_function_vectorization_wrapper(x, func):
+    # find inner func
+    inner_func = func
+    args = tuple()
+    kwargs = dict()
+    # strip away partials
+    if hasattr(inner_func, 'func'):
+        inner_func = func.func
+        args = func.args
+        kwargs = func.keywords.copy()
+        del kwargs['gp']
+        del kwargs['origin']
+
+    # don't attempt to feed func vectorized data if it has already failed
+    if inner_func not in _acq_function_vectorized_blacklist:
+        acq = func(x.T)
+        if len(acq) != x.shape[1]:
+            # return shape is inappropriate given input data from differential evolution
+            _acq_function_vectorized_blacklist.add((inner_func, args, *kwargs.items()))
+        else:
+            return acq
+    # if func doesn't accept multiple points, fallback to map
+    return list(map(func, x.T))
 
 
 def normed_gaussian_function(x, mean, sigma2):
