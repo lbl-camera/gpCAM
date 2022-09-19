@@ -143,6 +143,9 @@ class GPOptimizer(GP):
             compute_device="cpu",
             gp_kernel_function=None,
             gp_mean_function=None,
+            gp_kernel_function_grad = None,
+            gp_mean_function_grad = None,
+            normalize_y = False,
             use_inv=False,
             ram_economy=True
     ):
@@ -186,9 +189,11 @@ class GPOptimizer(GP):
                 variances=self.variances,
                 compute_device=compute_device,
                 gp_kernel_function=gp_kernel_function,
+                gp_kernel_function_grad=gp_kernel_function_grad,
                 gp_mean_function=gp_mean_function,
+                gp_mean_function_grad=gp_mean_function_grad,
                 use_inv=use_inv,
-                normalize_y=False,
+                normalize_y=normalize_y,
                 ram_economy=ram_economy
             )
             self.gp_initialized = True
