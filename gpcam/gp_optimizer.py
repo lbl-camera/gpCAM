@@ -86,7 +86,7 @@ class GPOptimizer(GP):
         x : np.ndarray
             Point positions at which the acquisition function is evaluated.
         acquisition_function : Callable, optional
-            Acquisiiton functio to execute. Callable with inputs (x,gpcam.gp_optimizer.GPOptimizer),
+            Acquisiiton function to execute. Callable with inputs (x,gpcam.gp_optimizer.GPOptimizer),
             where x is a V x D array of input points. The return value is a 1-D array of length V.
             The default is `variance`.
         origin : np.ndarray, optional
@@ -346,8 +346,8 @@ class GPOptimizer(GP):
     ##############################################################
     def update_hyperparameters(self, opt_obj):
         """
-        Function to update the Gaussian Process hyperparameters is an asynchronous training is running.
-
+        Function to update the Gaussian Process hyperparameters of an asynchronous training. 
+        
         Parameters
         ----------
         opt_obj : object instance
@@ -486,7 +486,7 @@ class GPOptimizer(GP):
         """
         This function updates the parameters for the user-defined cost function
         It essentially calls the user-given cost_update_function which
-        should return the new parameters how they are used by the
+        should return the new parameters and how they are used by the
         cost function.
         Parameters
         ----------
