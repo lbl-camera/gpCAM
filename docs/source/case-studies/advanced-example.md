@@ -100,7 +100,7 @@ def optional_acq_func(x,obj):
     cov = obj.posterior_covariance(x)["v(x)"]
     return mean + a * cov
 
-def optional_mean_func(gp_obj,x,hyperparameters):
+def optional_mean_func(x,hyperparameters,gp_obj):
     return ((x[:,0] ** 2 + x[:,1] - 11.0) ** 2 + (x[:,0] + x[:,1] ** 2 - 7.0) ** 2) * hyperparameters[-1]
 
 def optional_cost_function(origin,x,arguments = None):

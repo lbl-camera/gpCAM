@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import itertools
 from functools import partial
-
+import math
 import numpy as np
 from loguru import logger
 
@@ -9,97 +9,12 @@ from hgdl.hgdl import HGDL
 from scipy.optimize import differential_evolution as devo, minimize
 
 
-def evaluate_acquisition_function(x, gp, acquisition_function, origin=None,
-                                  cost_function=None, cost_function_parameters=None):
-    ##########################################################
-    ####this function evaluates a default or a user-defined acquisition function
-    ##########################################################
-    if x.ndim == 1: x = np.array([x])
-    if cost_function is not None and origin is not None and cost_function_parameters is not None:
-        cost_eval = cost_function(origin, x, cost_function_parameters)
-    else:
-        cost_eval = 1.0
-    # for user defined acquisition function
-    if callable(acquisition_function):
-        return -acquisition_function(x, gp) / cost_eval
-    obj_eval = evaluate_gp_acquisition_function(x, acquisition_function, gp)
-    # if no user defined acquisition function is used
-    obj_eval = obj_eval / cost_eval
-    return -obj_eval
-
-
-def evaluate_acquisition_function_gradient(x, gp, acquisition_function, origin=None,
-                                           cost_function=None, cost_function_parameters=None):
-    acquisition_gradient = gradient(evaluate_acquisition_function,
-                                    x,
-                                    1e-5,
-                                    gp,
-                                    acquisition_function,
-                                    origin,
-                                    cost_function,
-                                    cost_function_parameters)
-    return acquisition_gradient
-
-
-def evaluate_acquisition_function_hessian(x, gp, acquisition_function, origin=None,
-                                          cost_function=None, cost_function_parameters=None):
-    acquisition_hessian = hessian(evaluate_acquisition_function,
-                                  x,
-                                  1e-5,
-                                  gp,
-                                  acquisition_function,
-                                  origin,
-                                  cost_function,
-                                  cost_function_parameters)
-    return acquisition_hessian
-
-
-def evaluate_gp_acquisition_function(x, acquisition_function, gp):
-    ##this function will always spit out a 1d numpy array
-    ##for certain functions, this array will only have one entry
-    ##for the other the length == len(x)
-    if len(x.shape) == 1: x = np.array([x])
-    if acquisition_function == "variance":
-        res = gp.posterior_covariance(x, variance_only=True)["v(x)"]
-        return res
-    if acquisition_function == "covariance":
-        res = gp.posterior_covariance(x)
-        b = res["S(x)"]
-        sgn, logdet = np.linalg.slogdet(b)
-        return np.array([np.sqrt(sgn * np.exp(logdet))])
-    ###################more here: shannon_ig  for instance
-    elif acquisition_function == "shannon_ig":
-        res = gp.shannon_information_gain(x)["sig"]
-        return np.array([res])
-    elif acquisition_function == "shannon_ig_vec":
-        res = gp.shannon_information_gain_vec(x)["sig(x)"]
-        return res
-    elif acquisition_function == "ucb":
-        m = gp.posterior_mean(x)["f(x)"]
-        v = gp.posterior_covariance(x, variance_only=True)["v(x)"]
-        return m + 3.0 * np.sqrt(v)
-    elif acquisition_function == "maximum":
-        res = gp.posterior_mean(x)["f(x)"]
-        return res
-    elif acquisition_function == "gradient":
-        #mean = gp.posterior_mean(x)["f(x)"]
-        mean_grad = gp.posterior_mean_grad(x)["df/dx"]
-        std = np.sqrt(gp.posterior_covariance(x, variance_only = True)["v(x)"])
-        #std_grad = (gp.posterior_covariance_grad(x)["dv/dx"] / (2.*std))
-        #res = np.linalg.norm(mean_grad + 3.0 * std_grad, axis = 1)
-        res = np.linalg.norm(mean_grad, axis = 1) * std
-        return res
-    elif acquisition_function == "minimum":
-        res = gp.posterior_mean(x)["f(x)"]
-        return -res
-
-    raise ValueError(f'The requested acquisition function "{acquisition_function}" does not exist.')
-
 
 ##########################################################################
 def find_acquisition_function_maxima(gp, acquisition_function,
                                      origin, number_of_maxima_sought,
                                      optimization_bounds,
+                                     acquisiiton_function_grad = None,
                                      optimization_method="global",
                                      optimization_pop_size=20,
                                      optimization_max_iter=10,
@@ -108,6 +23,8 @@ def find_acquisition_function_maxima(gp, acquisition_function,
                                      constraints = (),
                                      cost_function=None,
                                      cost_function_parameters=None,
+                                     vectorized = True,
+                                     args = {},
                                      dask_client=None):
     bounds = np.array(optimization_bounds)
     opt_obj = None
@@ -131,25 +48,28 @@ def find_acquisition_function_maxima(gp, acquisition_function,
             origin=origin,
             constraints = constraints,
             gp=gp,
+            number_of_maxima_sought = number_of_maxima_sought,
             acquisition_function=acquisition_function,
             cost_function=cost_function,
-            cost_function_parameters=cost_function_parameters
+            cost_function_parameters=cost_function_parameters,
+            vectorized = vectorized,
+            args = args
         )
         opti = np.asarray(opti)
         func_eval = np.asarray(func_eval)
+
     elif optimization_method == "hgdl":
         ###run differential evo first if hxdy only returns stationary points
         ###then of hgdl is successful, stack results and return
+        if constraints: logger.warning("The HGDL won't adhere to constraints for the acquisition function. Use method 'local' or 'global'")
         a = HGDL(evaluate_acquisition_function,
                  evaluate_acquisition_function_gradient,
                  bounds,
-                 evaluate_acquisition_function_hessian,
                  num_epochs=optimization_max_iter,
                  local_optimizer="L-BFGS-B",
-                 constraints = constraints,
-                 args=(gp, acquisition_function, origin, cost_function, cost_function_parameters))
+                 args=(gp, acquisition_function, origin, number_of_maxima_sought, cost_function, cost_function_parameters, args))
 
-        #####optimization_max_iter, tolerance here
+        ###optimization_max_iter, tolerance here
         if optimization_x0: optimization_x0 = optimization_x0.reshape(1,-1)
         a.optimize(dask_client=dask_client, x0=optimization_x0, tolerance=optimization_tol)
         res = a.get_final()
@@ -168,7 +88,7 @@ def find_acquisition_function_maxima(gp, acquisition_function,
         a = minimize(
             evaluate_acquisition_function,
             x0,
-            args=(gp, acquisition_function, origin, cost_function, cost_function_parameters),
+            args=(gp, acquisition_function, origin, number_of_maxima_sought,cost_function, cost_function_parameters, args),
             method="L-BFGS-B",
             jac=evaluate_acquisition_function_gradient,
             bounds=bounds,
@@ -188,8 +108,8 @@ def find_acquisition_function_maxima(gp, acquisition_function,
                                                       gp, acquisition_function, origin,
                                                       cost_function, cost_function_parameters)
             if func_eval.ndim != 1: func_eval = np.array([func_eval])
-    else:
-        raise ValueError("Invalid acquisition function optimization method given.")
+
+    else: raise ValueError("Invalid acquisition function optimization method given.")
     if func_eval.ndim != 1 or opti.ndim != 2:
         logger.error("f(x): ", func_eval)
         logger.error("x: ", opti)
@@ -203,6 +123,96 @@ def find_acquisition_function_maxima(gp, acquisition_function,
 ############################################################
 ############################################################
 ############################################################
+
+
+def evaluate_acquisition_function(x, gp, acquisition_function, origin=None, number_of_maxima_sought = None,
+                                  cost_function=None, cost_function_parameters=None, args = None):
+    ##########################################################
+    ####this function evaluates a default or a user-defined acquisition function
+    ##########################################################
+    if x.ndim == 1: x = np.array([x])
+    if cost_function is not None and origin is not None and cost_function_parameters is not None:
+        cost_eval = cost_function(origin, x, cost_function_parameters)
+    else:
+        cost_eval = 1.0
+    # for user defined acquisition function
+    if callable(acquisition_function): return -acquisition_function(x, gp) / cost_eval
+    else:
+        obj_eval = evaluate_gp_acquisition_function(x, acquisition_function, gp, number_of_maxima_sought, args = args)
+        obj_eval = -obj_eval / cost_eval
+        return obj_eval
+
+
+def evaluate_acquisition_function_gradient(x, gp, acquisition_function, origin=None, number_of_maxima_sought = None,
+                                           cost_function=None, cost_function_parameters=None, acq_args = None):
+    acquisition_gradient = gradient(evaluate_acquisition_function,
+                                    x,
+                                    1e-6,
+                                    gp,
+                                    acquisition_function,
+                                    origin,
+                                    number_of_maxima_sought,
+                                    cost_function,
+                                    cost_function_parameters,
+                                    acq_args)
+    return acquisition_gradient
+
+
+def evaluate_gp_acquisition_function(x, acquisition_function, gp, number_of_maxima_sought, args = {}):
+    ##this function will always spit out a 1d numpy array
+    ##for certain functions, this array will only have one entry
+    ##for the other the length == len(x)
+    if len(x.shape) == 1: x = np.array([x])
+    if acquisition_function == "variance":
+        res = gp.posterior_covariance(x, variance_only=True)["v(x)"]
+        return res
+    elif acquisition_function == "covariance":
+        res = gp.posterior_covariance(x)
+        b = res["S(x)"]
+        sgn, logdet = np.linalg.slogdet(b)
+        return np.array([np.sqrt(sgn * np.exp(logdet))])
+    elif acquisition_function == "shannon_ig":
+        res = gp.shannon_information_gain(x)["sig"]
+        return np.array([res])
+    elif acquisition_function == "shannon_ig_multi":
+        new_x = x.reshape(len(x),number_of_maxima_sought,gp.input_dim)
+        res = gp.shannon_information_gain(new_x[0])["sig"]
+        return np.array([res])
+    elif acquisition_function == "shannon_ig_vec":
+        res = gp.shannon_information_gain_vec(x)["sig(x)"]
+        return res
+    elif acquisition_function == "ucb":
+        m = gp.posterior_mean(x)["f(x)"]
+        v = gp.posterior_covariance(x, variance_only=True)["v(x)"]
+        return m + 3.0 * np.sqrt(v)
+    elif acquisition_function == "maximum":
+        res = gp.posterior_mean(x)["f(x)"]
+        return res
+    elif acquisition_function == "gradient":
+        #mean = gp.posterior_mean(x)["f(x)"]
+        mean_grad = gp.posterior_mean_grad(x)["df/dx"]
+        std = np.sqrt(gp.posterior_covariance(x, variance_only = True)["v(x)"])
+        #std_grad = (gp.posterior_covariance_grad(x)["dv/dx"] / (2.*std))
+        #res = np.linalg.norm(mean_grad + 3.0 * std_grad, axis = 1)
+        res = np.linalg.norm(mean_grad, axis = 1) * std
+        return res
+    elif acquisition_function == "minimum":
+        res = gp.posterior_mean(x)["f(x)"]
+        return -res
+    elif acquisition_function == "target_probability":
+        a = args["a"]
+        b = args["b"]
+        mean = gp.posterior_mean(x)["f(x)"]
+        cov = gp.posterior_covariance(x)["v(x)"]
+        result = np.zeros((len(x)))
+        for i in range(len(x)):
+            result[i] = 0.5 * (math.erf((b-mean[i])/np.sqrt(2.*cov[i])) -  math.erf((a-mean[i])/np.sqrt(2.*cov[i])))
+        return result
+    else: raise Exception("")
+
+    raise ValueError(f'The requested acquisition function "{acquisition_function}" does not exist.')
+
+
 def differential_evolution(ObjectiveFunction,
                            bounds,
                            tol,
@@ -213,46 +223,19 @@ def differential_evolution(ObjectiveFunction,
                            acquisition_function=None,
                            cost_function=None,
                            constraints = (),
-                           cost_function_parameters=None):
+                           number_of_maxima_sought = None,
+                           cost_function_parameters=None,
+                           args = {},
+                           vectorized = True):
     fun = partial(ObjectiveFunction, gp=gp, acquisition_function=acquisition_function, origin=origin,
-                  cost_function=cost_function, cost_function_parameters=cost_function_parameters)
-    res = devo(partial(acq_function_vectorization_wrapper, func=fun), bounds, tol=tol, maxiter=max_iter, popsize=popsize, polish=False, constraints = constraints, vectorized=True)
+                  cost_function=cost_function, cost_function_parameters=cost_function_parameters, number_of_maxima_sought = number_of_maxima_sought, args = args)
+    res = devo(partial(acq_function_vectorization_wrapper, func = fun, vectorized = vectorized), bounds, tol=tol, maxiter=max_iter, popsize=popsize, polish=False, constraints = constraints, vectorized=vectorized)
     return [list(res["x"])], list([res["fun"]])
 
-
-_acq_function_vectorized_blacklist = set()
-
-
-def acq_function_vectorization_wrapper(x, func):
-    # find inner func
-    inner_func = func
-    args = tuple()
-    kwargs = dict()
-    # strip away partials
-    if hasattr(inner_func, 'func'):
-        inner_func = func.func
-        args = func.args
-        kwargs = func.keywords.copy()
-        del kwargs['gp']
-        del kwargs['origin']
-
-    # don't attempt to feed func vectorized data if it has already failed
-    if inner_func not in _acq_function_vectorized_blacklist:
-        acq = func(x.T)
-        if len(acq) != x.shape[1]:
-            # return shape is inappropriate given input data from differential evolution
-            _acq_function_vectorized_blacklist.add((inner_func, args, *kwargs.items()))
-        else:
-            return acq
-    # if func doesn't accept multiple points, fallback to map
-    return list(map(func, x.T))
-
-
-def normed_gaussian_function(x, mean, sigma2):
-    return (1.0 / np.sqrt(2.0 * np.pi * sigma2)) * np.exp(
-        -((x - mean) ** 2) / (2.0 * sigma2)
-    )
-
+def acq_function_vectorization_wrapper(x, func = None,vectorized = False):
+    if vectorized is True: acq = func(x.T)
+    else: acq = func(x)
+    return acq
 
 def gradient(function, point, epsilon=1e-6, *args):
     """
@@ -279,67 +262,7 @@ def gradient(function, point, epsilon=1e-6, *args):
         gradient[i] = (function(new_point, *args) - function(point, *args)) / epsilon
     return gradient
 
-
-def hessian(function, point, epsilon=1e-3, *args):
-    """
-    This function calculates the hessian of a function by using finite differences
-
-    Extended description of function.
-
-    Parameters:
-    function (function object): the function, the hessian should be computed of
-    point (numpy array 1d): point at which the gradient should be computed
-
-    optional:
-    epsilon (float): the distance used for the evaluation of the function
-
-    Returns:
-    numpy array of hessian
-
-    """
-    hessian = np.zeros((len(point), len(point)))
-    for i in range(len(point)):
-        for j in range(len(point)):
-            new_point1 = np.array(point)
-            new_point2 = np.array(point)
-            new_point3 = np.array(point)
-            new_point4 = np.array(point)
-
-            new_point1[i] = new_point1[i] + epsilon
-            new_point1[j] = new_point1[j] + epsilon
-
-            new_point2[i] = new_point2[i] + epsilon
-            new_point2[j] = new_point2[j] - epsilon
-
-            new_point3[i] = new_point3[i] - epsilon
-            new_point3[j] = new_point3[j] + epsilon
-
-            new_point4[i] = new_point4[i] - epsilon
-            new_point4[j] = new_point4[j] - epsilon
-
-            hessian[i, j] = \
-                (function(new_point1, *args) - function(new_point2, *args) - function(new_point3,
-                                                                                      *args) + function(new_point4,
-                                                                                                        *args)) \
-                / (4.0 * (epsilon ** 2))
-    return hessian
-
-
 def bhattacharyya_distance(reference_distribution, test_distribution, dx):
     y1 = reference_distribution / (sum(reference_distribution) * dx)
     y2 = test_distribution / (sum(test_distribution) * dx)
     return sum(np.sqrt(y1 * y2)) * dx
-
-
-def cast_to_index_set(x_input, x_output, mode='cartesian product'):
-    n_orig = len(x_input)
-    tasks = len(x_output)
-    if mode == 'cartesian product':
-        new_points = np.zeros((len(x_input) * len(x_output), len(x_input[0]) + len(x_output[0])))
-        counter = 0
-        for element in itertools.product(x_input, x_output):
-            new_points[counter] = np.concatenate([element[0], element[1]], axis=0)
-            counter += 1  ###can't we append?
-    elif mode == 'stack':
-        new_points = np.column_stack([x_input, x_output])
-    return new_points

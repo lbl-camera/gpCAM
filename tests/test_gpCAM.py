@@ -111,3 +111,35 @@ class TestgpCAM(unittest.TestCase):
         my_ae.go(N = 100)
 
         print("END")
+
+    def test_acq_funcs(self):
+        import numpy as np
+        from gpcam.gp_optimizer import GPOptimizer
+
+        #initialize some data
+        x_data = np.random.uniform(size = (100,3))
+        y_data = np.sin(np.linalg.norm(x_data, axis = 1))
+
+
+        #initialize the GPOptimizer
+        my_gpo = GPOptimizer(3,np.array([[1.,2.],[4.,5.],[6.,7.]]))
+        #tell() it some data
+        my_gpo.tell(x_data,y_data)
+        #initialize a GP ...
+        my_gpo.init_gp(np.ones(4))
+        #and train it
+        my_gpo.train_gp(np.array([[0.001,100],[0.001,100],[0.001,100],[0.001,100]]))
+
+        #let's make a prediction
+        print("an example posterior mean at x = 0.44 :",my_gpo.posterior_mean(np.array([0.44,1.,1.])))
+        print("")
+        #now we can ask for a new point
+
+        r = my_gpo.ask(n = 5, acquisition_function="shannon_ig_multi")
+        r = my_gpo.ask(n = 1, acquisition_function="shannon_ig")
+        r = my_gpo.ask(n = 1, acquisition_function="shannon_ig_vec")
+        r = my_gpo.ask(n = 1, acquisition_function="variance")
+        r = my_gpo.ask(n = 1, acquisition_function="covariance")
+        r = my_gpo.ask(n = 1, acquisition_function="ucb")
+        r = my_gpo.ask(n = 1, acquisition_function="maximum")
+        r = my_gpo.ask(n = 5, acquisition_function="gradient", method = "local")

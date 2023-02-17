@@ -2,7 +2,6 @@
 
 import numpy as np
 from loguru import logger
-
 from fvgp.fvgp import fvGP
 from fvgp.gp import GP
 from gpcam import surrogate_model as sm
@@ -24,9 +23,9 @@ class GPOptimizer(GP):
 
     Attributes
     ----------
-    points : np.ndarray
+    x_data : np.ndarray
         Datapoint positions
-    values : np.ndarray
+    y_data : np.ndarray
         Datapoint values
     variances : np.ndarray
         Datapoint observation variances
@@ -46,9 +45,9 @@ class GPOptimizer(GP):
             input_space_bounds,
     ):
         self.iput_dim = input_space_dimension
-        self.points = np.empty((0, self.iput_dim))
-        self.values = np.empty((0))
-        self.variances = np.empty((0))
+        self.x_data = np.empty((1, self.iput_dim))
+        self.y_data = np.empty((1))
+        self.variances = np.empty((1))
         self.input_space_bounds = np.array(input_space_bounds)
         self.gp_initialized = False
         self.cost_function_parameters = None
@@ -69,8 +68,8 @@ class GPOptimizer(GP):
             hps = None
         return {
             "input dim": self.iput_dim,
-            "x": self.points,
-            "y": self.values,
+            "x": self.x_data,
+            "y": self.y_data,
             "measurement variances": self.variances,
             "hyperparameters": hps,
             "cost function parameters": self.cost_function_parameters,
@@ -87,7 +86,7 @@ class GPOptimizer(GP):
             Point positions at which the acquisition function is evaluated.
         acquisition_function : Callable, optional
             Acquisiiton functio to execute. Callable with inputs (x,gpcam.gp_optimizer.GPOptimizer),
-            where x is a V x D array of input points. The return value is a 1-D array of length V.
+            where x is a V x D array of input x_data. The return value is a 1-D array of length V.
             The default is `variance`.
         origin : np.ndarray, optional
             If a cost function is provided this 1-D numpy array of length D is used as the origin of motion.
@@ -129,8 +128,8 @@ class GPOptimizer(GP):
             Point value variances (of shape U x 1 or U) to be communicated to the Gaussian Process.
             If not provided, the GP will 1% of the y values as variances.
         """
-        self.points = x
-        self.values = y
+        self.x_data = x
+        self.y_data = y
         self.variances = variances
 
         if self.gp_initialized:
@@ -183,8 +182,8 @@ class GPOptimizer(GP):
             GP.__init__(
                 self,
                 self.iput_dim,
-                self.points,
-                self.values,
+                self.x_data,
+                self.y_data,
                 init_hyperparameters,
                 variances=self.variances,
                 compute_device=compute_device,
@@ -207,8 +206,8 @@ class GPOptimizer(GP):
         a GP is intialized
         """
         self.update_gp_data(
-            self.points,
-            self.values,
+            self.x_data,
+            self.y_data,
             variances=self.variances)
 
     ##############################################################
@@ -292,7 +291,7 @@ class GPOptimizer(GP):
         tolerance : float, optional
             Tolerance to be used to define a termination criterion for the optimizer.
         constraints: tuple of object instances, optional
-            Either a tuple of hgdl.constraints.NonLinearConstraint or scipy constraints instances, depending on the used optimizer.
+            Scipy constraints instances, depending on the used optimizer.
 
 
         Return
@@ -371,6 +370,8 @@ class GPOptimizer(GP):
             tol=1e-6,
             constraints = (),
             x0=None,
+            vectorized = True,
+            args = {},
             dask_client=None):
 
         """
@@ -392,33 +393,38 @@ class GPOptimizer(GP):
             points, and D is the parameter space dimensionality) and a `GPOptimizer` object. The return value is 1-D
             array
             of length V providing 'scores' for each position, such that the highest scored point will be measured next.
-            Built-in functions can be used by one of the following keys: `'shannon_ig'`, `'shannon_ig_vec'`, `'ucb'`, `'maximum'`,
+            Built-in functions can be used by one of the following keys: `'shannon_ig'`, `'shannon_ig_multi'`, `'shannon_ig_vec'`, `'ucb'`, `'maximum'`,
             `'minimum'`, `'covariance'`, `'variance'`, and `'gradient'`. If None, the default function is the `'variance'`, meaning
             `fvgp.gp.GP.posterior_covariance` with variance_only = True.
         bounds : np.ndarray, optional
             A numpy array of floats of shape D x 2 describing the search range. The default is the entire input space.
-        method: str, optional
+        method : str, optional
             A string defining the method used to find the maximum of the acquisition function. Choose from `global`,
             `local`, `hgdl`.
             The default is `global`.
-        pop_size: int, optional
+        pop_size : int, optional
             An integer defining the number of individuals if `global` is chosen as method. The default is 20. For
             `hgdl` this will be overwritten
             by the 'dask_client` definition.
-        max_iter: int, optional
+        max_iter : int, optional
             This number defined the number of iterations before the optimizer is terminated. The default is 20.
-        tol: float, optional
+        tol : float, optional
             Termination criterion for the local optimizer. The default is 1e-6.
-        x0: np.ndarray, optional
+        x0 : np.ndarray, optional
             A set of points as numpy array of shape V x D, used as starting location(s) for the local and hgdl
             optimization
             algorithm. The default is None.
-        constraints: tuple of object instances, optional
+        vectorized : bool, optional
+            If your acquisiiton function vecotrized to return the solution to an array of inquiries as an array, this optionmakes the optimization faster if method = 'global'
+            is used. The default is True but will bes et to False if method is not global.
+        constraints : tuple of object instances, optional
             Either a tuple of hgdl.constraints.NonLinearConstraint or scipy constraints instances, depending on the used optimizer.
+        args : dict, optional
+            Provides arguments for certain acquisition functions, such as, "target_probability". In this case it should be
+            defined as {"a": some lower bound, "b":some upper bound}, example: "args = {"a": 1.0,"b": 3.0}".
         dask_client : distributed.client.Client, optional
             A Dask Distributed Client instance for distributed `acquisition_func` computation. If None is provided,
-            a new
-            `dask.distributed.Client` instance is constructed.
+            a new `dask.distributed.Client` instance is constructed.
 
         Return
         ------
@@ -431,8 +437,21 @@ class GPOptimizer(GP):
         logger.info("optimization method: {}", method)
         logger.info("bounds:\n{}", bounds)
         logger.info("acq func: {}", acquisition_function)
-        if n > 1: method = "hgdl"
+
         if bounds is None: bounds = self.input_space_bounds
+        if n > 1 and method != "hgdl":
+            method = "global"
+            new_optimization_bounds = np.row_stack([bounds for i in range(n)])
+            bounds = new_optimization_bounds
+            acquisition_function = "shannon_ig_multi"
+            vectorized = False
+        if acquisition_function == "shannon_ig" or \
+           acquisition_function == "shannon_ig_multi" or \
+           acquisition_function == "covariance":
+               vectorized = False
+        else: vectorized  = True
+        if method != "global": vectorized = False
+
         maxima, func_evals, opt_obj = sm.find_acquisition_function_maxima(
             self,
             acquisition_function,
@@ -445,7 +464,10 @@ class GPOptimizer(GP):
             cost_function_parameters=self.cost_function_parameters,
             optimization_x0=x0,
             constraints = constraints,
+            vectorized = vectorized,
+            args = args,
             dask_client=dask_client)
+        if n > 1: return {'x': maxima.reshape(n,self.input_dim), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
         return {'x': np.array(maxima), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
 
     ##############################################################
@@ -533,9 +555,9 @@ class fvGPOptimizer(fvGP, GPOptimizer):
 
     Attributes
     ----------
-    points : np.ndarray
+    x_data : np.ndarray
         Datapoint positions
-    values : np.ndarray
+    y_data : np.ndarray
         Datapoint values
     variances : np.ndarray
         Datapoint observation variances
@@ -561,8 +583,8 @@ class fvGPOptimizer(fvGP, GPOptimizer):
         self.iput_dim = input_space_dimension
         self.oput_dim = output_space_dimension
         self.output_number = output_number
-        self.points = np.empty((0, self.iput_dim))
-        self.values = np.empty((0, self.output_number))
+        self.x_data = np.empty((0, self.iput_dim))
+        self.y_data = np.empty((0, self.output_number))
         self.variances = np.empty((0, self.output_number))
         self.value_positions = np.empty((0, self.output_number, self.oput_dim))
         self.input_space_bounds = np.array(input_space_bounds)
@@ -610,8 +632,8 @@ class fvGPOptimizer(fvGP, GPOptimizer):
             are clearly defined by their positions in the output space. The default is np.array([[0],[1],[2],[3],...,[output_number - 1]]) for each
             point in the input space. The default is only permissible if output_dim is 1.
         """
-        self.points = x
-        self.values = y
+        self.x_data = x
+        self.y_data = y
         self.variances = variances
         self.value_positions = value_positions
 
@@ -663,8 +685,8 @@ class fvGPOptimizer(fvGP, GPOptimizer):
                 self.iput_dim,
                 self.oput_dim,
                 self.output_number,
-                self.points,
-                self.values,
+                self.x_data,
+                self.y_data,
                 init_hyperparameters,
                 value_positions=self.value_positions,
                 variances=self.variances,
@@ -685,8 +707,8 @@ class fvGPOptimizer(fvGP, GPOptimizer):
         GP is already intialized
         """
         self.update_fvgp_data(
-            self.points,
-            self.values,
+            self.x_data,
+            self.y_data,
             value_positions=self.value_positions,
             variances=self.variances)
 
