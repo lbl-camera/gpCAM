@@ -51,8 +51,8 @@ my_ae.go(N = 100)
 ## Credits
 
 Main Developer: Marcus Noack ([MarcusNoack@lbl.gov](mailto:MarcusNoack@lbl.gov))
-Several people from across the DOE national labs have given insights
-that led the code in it's current form.
+Many people from across the DOE national labs (especially BNL) have given insights
+that led to the code in it's current form.
 See [AUTHORS](AUTHORS.rst) for more details on that.
 
 

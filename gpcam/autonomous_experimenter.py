@@ -216,7 +216,7 @@ class AutonomousExperimenterGP():
         method : str, optional
             Method to be used for the training. Default is `'global'` which means
             a differetnial evolution algorithm is run with the specified parameters.
-            The options are `'global'` or `'local'`
+            The options are `'global'` or `'local'`, or `'mcmc'`.
         """
 
         self.gp_optimizer.train_gp(
@@ -347,7 +347,7 @@ class AutonomousExperimenterGP():
             Calls the `update_cost_func` at the given number of measurements.
             Default = ()
         acq_func_opt_setting : Callable, optional
-            A callable that accepts as input the iteration index and returns either `'local'`, `'global'` or `'hgdl'`. This
+            A callable that accepts as input the iteration index and returns either `'local'`, `'global'`, `'hgdl'`. This
             switches between local gradient-based, global and hybrid optimization for the acquisition function.
             The default is `lambda number: "global" if number % 2 == 0 else "local"`.
         training_opt_max_iter : int, optional

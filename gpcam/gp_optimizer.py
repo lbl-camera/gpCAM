@@ -94,7 +94,6 @@ class GPOptimizer(GP):
         Return
         ------
         The acquisition function evaluations at all points `x` : np.ndarray
-            
         """
 
         if self.gp_initialized is False:
@@ -191,8 +190,8 @@ class GPOptimizer(GP):
                 gp_kernel_function_grad=gp_kernel_function_grad,
                 gp_mean_function=gp_mean_function,
                 gp_mean_function_grad=gp_mean_function_grad,
-                use_inv=use_inv,
                 normalize_y=normalize_y,
+                use_inv=use_inv,
                 ram_economy=ram_economy
             )
             self.gp_initialized = True
@@ -215,7 +214,8 @@ class GPOptimizer(GP):
                        hyperparameter_bounds,
                        max_iter=10000,
                        dask_client=None,
-                       constraints = (),
+                       deflation_radius=None,
+                       constraints=(),
                        local_method="L-BFGS-B",
                        global_method="genetic"):
         """
@@ -257,7 +257,8 @@ class GPOptimizer(GP):
             hyperparameter_bounds,
             init_hyperparameters=self.hyperparameters,
             max_iter=max_iter,
-            constraints = constraints,
+            constraints=constraints,
+            deflation_radius = deflation_radius,
             dask_client=dask_client,
             local_optimizer=local_method,
             global_optimizer=global_method
@@ -267,11 +268,13 @@ class GPOptimizer(GP):
     ##############################################################
     def train_gp(self,
                  hyperparameter_bounds,
-                 max_iter=120,
                  method="global",
                  pop_size=20,
                  tolerance=1e-6,
-                 constraints = ()
+                 max_iter=120,
+                 constraints = (),
+                 deflation_radius = None,
+                 dask_client = None,
                  ):
         """
         Function to train a Gaussian Process.
@@ -283,7 +286,7 @@ class GPOptimizer(GP):
         max_iter : int, optional
             Number of iterations before the optimization algorithm is terminated. The default is 120
         method : str or callable, optional
-            Optimization method. Choose from `'local'` or `'global'`. The default is `global`.
+            Optimization method. Choose from `'local'` or `'global'`, or `'mcmc'`. The default is `global`.
             The argument also accepts a callable that accepts as input a `fvgp.gp.GP` 
             instance and returns a new vector of hyperparameters.
         pop_size : int, optional
@@ -307,9 +310,11 @@ class GPOptimizer(GP):
             init_hyperparameters=self.hyperparameters,
             method=method,
             pop_size=pop_size,
-            constraints = constraints,
             tolerance=tolerance,
-            max_iter=max_iter
+            max_iter=max_iter,
+            constraints = constraints,
+            deflation_radius = deflation_radius,
+            dask_client = dask_client,
         )
         return self.hyperparameters
 

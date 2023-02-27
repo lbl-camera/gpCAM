@@ -106,6 +106,9 @@ class TestgpCAM(unittest.TestCase):
                                         init_dataset_size=10)
         #...train...
         my_ae.train()
+        my_ae.train_async()
+        my_ae.update_hps()
+        my_ae.kill_training()
 
         #...and run. That's it. You successfully executed an autonomous experiment.
         my_ae.go(N = 100)
@@ -143,3 +146,6 @@ class TestgpCAM(unittest.TestCase):
         r = my_gpo.ask(n = 1, acquisition_function="ucb")
         r = my_gpo.ask(n = 1, acquisition_function="maximum")
         r = my_gpo.ask(n = 5, acquisition_function="gradient", method = "local")
+        r = my_gpo.ask(n = 1, acquisition_function="target_probability", method = "local", args = {"a":1.,"b":2.})
+
+
