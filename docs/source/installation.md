@@ -25,12 +25,3 @@ To install gpCAM do the following:
 6. if any problems occur, update pip `pip install --upgrade pip`,
    setuptools `pip install --upgrade setuptools` and repeat step 5, 
    or try installing from source: `python -m pip install git+https://github.com/lbl-camera/gpCAM.git`
-
-To test your installation, either run the following script in Python or iPython:
-
-```python
-from gpcam.installation_check import check
-check()
-```
-
-Or pull the code from the repository and check out ./tests/ for some jupyter notebooks.

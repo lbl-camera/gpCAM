@@ -9,17 +9,15 @@ gpCAM has many users around the globe and their projects is what pushes science 
 
 The case studies we present here are:
 
-* A [Gaussian Process test using US topography](us-topography.md) data
 * Basic [minimal example](minimal-example.md)
-* [Using ZMQ for instrument communication](zmq-communication.md)
 * gpCAM advanced-user [test](advanced-example.md)
+* More examples can be found on the official [website](gpcam.lbl.gov)
 
 ```{toctree}
 ---
 hidden: true
 ---
-us-topography.md
-minimal-example.md
-zmq-communication.md
-advanced-example.md
+examples/basic_test.ipynb
+examples/advanced_test.ipynb
+
 ```

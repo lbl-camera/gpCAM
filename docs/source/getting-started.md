@@ -1,7 +1,3 @@
----
-banner: _static/mac-laptop.jpg
-banner_brightness: .8
-
 
 # Getting Started
 
@@ -15,6 +11,6 @@ Getting started with gpCAM is simple:
 3. Run your experiment or simulation autonomously! 
 
 If you hit any roadblocks, read the documentation carefully, and have a look at
-[common bugs](common-bugs.md). 
+[common bugs](common-bugs.md).
 
 And if some particularly stubborn problems remain, contact [MarcusNoack@lbl.gov](mailto:MarcusNoack@lbl.gov)

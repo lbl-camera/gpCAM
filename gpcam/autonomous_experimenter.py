@@ -424,7 +424,12 @@ class AutonomousExperimenterGP():
             self.acq_func_max_opt_obj = res["opt_obj"]
             next_measurement_points = res["x"]
             func_evals = res["f(x)"]
-            post_var = self.gp_optimizer.posterior_covariance(next_measurement_points)["v(x)"]
+            if self.data.output_dim:
+                a = np.array(next_measurement_points)
+                b = np.array(self.vp[-1])
+                test_points = np.array([np.append(a[i],b[j]) for i in range(len(a)) for j in range(len(b))]) 
+                post_var = self.gp_optimizer.posterior_covariance(test_points)["v(x)"]
+            else: post_var = self.gp_optimizer.posterior_covariance(next_measurement_points)["v(x)"]
             error = np.max(np.sqrt(post_var))
 
 

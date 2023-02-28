@@ -162,38 +162,42 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gp, number_of_maxi
     ##this function will always spit out a 1d numpy array
     ##for certain functions, this array will only have one entry
     ##for the other the length == len(x)
-    if len(x.shape) == 1: x = np.array([x])
+    try: x = x.reshape(-1,gp.input_dim)
+    except: raise Exception("x request in evaluate_gp_acquisition_function has wrong dimensionality.", x.shape)
+
     if acquisition_function == "variance":
+        x = x.reshape(-1,gp.input_dim)
         res = gp.posterior_covariance(x, variance_only=True)["v(x)"]
         return res
     elif acquisition_function == "covariance":
+        x = x.reshape(-1,gp.input_dim)
         res = gp.posterior_covariance(x)
         b = res["S(x)"]
         sgn, logdet = np.linalg.slogdet(b)
         return np.array([np.sqrt(sgn * np.exp(logdet))])
     elif acquisition_function == "shannon_ig":
+        x = x.reshape(-1,gp.input_dim)
         res = gp.shannon_information_gain(x)["sig"]
         return np.array([res])
     elif acquisition_function == "shannon_ig_multi":
-        new_x = x.reshape(len(x),number_of_maxima_sought,gp.input_dim)
-        res = gp.shannon_information_gain(new_x[0])["sig"]
+        res = gp.shannon_information_gain(x)["sig"]
         return np.array([res])
     elif acquisition_function == "shannon_ig_vec":
+        x = x.reshape(-1,gp.input_dim)
         res = gp.shannon_information_gain_vec(x)["sig(x)"]
         return res
     elif acquisition_function == "ucb":
+        x = x.reshape(-1,gp.input_dim)
         m = gp.posterior_mean(x)["f(x)"]
         v = gp.posterior_covariance(x, variance_only=True)["v(x)"]
         return m + 3.0 * np.sqrt(v)
     elif acquisition_function == "maximum":
+        x = x.reshape(-1,gp.input_dim)
         res = gp.posterior_mean(x)["f(x)"]
         return res
     elif acquisition_function == "gradient":
-        #mean = gp.posterior_mean(x)["f(x)"]
         mean_grad = gp.posterior_mean_grad(x)["df/dx"]
         std = np.sqrt(gp.posterior_covariance(x, variance_only = True)["v(x)"])
-        #std_grad = (gp.posterior_covariance_grad(x)["dv/dx"] / (2.*std))
-        #res = np.linalg.norm(mean_grad + 3.0 * std_grad, axis = 1)
         res = np.linalg.norm(mean_grad, axis = 1) * std
         return res
     elif acquisition_function == "minimum":
