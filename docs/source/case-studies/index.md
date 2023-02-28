@@ -3,14 +3,12 @@ banner: ../_static/notebook.jpg
 banner_brightness: .8
 ---
 
-# Case Studies
+# Examples
 
-gpCAM has many users around the globe and their projects is what pushes science and technology forward. On this page we are presenting some of the case studies in the hope that they will help users with their own projects. More case studies will be added in the near future. 
-
-The case studies we present here are:
+Available Examples:
 
 * Basic [minimal example](examples/basic_test.ipynb)
-* gpCAM advanced-user [test](examples/basic_test.ipynb)
+* gpCAM advanced-user [test](examples/advanced_test.ipynb)
 * More examples can be found on the official [website](gpcam.lbl.gov)
 
 ```{toctree}
