@@ -9,8 +9,8 @@ gpCAM has many users around the globe and their projects is what pushes science 
 
 The case studies we present here are:
 
-* Basic [minimal example](minimal-example.md)
-* gpCAM advanced-user [test](advanced-example.md)
+* Basic [minimal example](examples/basic_test.ipynb)
+* gpCAM advanced-user [test](examples/basic_test.ipynb)
 * More examples can be found on the official [website](gpcam.lbl.gov)
 
 ```{toctree}
