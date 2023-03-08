@@ -132,7 +132,8 @@ class AutonomousExperimenterGP():
                  training_dask_client=None,
                  acq_func_opt_dask_client=None,
                  ram_economy=True,
-                 info=False
+                 info=False,
+                 args = None
                  ):
         if info:
             logger.enable('gpcam')
@@ -157,6 +158,7 @@ class AutonomousExperimenterGP():
         self.async_train_in_progress = False
         self.training_dask_client = training_dask_client
         self.acq_func_opt_dask_client = acq_func_opt_dask_client
+        self.args = args
         ################################
         # getting the data ready#########
         ################################
@@ -660,6 +662,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
                  acq_func_opt_dask_client=None,
                  ram_economy=True,
                  info = False,
+                 args = None
                  ):
         dim = len(parameter_bounds)
         self.instrument_func = instrument_func
@@ -674,6 +677,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         self.communicate_full_dataset = communicate_full_dataset
         self.async_train_in_progress = False
         self.training_dask_client = training_dask_client
+        self.args = args
         if self.training_dask_client is None: self.training_dask_client = dask.distributed.Client()
         self.acq_func_opt_dask_client = acq_func_opt_dask_client
         if self.acq_func_opt_dask_client is None: self.acq_func_opt_dask_client = self.training_dask_client

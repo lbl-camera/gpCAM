@@ -20,6 +20,8 @@ class GPOptimizer(GP):
         Integer specifying the number of dimensions of the input space.
     input_space_bounds : np.ndarray
         A numpy array of floats of shape D x 2 describing the input space range
+    args : any, optional
+        args will be available as class attributes in kernel and prior-mean functions
 
     Attributes
     ----------
@@ -43,7 +45,8 @@ class GPOptimizer(GP):
             self,
             input_space_dimension,
             input_space_bounds,
-    ):
+            args = None
+            ):
         self.iput_dim = input_space_dimension
         self.x_data = np.empty((1, self.iput_dim))
         self.y_data = np.empty((1))
@@ -52,6 +55,7 @@ class GPOptimizer(GP):
         self.gp_initialized = False
         self.cost_function_parameters = None
         self.cost_function = None
+        self.args = args
 
     def get_data(self):
         """
@@ -192,7 +196,8 @@ class GPOptimizer(GP):
                 gp_mean_function_grad=gp_mean_function_grad,
                 normalize_y=normalize_y,
                 use_inv=use_inv,
-                ram_economy=ram_economy
+                ram_economy=ram_economy,
+                args=self.args,
             )
             self.gp_initialized = True
         else:
@@ -557,6 +562,9 @@ class fvGPOptimizer(fvGP, GPOptimizer):
         Number of output values.
     input_space_bounds : np.ndarray
         A numpy array of floats of shape D x 2 describing the input space range
+    args : any, optional
+        args will be available as class attributes in kernel and prior-mean functions
+
 
     Attributes
     ----------
@@ -583,6 +591,7 @@ class fvGPOptimizer(fvGP, GPOptimizer):
             output_space_dimension,
             output_number,
             input_space_bounds,
+            args = None
     ):
 
         self.iput_dim = input_space_dimension
@@ -599,7 +608,8 @@ class fvGPOptimizer(fvGP, GPOptimizer):
 
         GPOptimizer.__init__(self,
                              input_space_dimension,
-                             input_space_bounds
+                             input_space_bounds,
+                             args = args
                              )
 
     def get_data_fvGP(self):
@@ -699,7 +709,8 @@ class fvGPOptimizer(fvGP, GPOptimizer):
                 gp_kernel_function=gp_kernel_function,
                 gp_mean_function=gp_mean_function,
                 use_inv=use_inv,
-                ram_economy=ram_economy
+                ram_economy=ram_economy,
+                args=self.args
             )
             self.gp_initialized = True
         else:
