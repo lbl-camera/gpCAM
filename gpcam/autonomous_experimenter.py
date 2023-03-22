@@ -28,9 +28,8 @@ class AutonomousExperimenterGP():
         A 2-D array of floats of size J x 2, such that J is the length matching the length of `hyperparameters` defining
         the bounds for training.
     instrument_func : Callable, optional
-         A function that takes data points (a list of dicts), and returns a similar structure. The function is
-         expected to
-         communicate with the instrument and perform measurements, populating fields of the data input. If
+         A function that takes data points (a list of dicts), and returns a similar structure with data filled in. The function is
+         expected to communicate with the instrument and perform measurements, populating fields of the data input.
     init_dataset_size : int, optional
         If `x` and `y` are not provided and `dataset` is not provided, `init_dataset_size` must be provided. An initial
         dataset is constructed randomly with this length. The `instrument_func` is immediately called to measure values
