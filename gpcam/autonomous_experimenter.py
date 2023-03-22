@@ -162,7 +162,7 @@ class AutonomousExperimenterGP():
         ################################
         # getting the data ready#########
         ################################
-        if init_dataset_size is None and x is None and dataset is None:
+        if init_dataset_size is None and x_data is None and dataset is None:
             raise Exception("Either provide length of initial data or an inital dataset")
         self.data = gpData(dim, parameter_bounds)
         if x_data is None and dataset is None:
