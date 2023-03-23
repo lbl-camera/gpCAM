@@ -10,8 +10,8 @@ from gpcam.gp_optimizer import GPOptimizer
 def ac_func1(x, obj):
     r1 = obj.posterior_mean(x)["f(x)"]
     r2 = obj.posterior_covariance(x)["v(x)"]
-    m_index = np.argmin(obj.data_y)
-    m = obj.data_x[m_index]
+    m_index = np.argmin(obj.y_data)
+    m = obj.x_data[m_index]
     std_model = np.sqrt(r2)
     return -(r1 + 3.0 * std_model)
 

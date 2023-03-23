@@ -115,7 +115,7 @@ class GPOptimizer(GP):
         except Exception as ex:
             logger.error(ex)
             logger.error("Evaluating the acquisition function was not successful.")
-            raise Exception("Evaluating the acquisition function was not successful.")
+            raise Exception("Evaluating the acquisition function was not successful.", ex)
 
     def tell(self, x, y, variances=None):
         """
