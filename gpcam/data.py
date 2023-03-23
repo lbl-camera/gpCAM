@@ -245,6 +245,7 @@ class fvgpData(gpData):
             if y is not None: val = y[i]
             if v is not None: var = v[i]
             if vp is not None: valp = vp[i]
+            if y is not None and vp is None: valp = np.array([np.array([float(i)]) for i in range(len(y[0]))])
 
             data.append(self.npy2dataset_entry(x[i], val, var, valp))
             if info is not None: data[i].update(info[i])
@@ -310,12 +311,13 @@ class fvgpData(gpData):
     def check_incoming_data(self):
         try:
             for entry in self.dataset:
+                print(entry)
                 if entry["values"] is None:
                     raise Exception("Entry with no specified value in communicated list of data dictionaries")
                 if entry["position"] is None:
                     raise Exception("Entry with no specified position in communicated list of data dictionaries")
                 if entry["value positions"] is None:
                     raise Exception("Entry with no specified position in communicated list of data dictionaries")
-        except:
+        except Exception as e:
             raise Exception(
-                "Checking the incoming data could not be accomplished. This normally means that wrong formats were communicated")
+                    "Checking the incoming data could not be accomplished. This normally means that wrong formats were communicated: ", e)

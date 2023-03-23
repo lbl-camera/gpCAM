@@ -108,12 +108,14 @@ class GPOptimizer(GP):
         x = np.array(x)
         cost_function = self.cost_function
         try:
-            return sm.evaluate_acquisition_function(
+            res = sm.evaluate_acquisition_function(
                 x, self, acquisition_function, origin, cost_function,
                 self.cost_function_parameters)
+            return res
         except Exception as ex:
             logger.error(ex)
             logger.error("Evaluating the acquisition function was not successful.")
+            raise Exception("Evaluating the acquisition function was not successful.")
 
     def tell(self, x, y, variances=None):
         """
