@@ -99,7 +99,7 @@ class GPOptimizer(GP):
         ------
         The acquisition function evaluations at all points `x` : np.ndarray
         """
-
+        if self.cost_function and origin is None: print("Warning: For the cost fucntion to be active, an origin has to be provided.")
         if self.gp_initialized is False:
             raise Exception(
                 "Initialize GP before evaluating the acquisition function. "
@@ -111,7 +111,7 @@ class GPOptimizer(GP):
             res = sm.evaluate_acquisition_function(
                 x, self, acquisition_function, origin, cost_function,
                 self.cost_function_parameters)
-            return res
+            return -res
         except Exception as ex:
             logger.error(ex)
             logger.error("Evaluating the acquisition function was not successful.")

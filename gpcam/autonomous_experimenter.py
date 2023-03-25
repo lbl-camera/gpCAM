@@ -102,6 +102,8 @@ class AutonomousExperimenterGP():
         Data point values
     variances : np.ndarray
         Data point observation variances
+    data.dataset : list
+        All data
     hyperparameter_bounds : np.ndarray
         A 2-D array of floats of size J x 2, such that J is the length matching the length of `hyperparameters` defining
         the bounds for training.
