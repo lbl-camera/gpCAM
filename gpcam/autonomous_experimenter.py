@@ -19,7 +19,7 @@ class AutonomousExperimenterGP():
     Parameters
     ----------
     parameter_bounds : np.ndarray
-        A numpy array of floats of shape D x 2 describing the input space range
+        A numpy array of floats of shape D x 2 describing the input space.
     hyperparameters : np.ndarray
         A 1-D numpy array of floats. The default kernel function expects a length of D+1, where the first
         value is a signal variance, followed by a length scale in each direction of the input space. If a kernel
