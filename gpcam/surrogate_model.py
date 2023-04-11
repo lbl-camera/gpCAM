@@ -131,7 +131,7 @@ def evaluate_acquisition_function(x, gp, acquisition_function, origin=None, numb
     ####this function evaluates a default or a user-defined acquisition function
     ##########################################################
     if x.ndim == 1: x = np.array([x])
-    if cost_function is not None and origin is not None and cost_function_parameters is not None:
+    if cost_function is not None and origin is not None:
         cost_eval = cost_function(origin, x, cost_function_parameters)
     else:
         cost_eval = 1.0
@@ -231,8 +231,8 @@ def differential_evolution(ObjectiveFunction,
                            cost_function_parameters=None,
                            args = {},
                            vectorized = True):
-    fun = partial(ObjectiveFunction, gp=gp, acquisition_function=acquisition_function, origin=origin,
-                  cost_function=cost_function, cost_function_parameters=cost_function_parameters, number_of_maxima_sought = number_of_maxima_sought, args = args)
+    fun = partial(ObjectiveFunction, gp=gp, acquisition_function=acquisition_function, origin=origin, number_of_maxima_sought = number_of_maxima_sought,
+                  cost_function=cost_function, cost_function_parameters=cost_function_parameters,  args = args)
     res = devo(partial(acq_function_vectorization_wrapper, func = fun, vectorized = vectorized), bounds, tol=tol, maxiter=max_iter, popsize=popsize, polish=False, constraints = constraints, vectorized=vectorized)
     return [list(res["x"])], list([res["fun"]])
 

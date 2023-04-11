@@ -109,13 +109,12 @@ class GPOptimizer(GP):
         cost_function = self.cost_function
         try:
             res = sm.evaluate_acquisition_function(
-                x, self, acquisition_function, origin, cost_function,
-                self.cost_function_parameters)
+                x, self, acquisition_function, origin = origin, number_of_maxima_sought = None, cost_function = cost_function, cost_function_parameters = self.cost_function_parameters, args = None)
             return -res
         except Exception as ex:
+            raise Exception("Evaluating the acquisition function was not successful.", ex)
             logger.error(ex)
             logger.error("Evaluating the acquisition function was not successful.")
-            raise Exception("Evaluating the acquisition function was not successful.", ex)
 
     def tell(self, x, y, variances=None):
         """
@@ -537,7 +536,6 @@ class GPOptimizer(GP):
             "No cost function parameters specified. Please call init_cost() first.")
         self.cost_function_parameters = \
             self.cost_update_function(measurement_costs, self.cost_function_parameters)
-        #print("cost parameters changed to: ", self.cost_function_parameters)
 
 
 ######################################################################################
