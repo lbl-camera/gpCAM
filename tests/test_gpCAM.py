@@ -10,8 +10,8 @@ from gpcam.gp_optimizer import GPOptimizer
 def ac_func1(x, obj):
     r1 = obj.posterior_mean(x)["f(x)"]
     r2 = obj.posterior_covariance(x)["v(x)"]
-    m_index = np.argmin(obj.data_y)
-    m = obj.data_x[m_index]
+    m_index = np.argmin(obj.y_data)
+    m = obj.x_data[m_index]
     std_model = np.sqrt(r2)
     return -(r1 + 3.0 * std_model)
 
@@ -106,8 +106,46 @@ class TestgpCAM(unittest.TestCase):
                                         init_dataset_size=10)
         #...train...
         my_ae.train()
+        my_ae.train_async()
+        my_ae.update_hps()
+        my_ae.kill_training()
 
         #...and run. That's it. You successfully executed an autonomous experiment.
         my_ae.go(N = 100)
 
         print("END")
+
+    def test_acq_funcs(self):
+        import numpy as np
+        from gpcam.gp_optimizer import GPOptimizer
+
+        #initialize some data
+        x_data = np.random.uniform(size = (100,3))
+        y_data = np.sin(np.linalg.norm(x_data, axis = 1))
+
+
+        #initialize the GPOptimizer
+        my_gpo = GPOptimizer(3,np.array([[1.,2.],[4.,5.],[6.,7.]]))
+        #tell() it some data
+        my_gpo.tell(x_data,y_data)
+        #initialize a GP ...
+        my_gpo.init_gp(np.ones(4))
+        #and train it
+        my_gpo.train_gp(np.array([[0.001,100],[0.001,100],[0.001,100],[0.001,100]]))
+
+        #let's make a prediction
+        print("an example posterior mean at x = 0.44 :",my_gpo.posterior_mean(np.array([0.44,1.,1.])))
+        print("")
+        #now we can ask for a new point
+
+        r = my_gpo.ask(n = 5, acquisition_function="shannon_ig_multi")
+        r = my_gpo.ask(n = 1, acquisition_function="shannon_ig")
+        r = my_gpo.ask(n = 1, acquisition_function="shannon_ig_vec")
+        r = my_gpo.ask(n = 1, acquisition_function="variance")
+        r = my_gpo.ask(n = 1, acquisition_function="covariance")
+        r = my_gpo.ask(n = 1, acquisition_function="ucb")
+        r = my_gpo.ask(n = 1, acquisition_function="maximum")
+        r = my_gpo.ask(n = 5, acquisition_function="gradient", method = "local")
+        r = my_gpo.ask(n = 1, acquisition_function="target_probability", method = "local", args = {"a":1.,"b":2.})
+
+

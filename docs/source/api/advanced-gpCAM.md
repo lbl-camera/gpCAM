@@ -7,7 +7,7 @@ The advanced use of gpCAM is about communicating domain knowledge in the form of
 Often times an overall trend of the model is known in absolute terms or in parametric form. In that case, the user may define their own prior mean function following the example below.
 
 ```python
-def himmel_blau(gp_obj,x,hyperparameters):
+def himmel_blau(x,hyperparameters, gp_obj):
     return (x[:,0] ** 2 + x[:,1] - 11.0) ** 2 + (x[:,0] + x[:,1] ** 2 - 7.0) ** 2
 ```
 
@@ -94,4 +94,4 @@ def update_l2_cost_function(costs, bounds, parameters):
 ## Constrained Optimization
 
 It is now possible to create hgdl.constraints.NonLinearConstraint object instances and communicate them to gp_optimizer.train and gp_optimizer.train_async().
-Setting this up is a little tricky but potentially very beneficial.
+Setting this up is a little tricky but potentially very beneficial. Have a look at the HGDL documentation.

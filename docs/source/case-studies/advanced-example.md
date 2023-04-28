@@ -15,7 +15,7 @@ kernelspec:
 
 # Example for the Advanced User
 
-Here we show the test that is included in the package in `./tests/test_notebook.ipynb`
+Here we show the test that is included in the package in `./examples/advanced_test.ipynb`
 
 Again, the API is changing frequently, always use `help()`.
 
@@ -100,7 +100,7 @@ def optional_acq_func(x,obj):
     cov = obj.posterior_covariance(x)["v(x)"]
     return mean + a * cov
 
-def optional_mean_func(gp_obj,x,hyperparameters):
+def optional_mean_func(x,hyperparameters,gp_obj):
     return ((x[:,0] ** 2 + x[:,1] - 11.0) ** 2 + (x[:,0] + x[:,1] ** 2 - 7.0) ** 2) * hyperparameters[-1]
 
 def optional_cost_function(origin,x,arguments = None):
@@ -292,14 +292,36 @@ y = data[:,21:23]
 ```{code-cell} ipython3
 :id: TB5mfakVTfLM
 
+
 from gpcam.autonomous_experimenter import AutonomousExperimenterFvGP
 
-
 def instrument(data, instrument_dict = {}):
+    print("Suggested by gpCAM: ", data)
+    print("")
     for entry in data:
         entry["values"] = griddata(x,y,entry["position"],method = "nearest", fill_value = 0)[0]
         entry["value positions"] = np.array([[0],[1]])
     return data
+
+def recommended_acq_func(x,obj):
+    #multi-tast autonomous experiments should make use of a user-defined acquisition function to
+    #make full use of the surrogate and the uncertainty in all tasks.
+    a = 3.0 #3.0 for ~95 percent confidence interval
+    x = np.block([[x,np.zeros((len(x))).reshape(-1,1)],[x,np.ones((len(x))).reshape(-1,1)]]) #for task 0 and 1
+    mean = obj.posterior_mean(x)["f(x)"]
+    cov = obj.posterior_covariance(x)["v(x)"]
+    #it takes a little bit of wiggling to get the tasks seperated and then merged again...
+    task0index = np.where(x[:,21] == 0.)[0]
+    task1index = np.where(x[:,21] == 1.)[0]
+    mean_task0 = mean[task0index]
+    mean_task1 = mean[task1index]
+    cov_task0 = cov[task0index]
+    cov_task1 = cov[task1index]
+    mean = np.column_stack([mean_task0,mean_task1])
+    cov  = np.column_stack([cov_task0 ,cov_task1 ])
+    #and now we are interested in the l2 norm of the mean and variance at each input location.
+    return np.linalg.norm(mean, axis = 1) + a * np.linalg.norm(cov,axis = 1)
+
 
 input_s = np.array([np.array([np.min(x[:,i]),np.max(x[:,i])]) for i in range(len(x[0]))])
 print("index set (input space) bounds:")
@@ -314,9 +336,10 @@ print("shape of y: ")
 print(y.shape)
 
 my_fvae = AutonomousExperimenterFvGP(input_s,2,1,np.ones((22)), hps_bounds,
-                                     init_dataset_size= 10, instrument_func = instrument)
+                                     init_dataset_size= 10, instrument_func = instrument, acq_func=recommended_acq_func)
 my_fvae.train()
-my_fvae.go(N = 100)
+my_fvae.go(N = 50)
+
 ```
 
 +++ {"id": "GvXb7A8BTfLN"}

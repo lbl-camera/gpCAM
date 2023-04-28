@@ -1,6 +1,6 @@
 wheel
 numpy
-scipy
+scipy == 1.9.1
 matplotlib
 torch >= 1.9.0
 pandas
@@ -8,8 +8,7 @@ ophyd
 dask >= 2021.6.2
 distributed >= 2021.6.2
 zmq
-fvgp == 3.3.1
-hgdl == 2.0.1
+fvgp == 3.3.7
 plotly
 notebook
 loguru

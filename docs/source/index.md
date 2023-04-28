@@ -103,7 +103,7 @@ gpCAM allows the advanced user to import their own Python functions to control t
 Software for the Novice and the Expert
 ```
 
-For users not familiar with Python, gpCAM can be run without doing any Python coding at all   
+Simple approximation and autonomous-experimentation problems can be set up in minutes; the options for customization are endless
 
 ````
 `````
