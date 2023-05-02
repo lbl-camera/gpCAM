@@ -7,7 +7,7 @@ pandas
 ophyd
 dask >= 2021.6.2
 distributed >= 2021.6.2
-zmq
+pyzmq
 fvgp == 3.3.7
 plotly
 notebook
