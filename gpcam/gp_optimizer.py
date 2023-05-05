@@ -383,6 +383,7 @@ class GPOptimizer(GP):
             x0=None,
             vectorized = True,
             args = {},
+            multi_task = False,
             dask_client=None):
 
         """
@@ -462,6 +463,8 @@ class GPOptimizer(GP):
                vectorized = False
         else: vectorized  = True
         if method != "global": vectorized = False
+        if multi_task and not callable(acquisition_function): 
+            raise Exception("You have to provide a callable acquisition function to ask() in the multi-task case. See gpcam.lbl.gov for help.")
 
         maxima, func_evals, opt_obj = sm.find_acquisition_function_maxima(
             self,
