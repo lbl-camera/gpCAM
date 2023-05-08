@@ -4,6 +4,7 @@ banner_height: "60vh"
 banner_contents: >
     <div style="position: absolute; top: 50%; left: 60%; transform: translate(-50%, -50%); color: white;"><p style="text-align: center;"><em id="landing-title" style="font-size: 48pt; color: #96e6b3; font-family: \'Merriweather\', serif; font-weight: 900; font-style: italic;">gpCAM</em></p>
     <p style="text-align: center;"><em>Autonomous Data Acquisition, HPC Uncertainty Quantification and Constrained Function Optimization</em></p>
+    </div>
 ---
 
 ```{toctree}
