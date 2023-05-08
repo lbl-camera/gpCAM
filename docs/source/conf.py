@@ -44,6 +44,8 @@ exclude_patterns = []
 #
 html_theme = 'sphinx_rtd_theme'
 
+html_style = 'custom.css'
+
 html_static_path = ['_static']
 
 html_logo = '_static/gpCAM_dark_bg.png'
