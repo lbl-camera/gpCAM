@@ -130,6 +130,7 @@ class AutonomousExperimenterGP():
                  communicate_full_dataset=False,
                  compute_device="cpu",
                  use_inv=False,
+                 multi_task = False,
                  training_dask_client=None,
                  acq_func_opt_dask_client=None,
                  ram_economy=True,
@@ -147,6 +148,7 @@ class AutonomousExperimenterGP():
 
 
         dim = len(parameter_bounds)
+        self.multi_task = multi_task
         self.instrument_func = instrument_func
         self.hyperparameter_bounds = hyperparameter_bounds
         self.acq_func = acq_func
@@ -394,6 +396,8 @@ class AutonomousExperimenterGP():
         logger.info("Starting the autonomous loop...")
         i = 0
         n_measurements = len(self.x_data)
+        if self.multi_task and not callable(self.acq_func):
+            raise Exception("For multi-task learning you have to supply a user-defined callable acquisition function when initializing the AutonomousExperimenterFvGP. See gpcam.lbl.gov for help.")
 
 
         #start the loop
@@ -421,6 +425,7 @@ class AutonomousExperimenterGP():
                 pop_size=acq_func_opt_pop_size,
                 max_iter=acq_func_opt_max_iter,
                 tol=acq_func_opt_tol,
+                multi_task = self.multi_task,
                 args = ask_args,
                 constraints = constraints,
                 dask_client=self.acq_func_opt_dask_client)
@@ -658,6 +663,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
                  x_data=None, y_data=None, variances=None, vp=None, dataset=None,
                  communicate_full_dataset=False,
                  compute_device="cpu",
+                 multi_task = True,
                  use_inv=False,
                  training_dask_client=None,
                  acq_func_opt_dask_client=None,
@@ -666,6 +672,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
                  args = None
                  ):
         dim = len(parameter_bounds)
+        self.multi_task = multi_task
         self.instrument_func = instrument_func
         self.hyperparameters = hyperparameters
         self.hyperparameter_bounds = hyperparameter_bounds

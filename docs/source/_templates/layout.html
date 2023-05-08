@@ -14,7 +14,7 @@
 {% endblock %}
 
 {% block scripts %}
-{% if meta is defined and 'banner' in meta %}
+{% if meta is defined and meta is not none and 'banner' in meta %}
 <style>
     /* Hide document h1s (they show in the banners) */
     .document h1 {

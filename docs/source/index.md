@@ -4,10 +4,8 @@ banner_height: "60vh"
 banner_contents: >
     <div style="position: absolute; top: 50%; left: 60%; transform: translate(-50%, -50%); color: white;"><p style="text-align: center;"><em id="landing-title" style="font-size: 48pt; color: #96e6b3; font-family: \'Merriweather\', serif; font-weight: 900; font-style: italic;">gpCAM</em></p>
     <p style="text-align: center;"><em>Autonomous Data Acquisition, HPC Uncertainty Quantification and Constrained Function Optimization</em></p>
-    <p dir="ltr" style="text-align: center;"><span style="font-size: 48pt; vertical-align: baseline; font-family: Merriweather, serif; font-weight: 400; line-height: 1.6667;"><em>Developed by CAMERA</em></span></p>
-    <p dir="ltr" style="text-align: center;"><span style="font-size: 24pt; vertical-align: baseline;font-family: Merriweather, serif; font-weight: 400; line-height: 1.6667;"><em> The Center for Advanced Mathematics for Energy Research Applications</em></span></p></div>
+    </div>
 ---
-
 
 ```{toctree}
 ---
@@ -70,12 +68,12 @@ Simple API
 
 The API is designed in a way that makes it easy to be used  
 ````
-
+`````
+````` {div} row
 ```` {div} col
 ![_static/contour-plot.png](_static/contour-plot.png)
 ````
-`````
-````` {div} row
+
 ```` {div} col
 ```{div} h3
 Powerful Computing
@@ -96,11 +94,12 @@ Advanced Mathematics for Increased Flexibility
 
 gpCAM allows the advanced user to import their own Python functions to control the training and prediction
 ````
+`````
+````` {div} row
 ```` {div} col
 ![_static/bounded-curve.png](_static/bounded-curve.png)
 ````
-`````
-````` {div} row
+
 ```` {div} col
 ```{div} h3
 Software for the Novice and the Expert
