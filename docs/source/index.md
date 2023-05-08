@@ -67,12 +67,12 @@ Simple API
 
 The API is designed in a way that makes it easy to be used  
 ````
-
+`````
+````` {div} row
 ```` {div} col
 ![_static/contour-plot.png](_static/contour-plot.png)
 ````
-`````
-````` {div} row
+
 ```` {div} col
 ```{div} h3
 Powerful Computing
@@ -93,11 +93,12 @@ Advanced Mathematics for Increased Flexibility
 
 gpCAM allows the advanced user to import their own Python functions to control the training and prediction
 ````
+`````
+````` {div} row
 ```` {div} col
 ![_static/bounded-curve.png](_static/bounded-curve.png)
 ````
-`````
-````` {div} row
+
 ```` {div} col
 ```{div} h3
 Software for the Novice and the Expert
