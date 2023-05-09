@@ -58,3 +58,5 @@ html_theme_options = dict(
     collapse_navigation=False,
     titles_only=False
 )
+
+autoclass_content = 'both'
