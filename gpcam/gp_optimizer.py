@@ -99,7 +99,7 @@ class GPOptimizer(GP):
         ------
         The acquisition function evaluations at all points `x` : np.ndarray
         """
-        if self.cost_function and origin is None: print("Warning: For the cost fucntion to be active, an origin has to be provided.")
+        if self.cost_function and origin is None: print("Warning: For the cost function to be active, an origin has to be provided.")
         if self.gp_initialized is False:
             raise Exception(
                 "Initialize GP before evaluating the acquisition function. "
@@ -461,7 +461,7 @@ class GPOptimizer(GP):
            acquisition_function == "shannon_ig_multi" or \
            acquisition_function == "covariance":
                vectorized = False
-        else: vectorized  = True
+
         if method != "global": vectorized = False
         if multi_task and not callable(acquisition_function): 
             raise Exception("You have to provide a callable acquisition function to ask() in the multi-task case. See gpcam.lbl.gov for help.")
