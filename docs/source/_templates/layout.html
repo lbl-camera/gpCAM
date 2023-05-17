@@ -14,7 +14,7 @@
 {% endblock %}
 
 {% block scripts %}
-{% if meta is defined and 'banner' in meta %}
+{% if meta is defined and meta is not none and 'banner' in meta %}
 <style>
     /* Hide document h1s (they show in the banners) */
     .document h1 {
@@ -27,7 +27,7 @@
 
 {% block mobile_nav %}
 {{ super() }}
-{% if meta is defined and 'banner' in meta %}
+{% if meta is defined and meta is not none and 'banner' in meta %}
 </nav>
 <div class="container" style="text-align: center; position: relative; width:100%; max-width: unset; height:{{ meta.banner_height|default('340px', true)}}; background-size:cover; background-position:center {{ meta.banner_align|default('center', true) }}; transform: translate3d(0px, 0px, 0px); background-image: linear-gradient(rgba({{meta.banner_shade|default(0, true)|float}}, {{meta.banner_shade|default(0, true)|float}}, {{meta.banner_shade|default(0, true)|float}}, {{1 - meta.banner_brightness|default(1, true)|float}}), rgba({{meta.banner_shade|default(0, true)|float}}, {{meta.banner_shade|default(0, true)|float}}, {{meta.banner_shade|default(0, true)|float}}, {{1 - meta.banner_brightness|default(1, true)|float}})), url('{{ meta.banner }}');">
     {% if 'banner_contents' in meta %}
