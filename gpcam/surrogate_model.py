@@ -118,7 +118,6 @@ def find_acquisition_function_maxima(gp, acquisition_function,
             "acquisition function. It should return a 1-d numpy array")
     return opti, func_eval, opt_obj
 
-
 ############################################################
 ############################################################
 ############################################################
@@ -203,6 +202,16 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gp, number_of_maxi
     elif acquisition_function == "minimum":
         res = gp.posterior_mean(x)["f(x)"]
         return -res
+    elif acquisition_function == "expected improvement":
+        m = gp.posterior_mean(x)["f(x)"]
+        std = np.sqrt(gp.posterior_covariance(x, variance_only=True)["v(x)"])
+        last_best = args["last best"]
+        a = m - last_best
+        pdf = norm.pdf(a/std)
+        cdf = norm.cdf(a/std)
+        return max(0,a) + std * pdf - abs(a)*cdf
+
+
     elif acquisition_function == "target_probability":
         a = args["a"]
         b = args["b"]
@@ -215,6 +224,7 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gp, number_of_maxi
     else: raise Exception("")
 
     raise ValueError(f'The requested acquisition function "{acquisition_function}" does not exist.')
+
 
 
 def differential_evolution(ObjectiveFunction,
