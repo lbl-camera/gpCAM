@@ -11,14 +11,17 @@ import warnings
 
 #TODO
 #   check all docstrings for fvgp specific stuff (fvgp.GP...)
-#
+#   double check ask() in single-task
+#   do ALL multi-task
+#   remember the (fv)GPautonomous_experimenter
 
 class GPOptimizer(GP):
     """
     This class is an optimization wrapper around the fvgp package for single-task (scalar-valued) Gaussian Processes.
     Gaussian Processes can be initialized, trained, and conditioned; also
-    the posterior can be evaluated and plugged into optimizers to find
-    its maxima.
+    the posterior can be evaluated and used via acquisition functions,
+    and plugged into optimizers to find its maxima. This class inherits many methods from
+    the fvgp.GP class. Check fvgp.readthedocs.io for a full list of capabilities.
 
     V ... number of input points
     D ... input space dimensionality
@@ -255,10 +258,10 @@ class GPOptimizer(GP):
         Parameters
         ----------
         x : np.ndarray
-            Point positions at which the acquisition function is evaluated.
+            Point positions at which the acquisition function is evaluated. Shape (N x D).
         acquisition_function : Callable, optional
-            Acquisition function to execute. Callable with inputs (x,gpcam.gp_optimizer.GPOptimizer),
-            where x is a V x D array of input x_data. The return value is a 1-D array of length V.
+            Acquisition function to execute. Callable with inputs (x,gpcam.GPOptimizer),
+            where x is a V x D array of input x position. The return value is a 1-D array of length V.
             The default is `variance`.
         origin : np.ndarray, optional
             If a cost function is provided this 1-D numpy array of length D is used as the origin of motion.
@@ -267,7 +270,8 @@ class GPOptimizer(GP):
 
         Return
         ------
-        The acquisition function evaluations at all points `x` : np.ndarray
+        np.ndarray
+            The acquisition function evaluations at all points `x`.
         """
         if self.cost_function and origin is None: warnings.warn("Warning: For the cost function to be active, an origin has to be provided.")
         if origin is not None and self.cost_function is None: warnings.warn("Warning: An origin is given but no cost function is defined. Cost function ignored")
@@ -284,6 +288,8 @@ class GPOptimizer(GP):
         """
         This function can tell() the gp_optimizer class
         the data that was collected. The data will instantly be used to update the gp data.
+        IMPORTANT: This call does not append data. The entire dataset, including the updates,
+        has to be provided.
 
         Parameters
         ----------
@@ -426,7 +432,7 @@ class GPOptimizer(GP):
 
         Return
         ------
-        Optimization object that can be given to `fvgp.GP.update_hyperparameters()` to update the prior GP : object instance
+        Optimization object that can be given to `gpcam.GPOptimizer.update_hyperparameters()` to update the prior GP : object instance
         """
 
         opt_obj = super().train_async(
@@ -499,9 +505,9 @@ class GPOptimizer(GP):
             dask_client=None):
 
         """
-        Given that the acquisition device is at "position", the function ask()s for
-        "n" new optimal points within certain "bounds" and using the optimization setup:
-        "acquisition_function_pop_size", "max_iter" and "tol"
+        Given that the acquisition device is at "position", this function ask()s for
+        "n" new optimal points within certain "bounds" and using the optimization setup: "method",
+        "acquisition_function_pop_size", "max_iter", "tol", "constraints", and "x0".
 
         Parameters
         ----------
@@ -513,32 +519,29 @@ class GPOptimizer(GP):
             provided this position will be taken into account
             to guarantee a cost-efficient new suggestion. The default is None.
         n  : int, optional
-            The algorithm will try to return this many suggestions for 
-            new measurements. This may be limited by how many
-            optima the algorithm may find. If greater than 1, then 
-            the `acq_func` optimization method is automatically
-            set to use HGDL. The default is 1.
+            The algorithm will try to return n suggestions for
+            new measurements. This is either done by method = 'hgdl', or otherwise
+            by maximizing the collective information gain (default).
         acquisition_function : Callable, optional
-            The acquisition function accepts as input a numpy array 
+            The acquisition function accepts as input a numpy array
             of size V x D (such that V is the number of input
-            points, and D is the parameter space dimensionality) and 
+            points, and D is the parameter space dimensionality) and
             a `GPOptimizer` object. The return value is 1-D array
-            of length V providing 'scores' for each position, 
+            of length V providing 'scores' for each position,
             such that the highest scored point will be measured next.
             Built-in functions can be used by one of the following keys: 
-            `'shannon_ig'`, `'shannon_ig_multi'`, `'shannon_ig_vec'`,
+            `'shannon_ig'`, `'shannon_ig_vec'`,
             `'ucb'`, `'maximum'`,
             `'minimum'`, `'covariance'`, `'variance'`, `'expected_improvement'`, 
             `'PI'` (probability of improvement), and `'gradient'`. 
             If None, the default function `'variance'`, meaning
             `fvgp.GP.posterior_covariance` with variance_only = True will be used.
+            The acquisition function can be a callable of the form my_func(x,gpcam.GPOptimizer)
+            which will be maximized (!!!), so make sure desirable new measurement points
+            will be located at maxima.
             Explanations of the acquisition functions:
-            shannon_if: mutual information, shannon info gain, entropy change
-            shannon_ig_multi: Same but finding multiple optimal points. 
-                IMPORTANT, the input will be changed to dimensionality 
-                number-ofpoints-asked-for x original input dim.
-                This is important for cost and constrant functions
-            shannon_ig_vec: mutual info per-point but vecotrized for speed
+            shannon_if: mutual information, shannon info gain, predicted entropy change,
+            shannon_ig_vec: mutual info per-point but vectorized for speed
             ucb: upper confidence bound, posterior mean + 3. std
             maximum: finds the maximum of the current posterior mean
             minimum: finds the maximum of the current posterior mean
@@ -546,9 +549,10 @@ class GPOptimizer(GP):
             variance: the posterior variance
             gradient: puts focus on high-gradient regions
         method : str, optional
-            A string defining the method used to find the maximum 
+            A string defining the method used to find the maximum
             of the acquisition function. Choose from `global`,
-            `local`, `hgdl`.
+            `local`, `hgdl`. HGDL is an in-house hybrid optimizer
+            that is comfortable on HPC hardware.
             The default is `global`.
         pop_size : int, optional
             An integer defining the number of individuals if `global` 
@@ -559,31 +563,29 @@ class GPOptimizer(GP):
             This number defined the number of iterations 
             before the optimizer is terminated. The default is 20.
         tol : float, optional
-            Termination criterion for the local optimizer. 
+            Termination criterion for the local optimizer.
             The default is 1e-6.
         x0 : np.ndarray, optional
-            A set of points as numpy array of shape V x D, 
-            used as starting location(s) for the local and hgdl
-            optimization
-            algorithm. The default is None.
+            A set of points as numpy array of shape N x D,
+            used as starting location(s) for the optimization
+            algorithms. The default is None.
         vectorized : bool, optional
-            If your acquisiiton function vecotrized to return the 
-            solution to an array of inquiries as an array, 
-            this optionmakes the optimization faster if method = 'global'
-            is used. The default is True but will be set to 
+            If your acquisition function is vectorized to return the 
+            solution to an array of inquiries as an array,
+            this option makes the optimization faster if method = 'global'
+            is used. The default is True but will be set to
             False if method is not global.
         constraints : tuple of object instances, optional
-            Either a tuple of hgdl.constraints.NonLinearConstraint 
-            or scipy constraints instances, depending on the used optimizer.
+            scipy constraints instances, depending on the used optimizer.
         args : dict, optional
-            Provides arguments for certain acquisition 
+            Provides arguments for certain acquisition
             functions, such as, "target_probability". In this case it should be
             defined as {"a": some lower bound, "b":some upper bound}, 
             example: "args = {"a": 1.0,"b": 3.0}".
         dask_client : distributed.client.Client, optional
-            A Dask Distributed Client instance for distributed 
-            `acquisition_func` computation. If None is provided,
-            a new `dask.distributed.Client` instance is constructed.
+            A Dask Distributed Client instance for distributed
+            `acquisition_function` optimization. If None is provided,
+            a new `dask.distributed.Client` instance is constructed for hgdl.
 
         Return
         ------
@@ -601,13 +603,15 @@ class GPOptimizer(GP):
             method = "global"
             new_optimization_bounds = np.row_stack([bounds for i in range(n)])
             bounds = new_optimization_bounds
-            acquisition_function = "shannon_ig_multi"
+            acquisition_function = "shannon_ig"
             vectorized = False
         if acquisition_function == "shannon_ig" or \
-           acquisition_function == "shannon_ig_multi" or \
            acquisition_function == "covariance":
                vectorized = False
         if method != "global": vectorized = False
+
+        print(acquisition_function)
+        print(bounds)
 
 
         maxima, func_evals, opt_obj = sm.find_acquisition_function_maxima(
@@ -626,7 +630,7 @@ class GPOptimizer(GP):
             args = args,
             info = info,
             dask_client=dask_client)
-        if n > 1: return {'x': maxima.reshape(n,self.input_dim), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
+        if n > 1: return {'x': maxima.reshape(n,self.input_space_dim), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
         return {'x': np.array(maxima), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
 
     ##############################################################
@@ -660,7 +664,10 @@ class GPOptimizer(GP):
         if callable(self.cost_update_function): self.cost_function_parameters = self.cost_update_function(measurement_costs, self.cost_function_parameters)
         else: warnings.warn("No cost_update_function available. Cost update failed.")
 
-
+######################################################################################
+######################################################################################
+######################################################################################
+######################################################################################
 ######################################################################################
 ######################################################################################
 ######################################################################################
@@ -670,10 +677,15 @@ class GPOptimizer(GP):
 ######################################################################################
 class fvGPOptimizer(fvGP):
     """
-    This class is an optimization wrapper around the fvgp package for multi-task (multi-variate) Gaussian Processes.
+    This class is an optimization wrapper around the fvgp package for multi-task (scalar-valued) Gaussian Processes.
     Gaussian Processes can be initialized, trained, and conditioned; also
-    the posterior can be evaluated and plugged into optimizers to find
-    its maxima.
+    the posterior can be evaluated and used via acquisition functions,
+    and plugged into optimizers to find its maxima. This class inherits many methods from
+    the fvgp.GP class. Check fvgp.readthedocs.io for a full list of capabilities.
+
+    V ... number of input points
+    D ... input space dimensionality
+    N ... arbitrary integers (N1, N2,...)
 
     V ... number of input points
     Di... input space dimensionality
@@ -1221,17 +1233,13 @@ class fvGPOptimizer(fvGP):
             of length V providing 'scores' for each position, 
             such that the highest scored point will be measured next.
             Built-in functions can be used by one of the following keys: 
-            `'shannon_ig'`, `'shannon_ig_multi'`, `'shannon_ig_vec'`,
+            `'shannon_ig'`, `'shannon_ig_vec'`,
             `'ucb'`, `'maximum'`,
             `'minimum'`, `'covariance'`, `'variance'`, and `'gradient'`. 
             If None, the default function is the `'variance'`, meaning
             `fvgp.gp.GP.posterior_covariance` with variance_only = True.
             Explanations of the acquisition functions:
-            shannon_if: mutual information, shannon info gain, entropy change
-            shannon_ig_multi: Same but finding multiple optimal points. 
-                IMPORTANT, the input will be changed to dimensionality 
-                number-ofpoints-asked-for x original input dim.
-                This is important for cost and constrant functions
+            shannon_ig: mutual information, shannon info gain, ientropy change
             shannon_ig_vec: mutual info per-point but vecotrized for speed
             ucb: upper confidence bound, posterior mean + 3. std
             maximum: finds the maximum of the current posterior mean
@@ -1298,10 +1306,9 @@ class fvGPOptimizer(fvGP):
             method = "global"
             new_optimization_bounds = np.row_stack([bounds for i in range(n)])
             bounds = new_optimization_bounds
-            acquisition_function = "shannon_ig_multi"
+            acquisition_function = "shannon_ig"
             vectorized = False
         if acquisition_function == "shannon_ig" or \
-           acquisition_function == "shannon_ig_multi" or \
            acquisition_function == "covariance":
                vectorized = False
 
