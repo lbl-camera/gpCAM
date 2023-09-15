@@ -7,7 +7,7 @@ from loguru import logger
 
 from hgdl.hgdl import HGDL
 from scipy.optimize import differential_evolution as devo, minimize
-
+from scipy.stats import norm
 
 
 ##########################################################################
@@ -25,7 +25,8 @@ def find_acquisition_function_maxima(gp, acquisition_function,
                                      cost_function_parameters=None,
                                      vectorized = True,
                                      args = {},
-                                     dask_client=None):
+                                     dask_client=None,
+                                     info = False):
     bounds = np.array(optimization_bounds)
     opt_obj = None
     logger.info("====================================")
@@ -53,7 +54,8 @@ def find_acquisition_function_maxima(gp, acquisition_function,
             cost_function=cost_function,
             cost_function_parameters=cost_function_parameters,
             vectorized = vectorized,
-            args = args
+            args = args,
+            disp = info
         )
         opti = np.asarray(opti)
         func_eval = np.asarray(func_eval)
@@ -122,8 +124,6 @@ def find_acquisition_function_maxima(gp, acquisition_function,
 ############################################################
 ############################################################
 ############################################################
-
-
 def evaluate_acquisition_function(x, gp, acquisition_function, origin=None, number_of_maxima_sought = None,
                                   cost_function=None, cost_function_parameters=None, args = None):
     ##########################################################
@@ -161,37 +161,38 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gp, number_of_maxi
     ##this function will always spit out a 1d numpy array
     ##for certain functions, this array will only have one entry
     ##for the other the length == len(x)
-    try: x = x.reshape(-1,gp.input_dim)
+    print(acquisition_function, args)
+    try: x = x.reshape(-1,gp.input_space_dim)
     except: raise Exception("x request in evaluate_gp_acquisition_function has wrong dimensionality.", x.shape)
 
     if acquisition_function == "variance":
-        x = x.reshape(-1,gp.input_dim)
+        x = x.reshape(-1,gp.input_space_dim)
         res = gp.posterior_covariance(x, variance_only=True)["v(x)"]
         return res
     elif acquisition_function == "covariance":
-        x = x.reshape(-1,gp.input_dim)
+        x = x.reshape(-1,gp.input_space_dim)
         res = gp.posterior_covariance(x)
         b = res["S(x)"]
         sgn, logdet = np.linalg.slogdet(b)
         return np.array([np.sqrt(sgn * np.exp(logdet))])
     elif acquisition_function == "shannon_ig":
-        x = x.reshape(-1,gp.input_dim)
+        x = x.reshape(-1,gp.input_space_dim)
         res = gp.shannon_information_gain(x)["sig"]
         return np.array([res])
     elif acquisition_function == "shannon_ig_multi":
         res = gp.shannon_information_gain(x)["sig"]
         return np.array([res])
     elif acquisition_function == "shannon_ig_vec":
-        x = x.reshape(-1,gp.input_dim)
+        x = x.reshape(-1,gp.input_space_dim)
         res = gp.shannon_information_gain_vec(x)["sig(x)"]
         return res
     elif acquisition_function == "ucb":
-        x = x.reshape(-1,gp.input_dim)
+        x = x.reshape(-1,gp.input_space_dim)
         m = gp.posterior_mean(x)["f(x)"]
         v = gp.posterior_covariance(x, variance_only=True)["v(x)"]
         return m + 3.0 * np.sqrt(v)
     elif acquisition_function == "maximum":
-        x = x.reshape(-1,gp.input_dim)
+        x = x.reshape(-1,gp.input_space_dim)
         res = gp.posterior_mean(x)["f(x)"]
         return res
     elif acquisition_function == "gradient":
@@ -202,16 +203,21 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gp, number_of_maxi
     elif acquisition_function == "minimum":
         res = gp.posterior_mean(x)["f(x)"]
         return -res
-    elif acquisition_function == "expected improvement":
+    elif acquisition_function == "PI":
         m = gp.posterior_mean(x)["f(x)"]
         std = np.sqrt(gp.posterior_covariance(x, variance_only=True)["v(x)"])
-        last_best = args["last best"]
-        a = m - last_best
-        pdf = norm.pdf(a/std)
-        cdf = norm.cdf(a/std)
-        return max(0,a) + std * pdf - abs(a)*cdf
-
-
+        last_best = np.max(gp.y_data)
+        return  norm.cdf((m - last_best)/(std+1e-9))
+    elif acquisition_function == "expected_improvement":
+        m = gp.posterior_mean(x)["f(x)"]
+        std = np.sqrt(gp.posterior_covariance(x, variance_only=True)["v(x)"])
+        last_best = np.max(gp.y_data)
+        a = (m-last_best)
+        a[a<0.] = 0.
+        gamma = a / std
+        pdf = norm.pdf(gamma)
+        cdf = norm.cdf(gamma)
+        return std * (gamma * cdf + pdf)
     elif acquisition_function == "target_probability":
         a = args["a"]
         b = args["b"]
@@ -240,10 +246,11 @@ def differential_evolution(ObjectiveFunction,
                            number_of_maxima_sought = None,
                            cost_function_parameters=None,
                            args = {},
+                           disp = False,
                            vectorized = True):
     fun = partial(ObjectiveFunction, gp=gp, acquisition_function=acquisition_function, origin=origin, number_of_maxima_sought = number_of_maxima_sought,
                   cost_function=cost_function, cost_function_parameters=cost_function_parameters,  args = args)
-    res = devo(partial(acq_function_vectorization_wrapper, func = fun, vectorized = vectorized), bounds, tol=tol, maxiter=max_iter, popsize=popsize, polish=False, constraints = constraints, vectorized=vectorized)
+    res = devo(partial(acq_function_vectorization_wrapper, func = fun, vectorized = vectorized), bounds, tol=tol, maxiter=max_iter, popsize=popsize, polish=False, disp = disp, constraints = constraints, vectorized=vectorized)
     return [list(res["x"])], list([res["fun"]])
 
 def acq_function_vectorization_wrapper(x, func = None,vectorized = False):
