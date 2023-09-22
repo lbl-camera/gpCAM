@@ -7,7 +7,7 @@ ophyd
 dask >= 2021.6.2
 distributed >= 2021.6.2
 zmq
-fvgp==4.0.0
+fvgp==4.0.2
 plotly
 notebook
 loguru
