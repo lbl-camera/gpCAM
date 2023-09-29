@@ -304,27 +304,6 @@ class GPOptimizer(GP):
         super().update_gp_data(x,y,noise_variances = noise_variances)
 
     ##############################################################
-    def init_gp(
-            self,
-            init_hyperparameters,
-            compute_device="cpu",
-            gp_kernel_function=None,
-            gp_mean_function=None,
-            gp_kernel_function_grad = None,
-            gp_mean_function_grad = None,
-            normalize_y = False,
-            use_inv=False,
-            ram_economy=True):
-        ####DEPRECIATED
-        ####DEPRECIATED
-        ####DEPRECIATED
-        ####DEPRECIATED
-        ####DEPRECIATED
-        ####DEPRECIATED
-        warnings.warn("Call 'init_gp' depreciated. Theinitialization happens now at the time of the gp_optimizer initialization.")
-
-
-    ##############################################################
     def train_gp(self,
         hyperparameter_bounds = None,
         init_hyperparameters = None,
@@ -632,16 +611,6 @@ class GPOptimizer(GP):
             dask_client=dask_client)
         if n > 1: return {'x': maxima.reshape(n,self.input_space_dim), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
         return {'x': np.array(maxima), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
-
-    ##############################################################
-    def init_cost(self, cost_function, cost_function_parameters=None, cost_update_function=None):
-        ####DEPRECIATED
-        ####DEPRECIATED
-        ####DEPRECIATED
-        ####DEPRECIATED
-        ####DEPRECIATED
-        ####DEPRECIATED
-        warnings.warn("Call 'init_cost' is depreciated in will be removed in the next version. The costs are now initialized in the GPOptimizer init call.")
 
     ##############################################################
     def update_cost_function(self, measurement_costs):
@@ -1333,24 +1302,6 @@ class fvGPOptimizer(fvGP):
         return {'x': np.array(maxima), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
 
     ##############################################################
-    def init_fvgp(
-            self,
-            init_hyperparameters,
-            compute_device="cpu",
-            gp_kernel_function=None,
-            gp_mean_function=None,
-            use_inv=False,
-            ram_economy=True
-    ):
-        ####DEPRECIATED
-        ####DEPRECIATED
-        ####DEPRECIATED
-        ####DEPRECIATED
-        ####DEPRECIATED
-        ####DEPRECIATED
-        ####DEPRECIATED
-        warnings.warn("Call 'init_fvgp' is depreciated'. The initialization happens at object initialization.")
-
     def update_cost_function(self, measurement_costs):
         """
         This function updates the parameters for the user-defined cost function
