@@ -17,7 +17,7 @@ def ac_func1(x, obj):
 
 def instrument(data, instrument_dict=None):
     for entry in data:
-        entry["value"] = np.sin(np.linalg.norm(entry["position"]))
+        entry["y_data"] = np.sin(np.linalg.norm(entry["x_data"]))
     return data
 
 
@@ -86,29 +86,29 @@ class TestgpCAM(unittest.TestCase):
         print(r)
         print()
 
-    #def test_ae(self):
-    #    ##set up your parameter space
-    #    parameters = np.array([[3.0,45.8],
-    #                          [4.0,47.0]])
-#
-#        ##set up some hyperparameters, if you have no idea, set them to 1 and make the training bounds large
-#        init_hyperparameters = np.array([1,1,1])
-#        hyperparameter_bounds =  np.array([[0.01,100],[0.01,100.0],[0.01,100]])
-#
-#        ##let's initialize the autonomous experimenter ...
-#        my_ae = AutonomousExperimenterGP(parameters, init_hyperparameters,
-#                                        hyperparameter_bounds,instrument_func = instrument,
-#                                        init_dataset_size=10)
-#        #...train...
-#        my_ae.train()
-#        my_ae.train_async()
-#        my_ae.update_hps()
-#        my_ae.kill_training()
-#
-#        #...and run. That's it. You successfully executed an autonomous experiment.
-#        my_ae.go(N = 100)
-#
-#        print("END")
+    def test_ae(self):
+        ##set up your parameter space
+        input_space = np.array([[3.0,45.8],
+                              [4.0,47.0]])
+
+        ##set up some hyperparameters, if you have no idea, set them to 1 and make the training bounds large
+        init_hyperparameters = np.array([1,1,1])
+        hyperparameter_bounds =  np.array([[0.01,100],[0.01,100.0],[0.01,100]])
+
+        ##let's initialize the autonomous experimenter ...
+        my_ae = AutonomousExperimenterGP(input_space, init_hyperparameters,
+                                        hyperparameter_bounds,instrument_func = instrument,
+                                        init_dataset_size=10)
+        #...train...
+        my_ae.train()
+        my_ae.train_async()
+        my_ae.update_hps()
+        my_ae.kill_training()
+
+        #...and run. That's it. You successfully executed an autonomous experiment.
+        my_ae.go(N = 100)
+
+        print("END")
 
     def test_acq_funcs(self):
         import numpy as np
@@ -129,14 +129,14 @@ class TestgpCAM(unittest.TestCase):
         print("")
         #now we can ask for a new point
 
-        r = my_gpo.ask(np.array([[0.,1.],[0.,1.]]),n = 5, acquisition_function="shannon_ig_multi")
-        r = my_gpo.ask(np.array([[0.,1.],[0.,1.]]),n = 1, acquisition_function="shannon_ig")
-        r = my_gpo.ask(np.array([[0.,1.],[0.,1.]]),n = 1, acquisition_function="shannon_ig_vec")
-        r = my_gpo.ask(np.array([[0.,1.],[0.,1.]]),n = 1, acquisition_function="variance")
-        r = my_gpo.ask(np.array([[0.,1.],[0.,1.]]),n = 1, acquisition_function="covariance")
-        r = my_gpo.ask(np.array([[0.,1.],[0.,1.]]),n = 1, acquisition_function="ucb")
-        r = my_gpo.ask(np.array([[0.,1.],[0.,1.]]),n = 1, acquisition_function="maximum")
-        r = my_gpo.ask(np.array([[0.,1.],[0.,1.]]),n = 5, acquisition_function="gradient", method = "local")
-        r = my_gpo.ask(np.array([[0.,1.],[0.,1.]]),n = 1, acquisition_function="target_probability", method = "local", args = {"a":1.,"b":2.})
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 5, acquisition_function="shannon_ig_multi")
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="shannon_ig")
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="shannon_ig_vec")
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="variance")
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="covariance")
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="ucb")
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="maximum")
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 5, acquisition_function="gradient", method = "local")
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="target_probability", method = "local", args = {"a":1.,"b":2.})
 
 

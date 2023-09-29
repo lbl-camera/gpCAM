@@ -13,7 +13,9 @@ import warnings
 #   check all docstrings for fvgp specific stuff (fvgp.GP...)
 #   double check ask() in single-task
 #   do ALL multi-task
-#   remember the (fv)GPautonomous_experimenter
+#   remember the (fv)GPautonomous_experimenter classes
+#   Make new tests
+#   Multi-task test has to wait for fvgp update
 
 class GPOptimizer(GP):
     """
@@ -358,6 +360,8 @@ class GPOptimizer(GP):
             A Dask Distributed Client instance for distributed training if HGDL is used. If None is provided, a new
             `dask.distributed.Client` instance is constructed.
         """
+        
+
         super().train(
         hyperparameter_bounds = hyperparameter_bounds,
         init_hyperparameters = init_hyperparameters,
@@ -578,20 +582,19 @@ class GPOptimizer(GP):
         logger.info("bounds:\n{}", bounds)
         logger.info("acq func: {}", acquisition_function)
 
+        if np.ndim(bounds) != 2: raise Exception("The bounds parameter has to be a 2d numpy array.")
+
         if n > 1 and method != "hgdl":
             method = "global"
             new_optimization_bounds = np.row_stack([bounds for i in range(n)])
             bounds = new_optimization_bounds
-            acquisition_function = "shannon_ig"
+            acquisition_function = "total_correlation"
             vectorized = False
         if acquisition_function == "shannon_ig" or \
+           acquisition_function == "total_correlation" or \
            acquisition_function == "covariance":
                vectorized = False
         if method != "global": vectorized = False
-
-        print(acquisition_function)
-        print(bounds)
-
 
         maxima, func_evals, opt_obj = sm.find_acquisition_function_maxima(
             self,
@@ -679,17 +682,13 @@ class fvGPOptimizer(fvGP):
 
     Parameters
     ----------
-    input_space_dim : int
-        Dimensionality of the input space (D).
-    output_space_dim : int
-        Integer specifying the number of dimensions of the output space. Most often 1. This is not the number of outputs/tasks.
-        For instance, a spectrum as output at each input is itslef a function over a 1d space but has many outputs.
-    output_number : int
-        Number of output values.
     x_data : np.ndarray
         The input point positions. Shape (V x D), where D is the `input_space_dim`.
     y_data : np.ndarray
         The values of the data points. Shape (V,No).
+    output_space_dimension : int, optional
+        Integer specifying the number of dimensions of the output space. Most often 1, which is the default. This is not the number of outputs/tasks.
+        For instance, a spectrum as output at each input is itself a function over a 1d space but has many outputs.
     init_hyperparameters : np.ndarray, optional
         Vector of hyperparameters used by the GP initially.
         This class provides methods to train hyperparameters.
@@ -847,11 +846,9 @@ class fvGPOptimizer(fvGP):
 
     def __init__(
         self,
-        input_space_dim,
-        output_space_dim,
-        output_number,
         x_data,
         y_data,
+        output_space_dimension = 1,
         init_hyperparameters = None,
         output_positions = None,
         noise_variances = None,
@@ -876,20 +873,16 @@ class fvGPOptimizer(fvGP):
         cost_function_parameters=None,
         cost_update_function=None,
         ):
-
-        self.iput_dim = input_space_dimension
-        self.oput_dim = output_space_dimension
-        self.output_number = output_number
-        x_data = np.empty((1, self.iput_dim))
-        y_data = np.empty((1, self.output_number))
-        variances = np.empty((1, self.output_number))
-        output_positions = np.empty((1, self.output_number, self.oput_dim))
-        self.input_space_bounds = np.array(input_space_bounds)
-        self.gp_initialized = True
+        if isinstance(x_data,np.ndarray):
+            if np.ndim(x_data) == 1: x_data = x_data.reshape(-1,1)
+            input_dim = x_data.shape[1]
+        else: input_dim = 1
+        if np.ndim(y_data) != 2: raise Exception("Your y_data is not a 2d numpy array.")
+        output_number = y_data.shape[1]
 
         super().__init__(
-                input_space_dim,
-                output_space_dim,
+                input_dim,
+                output_space_dimension,
                 output_number,
                 x_data,
                 y_data,
@@ -1270,6 +1263,7 @@ class fvGPOptimizer(fvGP):
         logger.info("optimization method: {}", method)
         logger.info("bounds:\n{}", bounds)
         logger.info("acq func: {}", acquisition_function)
+        if np.ndim(bounds) != 2: raise Exception("The bounds parameter has to be a 2d numpy array.")
 
         if n > 1 and method != "hgdl":
             method = "global"

@@ -178,12 +178,16 @@ def evaluate_acquisition_function_gradient(x, gp, acquisition_function, origin=N
     return acquisition_gradient
 
 
-def evaluate_gp_acquisition_function(x, acquisition_function, gp, number_of_maxima_sought, args = {}):
+def evaluate_gp_acquisition_function(x, acquisition_function, gp, number_of_maxima_sought, multi_task = False, args = {}):
     ##this function will always spit out a 1d numpy array
     ##for certain functions, this array will only have one entry
     ##for the other the length == len(x)
-    try: x = x.reshape(-1,gp.input_space_dim)
-    except: raise Exception("x request in evaluate_gp_acquisition_function has wrong dimensionality.", x.shape)
+    if multi_task:
+        try: x = x.reshape(-1,gp.orig_input_space_dim)
+        except: raise Exception("x request in evaluate_gp_acquisition_function has wrong dimensionality.", x.shape)
+    else:
+        try: x = x.reshape(-1,gp.input_space_dim)
+        except: raise Exception("x request in evaluate_gp_acquisition_function has wrong dimensionality.", x.shape)
 
     if acquisition_function == "variance":
         res = gp.posterior_covariance(x, variance_only=True)["v(x)"]
@@ -223,6 +227,8 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gp, number_of_maxi
         std = np.sqrt(gp.posterior_covariance(x, variance_only=True)["v(x)"])
         last_best = np.max(gp.y_data)
         return  norm.cdf((m - last_best)/(std+1e-9))
+    elif acquisition_function == "total_correlation":
+        return -np.array([gp.gp_total_correlation(x)])#["total correlation"]
     elif acquisition_function == "expected_improvement":
         m = gp.posterior_mean(x)["f(x)"]
         std = np.sqrt(gp.posterior_covariance(x, variance_only=True)["v(x)"])
