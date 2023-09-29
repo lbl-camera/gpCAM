@@ -246,7 +246,7 @@ class GPOptimizer(GP):
             "input dim": self.input_space_dim,
             "x data": self.x_data,
             "y data": self.y_data,
-            "measurement variances": self.measurmenet_noise,
+            "measurement variances": self.V,
             "hyperparameters": self.hyperparameters,
             "cost function parameters": self.cost_function_parameters,
             "cost function": self.cost_function}
