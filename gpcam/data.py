@@ -66,7 +66,7 @@ class gpData:
         d = {}
         d["x_data"] = x
         d["y_data"] = y
-        d["variance"] = v
+        d["noise variance"] = v
         d["cost"] = None
         d["id"] = str(uuid.uuid4())
         d["time stamp"] = time.time()
@@ -120,8 +120,8 @@ class gpData:
         self.point_number = len(self.dataset)
         Variance = np.zeros((self.point_number))
         for idx_data in range(self.point_number):
-            if self.dataset[idx_data]["variance"] is None: return None
-            Variance[idx_data] = self.dataset[idx_data]["variance"]
+            if self.dataset[idx_data]["noise variance"] is None: return None
+            Variance[idx_data] = self.dataset[idx_data]["noise variance"]
         return Variance
 
     def extract_costs_from_data(self):
@@ -260,7 +260,7 @@ class fvgpData(gpData):
         d = {}
         d["x_data"] = x
         d["y_data"] = y
-        d["variances"] = v
+        d["noise variances"] = v
         d["output positions"] = vp
         d["cost"] = None
         d["id"] = str(uuid.uuid4())
@@ -304,8 +304,8 @@ class fvgpData(gpData):
         self.point_number = len(self.dataset)
         Variance = np.zeros((self.point_number, self.output_number))
         for idx_data in range(self.point_number):
-            if self.dataset[idx_data]["variances"] is None: return None
-            Variance[idx_data] = self.dataset[idx_data]["variances"]
+            if self.dataset[idx_data]["noise variances"] is None: return None
+            Variance[idx_data] = self.dataset[idx_data]["noise variances"]
         return Variance
 
     def check_incoming_data(self):
