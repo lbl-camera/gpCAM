@@ -228,7 +228,7 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gp, number_of_maxi
         last_best = np.max(gp.y_data)
         return  norm.cdf((m - last_best)/(std+1e-9))
     elif acquisition_function == "total_correlation":
-        return -np.array([gp.gp_total_correlation(x)])#["total correlation"]
+        return -np.array([gp.gp_total_correlation(x)["total correlation"]])
     elif acquisition_function == "expected_improvement":
         m = gp.posterior_mean(x)["f(x)"]
         std = np.sqrt(gp.posterior_covariance(x, variance_only=True)["v(x)"])
