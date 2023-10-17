@@ -198,10 +198,10 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gp, number_of_maxi
         sgn, logdet = np.linalg.slogdet(b)
         return np.array([np.sqrt(sgn * np.exp(logdet))])
     elif acquisition_function == "relative information entropy":
-        res = gp.gp_relative_information_entropy(x)["RIE"]
+        res = -gp.gp_relative_information_entropy(x)["RIE"]
         return np.array([res])
     elif acquisition_function == "relative information entropy set":
-        res = gp.gp_relative_information_entropy_set(x)["RIE"]
+        res = -gp.gp_relative_information_entropy_set(x)["RIE"]
         return res
     elif acquisition_function == "ucb":
         m = gp.posterior_mean(x)["f(x)"]
