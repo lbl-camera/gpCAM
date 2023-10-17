@@ -435,7 +435,6 @@ class AutonomousExperimenterGP():
             logger.info("current hps: {}", self.gp_optimizer.hyperparameters)
             local_method = acq_func_opt_setting(i)
             if number_of_suggested_measurements > 1 and local_method != "hgdl": local_method = "global"
-            if number_of_suggested_measurements == 1 and self.acq_func == "shannon_ig_multi": self.acq_func = "shannon_ig_vec"
 
             if local_method == "hgdl" and self.acq_func_opt_dask_client is None: self.acq_func_opt_dask_client = dask.distributed.Client()
             res = self.gp_optimizer.ask(

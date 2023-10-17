@@ -208,6 +208,7 @@ class GPOptimizer(GP):
             if np.ndim(x_data) == 1: x_data = x_data.reshape(-1,1)
             input_dim = x_data.shape[1]
         else: input_dim = 1
+
         super().__init__(
                 input_dim,
                 x_data,
@@ -588,10 +589,11 @@ class GPOptimizer(GP):
             method = "global"
             new_optimization_bounds = np.row_stack([bounds for i in range(n)])
             bounds = new_optimization_bounds
-            acquisition_function = "total_correlation"
+            if acquisition_function != "total correlation" and acquisition_function != "relative information entropy":
+                acquisition_function = "total correlation"
             vectorized = False
-        if acquisition_function == "shannon_ig" or \
-           acquisition_function == "total_correlation" or \
+        if acquisition_function == "total correlation" or \
+           acquisition_function == "relative information entropy" or \
            acquisition_function == "covariance":
                vectorized = False
         if method != "global": vectorized = False
@@ -613,7 +615,7 @@ class GPOptimizer(GP):
             info = info,
             dask_client=dask_client)
         if n > 1: return {'x': maxima.reshape(n,self.input_space_dim), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
-        return {'x': np.array(maxima), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
+        return {'x': np.array(maxima), "f(x)": -np.array(func_evals), "opt_obj": opt_obj}
 
     ##############################################################
     def update_cost_function(self, measurement_costs):
@@ -879,6 +881,10 @@ class fvGPOptimizer(fvGP):
         else: input_dim = 1
         if np.ndim(y_data) != 2: raise Exception("Your y_data is not a 2d numpy array.")
         output_number = y_data.shape[1]
+        
+        if gp_kernel_function is None: self.user_kernel_provided = False
+        else: self.user_kernel_provided = True
+
 
         super().__init__(
                 input_dim,
@@ -1046,6 +1052,9 @@ class fvGPOptimizer(fvGP):
             A Dask Distributed Client instance for distributed training if HGDL is used. If None is provided, a new
             `dask.distributed.Client` instance is constructed.
         """
+        if self.user_kernel_provided: hyperparameter_bounds, init_hyperparameters = hyperparameter_bounds, init_hyperparameters
+        else: hyperparameter_bounds, init_hyperparameters = self.hyperparameter_bounds, self.init_hyperparameters
+        
         super().train(
         hyperparameter_bounds = hyperparameter_bounds,
         init_hyperparameters = init_hyperparameters,
@@ -1293,7 +1302,7 @@ class fvGPOptimizer(fvGP):
             args = args,
             dask_client=dask_client)
         if n > 1: return {'x': maxima.reshape(n,self.input_dim), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
-        return {'x': np.array(maxima), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
+        return {'x': np.array(maxima), "f(x)": -np.array(func_evals), "opt_obj": opt_obj}
 
     ##############################################################
     def update_cost_function(self, measurement_costs):

@@ -62,7 +62,7 @@ class TestgpCAM(unittest.TestCase):
         ######################################################
         print("evaluating acquisition function at [0.5,0.5,0.5]")
         print("=======================")
-        r1 = gp.evaluate_acquisition_function(np.array([0.5, 0.5]), acquisition_function="shannon_ig")
+        r1 = gp.evaluate_acquisition_function(np.array([0.5, 0.5]), acquisition_function="relative information entropy")
         r2 = gp.evaluate_acquisition_function(np.array([0.5, 0.5]), acquisition_function=ac_func1)
         print("results: ", r1, r2)
         print()
@@ -129,14 +129,14 @@ class TestgpCAM(unittest.TestCase):
         print("")
         #now we can ask for a new point
 
-        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 5, acquisition_function="shannon_ig_multi")
-        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="shannon_ig")
-        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="shannon_ig_vec")
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="relative information entropy set")
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 5, acquisition_function="relative information entropy")
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="relative information entropy")
         r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="variance")
         r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="covariance")
         r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="ucb")
         r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="maximum")
         r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 5, acquisition_function="gradient", method = "local")
-        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="target_probability", method = "local", args = {"a":1.,"b":2.})
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="target probability", method = "local", args = {"a":1.,"b":2.})
 
 

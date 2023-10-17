@@ -97,8 +97,8 @@ def find_acquisition_function_maxima(gp, acquisition_function,
         ###optimization_max_iter, tolerance here
         if optimization_x0: optimization_x0 = optimization_x0.reshape(1,-1)
         opt_obj.optimize(dask_client=dask_client, x0=optimization_x0, tolerance=optimization_tol)
-        opti = None
-        func_eval = None
+        opti = 0.
+        func_eval = 0.
         return opti, func_eval, opt_obj
 
     elif optimization_method == "local":
@@ -197,11 +197,11 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gp, number_of_maxi
         b = res["S"]
         sgn, logdet = np.linalg.slogdet(b)
         return np.array([np.sqrt(sgn * np.exp(logdet))])
-    elif acquisition_function == "shannon_ig":
-        res = gp.shannon_information_gain(x)["sig"]
+    elif acquisition_function == "relative information entropy":
+        res = gp.gp_relative_information_entropy(x)["RIE"]
         return np.array([res])
-    elif acquisition_function == "shannon_ig_vec":
-        res = gp.shannon_information_gain_vec(x)["sig(x)"]
+    elif acquisition_function == "relative information entropy set":
+        res = gp.gp_relative_information_entropy_set(x)["RIE"]
         return res
     elif acquisition_function == "ucb":
         m = gp.posterior_mean(x)["f(x)"]
@@ -227,9 +227,9 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gp, number_of_maxi
         std = np.sqrt(gp.posterior_covariance(x, variance_only=True)["v(x)"])
         last_best = np.max(gp.y_data)
         return  norm.cdf((m - last_best)/(std+1e-9))
-    elif acquisition_function == "total_correlation":
+    elif acquisition_function == "total correlation":
         return -np.array([gp.gp_total_correlation(x)["total correlation"]])
-    elif acquisition_function == "expected_improvement":
+    elif acquisition_function == "expected improvement":
         m = gp.posterior_mean(x)["f(x)"]
         std = np.sqrt(gp.posterior_covariance(x, variance_only=True)["v(x)"])
         last_best = np.max(gp.y_data)
@@ -239,7 +239,7 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gp, number_of_maxi
         pdf = norm.pdf(gamma)
         cdf = norm.cdf(gamma)
         return std * (gamma * cdf + pdf)
-    elif acquisition_function == "target_probability":
+    elif acquisition_function == "target probability":
         a = args["a"]
         b = args["b"]
         mean = gp.posterior_mean(x)["f(x)"]
