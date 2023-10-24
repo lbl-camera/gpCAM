@@ -4,10 +4,11 @@ from functools import partial
 import math
 import numpy as np
 from loguru import logger
-
+import random
 from hgdl.hgdl import HGDL
 from scipy.optimize import differential_evolution as devo, minimize
 from scipy.stats import norm
+from functools import partial
 
 
 ##########################################################################
@@ -24,11 +25,18 @@ def find_acquisition_function_maxima(gp, acquisition_function,
                                      cost_function=None,
                                      cost_function_parameters=None,
                                      vectorized = True,
+                                     candidate_set = {},
+                                     x_out = None,
                                      args = {},
                                      dask_client=None,
                                      info = False):
     bounds = np.array(optimization_bounds)
     opt_obj = None
+
+    func = partial(evaluate_acquisition_function, gp = gp, acquisition_function = acquisition_function, origin=origin, number_of_maxima_sought = number_of_maxima_sought,
+                                  cost_function = cost_function, cost_function_parameters = cost_function_parameters, x_out = x_out, args = args)
+    grad = partial(gradient,func = func)
+
     logger.info("====================================")
     logger.info(f"Finding acquisition function maxima via {optimization_method} method")
     logger.info("tolerance: {}", optimization_tol)
@@ -38,24 +46,23 @@ def find_acquisition_function_maxima(gp, acquisition_function,
     logger.info(bounds)
     logger.info("cost function parameters: {}", cost_function_parameters)
     logger.info("====================================")
+    if candidate_set:
+        choices = random.choices(list(a),k=100)
+        res = map(choices,func)
+        max_index = np.argmax(res)
+        opti, func_eval, opt_obj = choices[max_index], res[max_index], None
+        return opti, func_eval, opt_obj
 
-    if optimization_method == "global":
+    elif optimization_method == "global":
         opti, func_eval = differential_evolution(
-            evaluate_acquisition_function,
+            func,
             optimization_bounds,
             tol=optimization_tol,
             x0 = optimization_x0,
             popsize=optimization_pop_size,
             max_iter=optimization_max_iter,
-            origin=origin,
             constraints = constraints,
-            gp=gp,
-            number_of_maxima_sought = number_of_maxima_sought,
-            acquisition_function=acquisition_function,
-            cost_function=cost_function,
-            cost_function_parameters=cost_function_parameters,
             vectorized = vectorized,
-            args = args,
             disp = info
         )
         opti = np.asarray(opti)
@@ -65,13 +72,12 @@ def find_acquisition_function_maxima(gp, acquisition_function,
         ###run differential evo first if hxdy only returns stationary points
         ###then of hgdl is successful, stack results and return
         if constraints: logger.warning("The HGDL won't adhere to constraints for the acquisition function. Use method 'local' or 'global'")
-        opt_obj = HGDL(evaluate_acquisition_function,
-                       evaluate_acquisition_function_gradient,
+        opt_obj = HGDL(func,
+                       grad,
                        bounds,
                        num_epochs=optimization_max_iter,
                        local_optimizer="L-BFGS-B",
-                       constraints = constraints,
-                       args=(gp, acquisition_function, origin, number_of_maxima_sought, cost_function, cost_function_parameters, args))
+                       constraints = constraints)
 
         ###optimization_max_iter, tolerance here
         if optimization_x0: optimization_x0 = optimization_x0.reshape(1,-1)
@@ -86,13 +92,12 @@ def find_acquisition_function_maxima(gp, acquisition_function,
         ###run differential evo first if hxdy only returns stationary points
         ###then of hgdl is successful, stack results and return
         if constraints: logger.warning("The HGDL won't adhere to constraints for the acquisition function. Use method 'local' or 'global'")
-        opt_obj = HGDL(evaluate_acquisition_function,
-                       evaluate_acquisition_function_gradient,
+        opt_obj = HGDL(func,
+                       grad,
                        bounds,
                        num_epochs=optimization_max_iter,
                        local_optimizer="L-BFGS-B",
-                       constraints = constraints,
-                       args=(gp, acquisition_function, origin, number_of_maxima_sought, cost_function, cost_function_parameters, args))
+                       constraints = constraints)
 
         ###optimization_max_iter, tolerance here
         if optimization_x0: optimization_x0 = optimization_x0.reshape(1,-1)
@@ -109,11 +114,10 @@ def find_acquisition_function_maxima(gp, acquisition_function,
         else:
             x0 = np.random.uniform(low=bounds[:, 0], high=bounds[:, 1], size=len(bounds))
         a = minimize(
-            evaluate_acquisition_function,
+            func,
             x0,
-            args=(gp, acquisition_function, origin, number_of_maxima_sought,cost_function, cost_function_parameters, args),
             method="L-BFGS-B",
-            jac=evaluate_acquisition_function_gradient,
+            jac=grad,
             bounds=bounds,
             constraints = constraints,
             tol=optimization_tol,
@@ -145,8 +149,8 @@ def find_acquisition_function_maxima(gp, acquisition_function,
 ############################################################
 ############################################################
 ############################################################
-def evaluate_acquisition_function(x, gp, acquisition_function, origin=None, number_of_maxima_sought = None,
-                                  cost_function=None, cost_function_parameters=None, args = None):
+def evaluate_acquisition_function(x, gp = None, acquisition_function = None, origin=None, number_of_maxima_sought = None,
+                                  cost_function = None, cost_function_parameters = None, x_out = None, args = None):
     ##########################################################
     ####this function evaluates a default or a user-defined acquisition function
     ##########################################################
@@ -158,121 +162,100 @@ def evaluate_acquisition_function(x, gp, acquisition_function, origin=None, numb
     # for user defined acquisition function
     if callable(acquisition_function): return -acquisition_function(x, gp) / cost_eval
     else:
-        obj_eval = evaluate_gp_acquisition_function(x, acquisition_function, gp, number_of_maxima_sought, args = args)
+        obj_eval = evaluate_gp_acquisition_function(x, acquisition_function, gp, number_of_maxima_sought, x_out = x_out, args = args)
         obj_eval = -obj_eval / cost_eval
         return obj_eval
 
-
-def evaluate_acquisition_function_gradient(x, gp, acquisition_function, origin=None, number_of_maxima_sought = None,
-                                           cost_function=None, cost_function_parameters=None, acq_args = None):
-    acquisition_gradient = gradient(evaluate_acquisition_function,
-                                    x,
-                                    1e-6,
-                                    gp,
-                                    acquisition_function,
-                                    origin,
-                                    number_of_maxima_sought,
-                                    cost_function,
-                                    cost_function_parameters,
-                                    acq_args)
-    return acquisition_gradient
-
-
-def evaluate_gp_acquisition_function(x, acquisition_function, gp, number_of_maxima_sought, multi_task = False, args = {}):
+def evaluate_gp_acquisition_function(x, acquisition_function, gp, number_of_maxima_sought, x_out, args = {}):
     ##this function will always spit out a 1d numpy array
     ##for certain functions, this array will only have one entry
     ##for the other the length == len(x)
-    if multi_task:
-        try: x = x.reshape(-1,gp.orig_input_space_dim)
-        except: raise Exception("x request in evaluate_gp_acquisition_function has wrong dimensionality.", x.shape)
+    if x_out is None:
+        if acquisition_function == "variance":
+            res = gp.posterior_covariance(x, x_out = x_out, variance_only=True)["v(x)"]
+            return res
+        elif acquisition_function == "relative information entropy":
+            res = -gp.gp_relative_information_entropy(x, x_out = x_out)["RIE"]
+            return np.array([res])
+        elif acquisition_function == "relative information entropy set":
+            res = -gp.gp_relative_information_entropy_set(x, x_out = x_out)["RIE"]
+            return res
+        elif acquisition_function == "ucb":
+            m = gp.posterior_mean(x, x_out = x_out)["f(x)"]
+            v = gp.posterior_covariance(x, x_out = x_out, variance_only=True)["v(x)"]
+            return m + 3.0 * np.sqrt(v)
+        elif acquisition_function == "lcb":
+            m = gp.posterior_mean(x, x_out = x_out)["f(x)"]
+            v = gp.posterior_covariance(x, x_out = x_out, variance_only=True)["v(x)"]
+            return -(m - 3.0 * np.sqrt(v))
+        elif acquisition_function == "maximum":
+            res = gp.posterior_mean(x, x_out = x_out)["f(x)"]
+            return res
+        elif acquisition_function == "gradient":
+            mean_grad = gp.posterior_mean_grad(x, x_out = x_out)["df/dx"]
+            std = np.sqrt(gp.posterior_covariance(x, x_out = x_out, variance_only = True)["v(x)"])
+            res = np.linalg.norm(mean_grad, axis = 1) * std
+            return res
+        elif acquisition_function == "minimum":
+            res = gp.posterior_mean(x, x_out = x_out)["f(x)"]
+            return -res
+        elif acquisition_function == "probability of improvement":
+            m = gp.posterior_mean(x, x_out = x_out)["f(x)"]
+            std = np.sqrt(gp.posterior_covariance(x, x_out = x_out, variance_only=True)["v(x)"])
+            last_best = np.max(gp.y_data)
+            return  norm.cdf((m - last_best)/(std+1e-9))
+        elif acquisition_function == "total correlation":
+            return -np.array([gp.gp_total_correlation(x, x_out = x_out)["total correlation"]])
+        elif acquisition_function == "expected improvement":
+            m = gp.posterior_mean(x, x_out = x_out)["f(x)"]
+            std = np.sqrt(gp.posterior_covariance(x, x_out = x_out, variance_only=True)["v(x)"])
+            last_best = np.max(gp.y_data)
+            a = (m-last_best)
+            a[a<0.] = 0.
+            gamma = a / std
+            pdf = norm.pdf(gamma)
+            cdf = norm.cdf(gamma)
+            return std * (gamma * cdf + pdf)
+        elif acquisition_function == "target probability":
+            a = args["a"]
+            b = args["b"]
+            mean = gp.posterior_mean(x, x_out = x_out)["f(x)"]
+            cov = gp.posterior_covariance(x, x_out = x_out)["v(x)"]
+            result = np.zeros((len(x)))
+            for i in range(len(x)):
+                result[i] = 0.5 * (math.erf((b-mean[i])/np.sqrt(2.*cov[i])) -  math.erf((a-mean[i])/np.sqrt(2.*cov[i])))
+            return result
+        else: raise Exception("No valid acquisition function string provided.")
+        raise ValueError(f'The requested acquisition function "{acquisition_function}" does not exist.')
     else:
-        try: x = x.reshape(-1,gp.input_space_dim)
-        except: raise Exception("x request in evaluate_gp_acquisition_function has wrong dimensionality.", x.shape)
-
-    if acquisition_function == "variance":
-        res = gp.posterior_covariance(x, variance_only=True)["v(x)"]
-        return res
-    elif acquisition_function == "covariance":
-        res = gp.posterior_covariance(x)
-        b = res["S"]
-        sgn, logdet = np.linalg.slogdet(b)
-        return np.array([np.sqrt(sgn * np.exp(logdet))])
-    elif acquisition_function == "relative information entropy":
-        res = -gp.gp_relative_information_entropy(x)["RIE"]
-        return np.array([res])
-    elif acquisition_function == "relative information entropy set":
-        res = -gp.gp_relative_information_entropy_set(x)["RIE"]
-        return res
-    elif acquisition_function == "ucb":
-        m = gp.posterior_mean(x)["f(x)"]
-        v = gp.posterior_covariance(x, variance_only=True)["v(x)"]
-        return m + 3.0 * np.sqrt(v)
-    elif acquisition_function == "lcb":
-        m = gp.posterior_mean(x)["f(x)"]
-        v = gp.posterior_covariance(x, variance_only=True)["v(x)"]
-        return -(m - 3.0 * np.sqrt(v))
-    elif acquisition_function == "maximum":
-        res = gp.posterior_mean(x)["f(x)"]
-        return res
-    elif acquisition_function == "gradient":
-        mean_grad = gp.posterior_mean_grad(x)["df/dx"]
-        std = np.sqrt(gp.posterior_covariance(x, variance_only = True)["v(x)"])
-        res = np.linalg.norm(mean_grad, axis = 1) * std
-        return res
-    elif acquisition_function == "minimum":
-        res = gp.posterior_mean(x)["f(x)"]
-        return -res
-    elif acquisition_function == "PI":
-        m = gp.posterior_mean(x)["f(x)"]
-        std = np.sqrt(gp.posterior_covariance(x, variance_only=True)["v(x)"])
-        last_best = np.max(gp.y_data)
-        return  norm.cdf((m - last_best)/(std+1e-9))
-    elif acquisition_function == "total correlation":
-        return -np.array([gp.gp_total_correlation(x)["total correlation"]])
-    elif acquisition_function == "expected improvement":
-        m = gp.posterior_mean(x)["f(x)"]
-        std = np.sqrt(gp.posterior_covariance(x, variance_only=True)["v(x)"])
-        last_best = np.max(gp.y_data)
-        a = (m-last_best)
-        a[a<0.] = 0.
-        gamma = a / std
-        pdf = norm.pdf(gamma)
-        cdf = norm.cdf(gamma)
-        return std * (gamma * cdf + pdf)
-    elif acquisition_function == "target probability":
-        a = args["a"]
-        b = args["b"]
-        mean = gp.posterior_mean(x)["f(x)"]
-        cov = gp.posterior_covariance(x)["v(x)"]
-        result = np.zeros((len(x)))
-        for i in range(len(x)):
-            result[i] = 0.5 * (math.erf((b-mean[i])/np.sqrt(2.*cov[i])) -  math.erf((a-mean[i])/np.sqrt(2.*cov[i])))
-        return result
-    else: raise Exception("No valid acquisition function string provided.")
-
-    raise ValueError(f'The requested acquisition function "{acquisition_function}" does not exist.')
+        if acquisition_function == "variance":
+            res = gp.posterior_covariance(x, x_out = x_out, variance_only=True)["v(x)"]
+            return np.sum(res.reshape(len(x),len(x_out)), axis = 1)
+        elif acquisition_function == "relative information entropy":
+            x = x.reshape(number_of_maxima_sought,len(x_out))
+            res = -gp.gp_relative_information_entropy(x, x_out = x_out)["RIE"]
+            return np.array([res])
+        elif acquisition_function == "relative information entropy set":
+            res = -gp.gp_relative_information_entropy_set(x, x_out = x_out)["RIE"]
+            return np.sum(res.reshape(len(x),len(x_out)), axis = 1)
+        elif acquisition_function == "total correlation":
+            x = x.reshape(number_of_maxima_sought,len(x_out))
+            return -np.array([gp.gp_total_correlation(x, x_out = x_out)["total correlation"]])
+        else: raise Exception("No valid acquisition function string provided.")
+        raise ValueError(f'The requested acquisition function "{acquisition_function}" does not exist.')
 
 
 
-def differential_evolution(ObjectiveFunction,
+def differential_evolution(func,
                            bounds,
                            tol,
                            popsize,
                            max_iter=100,
-                           origin=None,
-                           gp=None,
                            x0 = None,
-                           acquisition_function=None,
-                           cost_function=None,
                            constraints = (),
-                           number_of_maxima_sought = None,
-                           cost_function_parameters=None,
-                           args = {},
                            disp = False,
                            vectorized = True):
-    fun = partial(ObjectiveFunction, gp=gp, acquisition_function=acquisition_function, origin=origin, number_of_maxima_sought = number_of_maxima_sought,
-                  cost_function=cost_function, cost_function_parameters=cost_function_parameters,  args = args)
-    res = devo(partial(acq_function_vectorization_wrapper, func = fun, vectorized = vectorized), bounds, tol=tol,x0 = x0, maxiter=max_iter, popsize=popsize, polish=False, disp = disp, constraints = constraints, vectorized=vectorized)
+    res = devo(partial(acq_function_vectorization_wrapper, func = func, vectorized = vectorized), bounds, tol=tol,x0 = x0, maxiter=max_iter, popsize=popsize, polish=False, disp = disp, constraints = constraints, vectorized=vectorized)
     return [list(res["x"])], list([res["fun"]])
 
 def acq_function_vectorization_wrapper(x, func = None,vectorized = False):
@@ -280,32 +263,11 @@ def acq_function_vectorization_wrapper(x, func = None,vectorized = False):
     else: acq = func(x)
     return acq
 
-def gradient(function, point, epsilon=1e-6, *args):
-    """
-    This function calculates the gradient of a function by using finite differences
-
-    Extended description of function.
-
-    Parameters:
-    function (function object): the function the gradient should be computed of
-    point (numpy array 1d): point at which the gradient should be computed
-
-    optional:
-    epsilon (float): the distance used for the evaluation of the function
-
-    Returns:
-    numpy array of gradient
-
-    """
+def gradient(x, func = None):
+    epsilon = 1e-6
     gradient = np.zeros((len(point)))
-    # args = args[0]
     for i in range(len(point)):
         new_point = np.array(point)
         new_point[i] += epsilon
-        gradient[i] = (function(new_point, *args) - function(point, *args)) / epsilon
+        gradient[i] = (function(new_point) - function(point)) / epsilon
     return gradient
-
-def bhattacharyya_distance(reference_distribution, test_distribution, dx):
-    y1 = reference_distribution / (sum(reference_distribution) * dx)
-    y2 = test_distribution / (sum(test_distribution) * dx)
-    return sum(np.sqrt(y1 * y2)) * dx

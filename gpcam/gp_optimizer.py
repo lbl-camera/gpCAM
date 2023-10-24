@@ -486,8 +486,8 @@ class GPOptimizer(GP):
             vectorized = True,
             args = {},
             info = False,
+            candidate_set = {},
             dask_client=None):
-
         """
         Given that the acquisition device is at "position", this function ask()s for
         "n" new optimal points within certain "bounds" and using the optimization setup: "method",
@@ -514,24 +514,28 @@ class GPOptimizer(GP):
             of length V providing 'scores' for each position,
             such that the highest scored point will be measured next.
             Built-in functions can be used by one of the following keys: 
-            `'shannon_ig'`, `'shannon_ig_vec'`,
-            `'ucb'`, `'maximum'`,
-            `'minimum'`, `'covariance'`, `'variance'`, `'expected_improvement'`, 
-            `'PI'` (probability of improvement), and `'gradient'`. 
+            `'ucb'`,`'lcb'`,`'maximum'`,
+            `'minimum'`, `'variance'`,`'expected_improvement'`,
+            `'relative information entropy'`,`'relative information entropy set'`,
+            `'probability of improvement'`, `'gradient'`,`'total correlation'`,`'target probability'`.
             If None, the default function `'variance'`, meaning
             `fvgp.GP.posterior_covariance` with variance_only = True will be used.
             The acquisition function can be a callable of the form my_func(x,gpcam.GPOptimizer)
             which will be maximized (!!!), so make sure desirable new measurement points
             will be located at maxima.
             Explanations of the acquisition functions:
-            shannon_if: mutual information, shannon info gain, predicted entropy change,
-            shannon_ig_vec: mutual info per-point but vectorized for speed
+            variance: simply the posterior variance
+            relative information entropy: the KL divergence of the prior over predictions and the posterior
+            relative information entropy set: the KL divergence of the prior over predictions and the posterior point-by-point
             ucb: upper confidence bound, posterior mean + 3. std
+            lcb: lower confidence bound, -(posterior mean - 3. std)
             maximum: finds the maximum of the current posterior mean
             minimum: finds the maximum of the current posterior mean
-            covariances: sqrt(|posterior covariance|)
-            variance: the posterior variance
             gradient: puts focus on high-gradient regions
+            probability of inprovement: as the name would suggest
+            expected improvement: as the name would suggest
+            total correlation: extension of mutual information to more than 2 random variables
+            target probabilty: probability of a target, needs dectionaries with bounds defined
         method : str, optional
             A string defining the method used to find the maximum
             of the acquisition function. Choose from `global`,
@@ -561,6 +565,9 @@ class GPOptimizer(GP):
             False if method is not global.
         constraints : tuple of object instances, optional
             scipy constraints instances, depending on the used optimizer.
+        candidate_set : set, optional
+            If provided, ask will statistically choose a best candidate from the set. 
+            This is usually desirable for non-Eucledian inputs.
         args : dict, optional
             Provides arguments for certain acquisition
             functions, such as, "target_probability". In this case it should be
@@ -584,7 +591,6 @@ class GPOptimizer(GP):
         logger.info("acq func: {}", acquisition_function)
 
         if np.ndim(bounds) != 2: raise Exception("The bounds parameter has to be a 2d numpy array.")
-
         if n > 1 and method != "hgdl":
             method = "global"
             new_optimization_bounds = np.row_stack([bounds for i in range(n)])
@@ -592,9 +598,7 @@ class GPOptimizer(GP):
             if acquisition_function != "total correlation" and acquisition_function != "relative information entropy":
                 acquisition_function = "total correlation"
             vectorized = False
-        if acquisition_function == "total correlation" or \
-           acquisition_function == "relative information entropy" or \
-           acquisition_function == "covariance":
+        if acquisition_function == "total correlation" or acquisition_function == "relative information entropy":
                vectorized = False
         if method != "global": vectorized = False
 
@@ -610,6 +614,7 @@ class GPOptimizer(GP):
             cost_function_parameters=self.cost_function_parameters,
             optimization_x0=x0,
             constraints = constraints,
+            candidate_set = candidate_set,
             vectorized = vectorized,
             args = args,
             info = info,
@@ -656,10 +661,6 @@ class fvGPOptimizer(fvGP):
     the posterior can be evaluated and used via acquisition functions,
     and plugged into optimizers to find its maxima. This class inherits many methods from
     the fvgp.GP class. Check fvgp.readthedocs.io for a full list of capabilities.
-
-    V ... number of input points
-    D ... input space dimensionality
-    N ... arbitrary integers (N1, N2,...)
 
     V ... number of input points
     Di... input space dimensionality
@@ -1164,9 +1165,10 @@ class fvGPOptimizer(fvGP):
         return hps
 
 
-    def ask(self, 
-            acquisition_function,  ###this is now mandatory but will be replaces with some standard ones
+    def ask(self,
             bounds,
+            x_out = None,
+            acquisition_function = 'variance',
             position=None, 
             n=1,
             method="global",
@@ -1176,7 +1178,9 @@ class fvGPOptimizer(fvGP):
             constraints = (),
             x0=None,
             vectorized = True,
+            candidate_set = {},
             args = {},
+            info = False,
             dask_client=None):
 
         """
@@ -1186,41 +1190,40 @@ class fvGPOptimizer(fvGP):
 
         Parameters
         ----------
+        bounds : np.ndarray
+            A numpy array of floats of shape D x 2 describing the
+            search range.
+        x_out : np.ndarray
+            The position indicating where in the output space the acquisition function should be evaluated.
+            This array is of shape (No, Do).
         position : np.ndarray, optional
             Current position in the input space. If a cost function is 
             provided this position will be taken into account
             to guarantee a cost-efficient new suggestion. The default is None.
         n  : int, optional
-            The algorithm will try to return this many suggestions for 
-            new measurements. This may be limited by how many
-            optima the algorithm may find. If greater than 1, then 
-            the `acq_func` optimization method is automatically
-            set to use HGDL. The default is 1.
+            The algorithm will try to return n suggestions for
+            new measurements. This is either done by method = 'hgdl', or otherwise
+            by maximizing the collective information gain (default).
         acquisition_function : Callable, optional
-            The acquisition function accepts as input a numpy array 
+            The acquisition function accepts as input a numpy array
             of size V x D (such that V is the number of input
-            points, and D is the parameter space dimensionality) and 
+            points, and D is the parameter space dimensionality) and
             a `GPOptimizer` object. The return value is 1-D array
-            of length V providing 'scores' for each position, 
+            of length V providing 'scores' for each position,
             such that the highest scored point will be measured next.
             Built-in functions can be used by one of the following keys: 
-            `'shannon_ig'`, `'shannon_ig_vec'`,
-            `'ucb'`, `'maximum'`,
-            `'minimum'`, `'covariance'`, `'variance'`, and `'gradient'`. 
-            If None, the default function is the `'variance'`, meaning
-            `fvgp.gp.GP.posterior_covariance` with variance_only = True.
+            `'variance'`, `'relative information entropy'`,
+            `'relative information entropy set'`, `'total correlation'`.
+            See GPOptimizer.ask() for a short explanation of these functions.
+            In the multi-task case, it is highly recommended to
+            deploy a user-defined acquisition function due to the intricate relationship
+            of posterior distributions at different points in the output space.
+            If None, the default function `'variance'`, meaning
+            `fvgp.GP.posterior_covariance` with variance_only = True will be used.
+            The acquisition function can be a callable of the form my_func(x,gpcam.GPOptimizer)
+            which will be maximized (!!!), so make sure desirable new measurement points
+            will be located at maxima.
             Explanations of the acquisition functions:
-            shannon_ig: mutual information, shannon info gain, ientropy change
-            shannon_ig_vec: mutual info per-point but vecotrized for speed
-            ucb: upper confidence bound, posterior mean + 3. std
-            maximum: finds the maximum of the current posterior mean
-            minimum: finds the maximum of the current posterior mean
-            covariances: sqrt(|posterior covariance|)
-            variance: the posterior variance
-            gradient: puts focus on high-gradient regions
-        bounds : np.ndarray, optional
-            A numpy array of floats of shape D x 2 describing the 
-            search range. The default is the entire input space.
         method : str, optional
             A string defining the method used to find the maximum 
             of the acquisition function. Choose from `global`,
@@ -1251,9 +1254,12 @@ class fvGPOptimizer(fvGP):
         constraints : tuple of object instances, optional
             Either a tuple of hgdl.constraints.NonLinearConstraint 
             or scipy constraints instances, depending on the used optimizer.
+        candidate_set : set, optional
+            If provided, ask will statistically choose a best candidate from the set. 
+            This is usually desirable for non-Eucledian inputs.
         args : dict, optional
             Provides arguments for certain acquisition 
-            functions, such as, "target_probability". In this case it should be
+            functions, such as, "target probability". In this case it should be
             defined as {"a": some lower bound, "b":some upper bound}, 
             example: "args = {"a": 1.0,"b": 3.0}".
         dask_client : distributed.client.Client, optional
@@ -1272,18 +1278,17 @@ class fvGPOptimizer(fvGP):
         logger.info("optimization method: {}", method)
         logger.info("bounds:\n{}", bounds)
         logger.info("acq func: {}", acquisition_function)
-        if np.ndim(bounds) != 2: raise Exception("The bounds parameter has to be a 2d numpy array.")
 
+        if np.ndim(bounds) != 2: raise Exception("The bounds parameter has to be a 2d numpy array.")
         if n > 1 and method != "hgdl":
             method = "global"
             new_optimization_bounds = np.row_stack([bounds for i in range(n)])
             bounds = new_optimization_bounds
-            acquisition_function = "shannon_ig"
+            if acquisition_function != "total correlation" and acquisition_function != "relative information entropy":
+                acquisition_function = "total correlation"
             vectorized = False
-        if acquisition_function == "shannon_ig" or \
-           acquisition_function == "covariance":
+        if acquisition_function == "total correlation" or acquisition_function == "relative information entropy":
                vectorized = False
-
         if method != "global": vectorized = False
 
         maxima, func_evals, opt_obj = sm.find_acquisition_function_maxima(
@@ -1298,10 +1303,12 @@ class fvGPOptimizer(fvGP):
             cost_function_parameters=self.cost_function_parameters,
             optimization_x0=x0,
             constraints = constraints,
+            candidate_set = candidate_set,
             vectorized = vectorized,
+            x_out = x_out,
             args = args,
             dask_client=dask_client)
-        if n > 1: return {'x': maxima.reshape(n,self.input_dim), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
+        if n > 1: return {'x': maxima.reshape(n,self.orig_input_space_dim), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
         return {'x': np.array(maxima), "f(x)": -np.array(func_evals), "opt_obj": opt_obj}
 
     ##############################################################
