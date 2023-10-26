@@ -2,6 +2,7 @@ import datetime
 import math
 import time
 import uuid
+import warnings
 
 import numpy as np
 
@@ -75,21 +76,6 @@ class gpData:
         # d["posterior variance"] = None #post_var
         # d["hyperparameters"] = None #hps
         return d
-
-    ###############################################################
-    ###Printing####################################################
-    ###############################################################
-    def print_data(self, data):
-        np.set_printoptions(precision=5)
-        for idx in range(len(data)):
-            print(idx, " ==> ")
-            for key in list(data[idx]):
-                if isinstance(data[idx][key], dict):
-                    print("     ", key, " :")
-                    for key2 in data[idx][key]:
-                        print("          ", key2, " : ", data[idx][key][key2])
-                else:
-                    print("     ", key, " : ", data[idx][key])
 
     ################################################################
     ########Extracting##############################################
@@ -170,7 +156,7 @@ class gpData:
     def clean_data_NaN(self):
         for entry in self.dataset:
             if self._nan_in_dict(entry):
-                print("CAUTION, NaN detected in data")
+                warnings.warn("CAUTION, NaN detected in data")
                 self.dataset.remove(entry)
         self.point_number = len(self.data_set)
 
@@ -311,7 +297,6 @@ class fvgpData(gpData):
     def check_incoming_data(self):
         try:
             for entry in self.dataset:
-                print(entry)
                 if entry["y_data"] is None:
                     raise Exception("Entry with no specified y_data in communicated list of data dictionaries")
                 if entry["x_data"] is None:

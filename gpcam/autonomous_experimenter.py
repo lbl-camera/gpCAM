@@ -34,7 +34,7 @@ class AutonomousExperimenterGP():
         If `x` and `y` are not provided and `dataset` is not provided, `init_dataset_size` must be provided. An initial
         dataset is constructed randomly with this length. The `instrument_func` is immediately called to measure values
         at these initial points.
-    acq_func : Callable, optional
+    acquisition_function : Callable, optional
         The acquisition function accepts as input a numpy array of size V x D (such that V is the number of input
         points, and D is the parameter space dimensionality) and a `GPOptimizer` object. The return value is 1-D array
         of length V providing 'scores' for each position, such that the highest scored point will be measured next.
@@ -45,7 +45,7 @@ class AutonomousExperimenterGP():
         A function encoding the cost of motion through the input space and the cost of a measurement. Its inputs are an
         `origin` (np.ndarray of size V x D), `x` (np.ndarray of size V x D), and the value of `cost_func_params`;
         `origin` is the starting position, and `x` is the destination position. The return value is a 1-D array of
-        length V describing the costs as floats. The 'score' from acq_func is divided by this returned cost to determine
+        length V describing the costs as floats. The 'score' from acquisition_function is divided by this returned cost to determine
         the next measurement point. If None, the default is a uniform cost of 1.
     cost_update_func : Callable, optional
         A function that updates the `cost_func_params` which are communicated to the `cost_func`. This accepts as input
@@ -65,7 +65,7 @@ class AutonomousExperimenterGP():
         `fvgp.gp.GP.default_mean_function` is used.
     run_every_iteration : Callable, optional
         A function that is run at every iteration. It accepts as input this
-        `gpcam.autonomous_experimenter.AutonomousExperimenterGP` instance. The default is a no-op.
+        `gpcam.AutonomousExperimenterGP` instance. The default is a no-op.
     x_data : np.ndarray, optional
         Initial data point positions
     y_data : np.ndarray, optional
@@ -119,7 +119,7 @@ class AutonomousExperimenterGP():
                  hyperparameter_bounds,
                  instrument_func=None,
                  init_dataset_size=None,
-                 acq_func="variance",
+                 acquisition_function="variance",
                  cost_function=None,
                  cost_update_function=None,
                  cost_function_parameters={},
@@ -157,7 +157,7 @@ class AutonomousExperimenterGP():
         self.instrument_func = instrument_func
         self.hyperparameter_bounds = hyperparameter_bounds
         self.hyperparameters = hyperparameters
-        self.acq_func = acq_func
+        self.acquisition_function = acquisition_function
         self.run_every_iteration = run_every_iteration
         self.communicate_full_dataset = communicate_full_dataset
         self.async_train_in_progress = False
@@ -193,6 +193,7 @@ class AutonomousExperimenterGP():
         ######################
         self.gp_optimizer = GPOptimizer(self.x_data, self.y_data,
             init_hyperparameters = hyperparameters,
+            hyperparameter_bounds = hyperparameter_bounds,
             noise_variances = self.noise_variances,
             compute_device = compute_device,
             gp_kernel_function = kernel_func,
@@ -365,8 +366,8 @@ class AutonomousExperimenterGP():
             Run until N points are measured. The default is `1e15`.
         breaking_error : float, optional
             Run until breaking_error is achieved (or at max N). The default is `1e-50`.
-        retrain_globally_at : Iterable[int], optional
-            Retrains the hyperparameters at the given number of measurements using global optimization. The deafult is
+        retrain_globally_at : Iterable [int], optional
+            Retrains the hyperparameters at the given number of measurements using global optimization. The default is
             `[20,50,100,400,1000]`.
         retrain_locally_at : Iterable[int], optional
             Retrains the hyperparameters at the given number of measurements using local gradient-based optimization.
@@ -390,19 +391,19 @@ class AutonomousExperimenterGP():
         training_opt_tol : float, optional
             The optimization tolerance for all training optimization. The default is 1e-6.
         acq_func_opt_max_iter : int, optional
-            The maximum number of iterations for the `acq_func` optimization. The default is 20.
+            The maximum number of iterations for the `acquisition_function` optimization. The default is 20.
         acq_func_opt_pop_size : int, optional
-            The population size used for any `acq_func` optimization with a global component (HGDL or standard global
+            The population size used for any `acquisition_function` optimization with a global component (HGDL or standard global
             optimizers). The default value is 20.
         acq_func_opt_tol : float, optional
-            The optimization tolerance for all `acq_func` optimization.
+            The optimization tolerance for all `acquisition_function` optimization.
             The default value is 1e-6
         acq_func_opt_tol_adjust : float, optional
-            The `acq_func` optimization tolerance is adjusted at every iteration as a fraction of this value.
+            The `acquisition_function` optimization tolerance is adjusted at every iteration as a fraction of this value.
             The default value is 0.1 .
         number_of_suggested_measurements : int, optional
             The algorithm will try to return this many suggestions for new measurements. This may be limited by how many
-            optima the algorithm may find. If greater than 1, then the `acq_func` optimization method is automatically
+            optima the algorithm may find. If greater than 1, then the `acquisition_function` optimization method is automatically
             set to use HGDL. The default is 1.
         checkpoint_filename : str, optional
             When provided, a checkpoint of all the accumulated data will be written to this file on each iteration.
@@ -410,9 +411,9 @@ class AutonomousExperimenterGP():
             If provided, this subjects the acquisition function optimization to constraints. For the definition of the constraints, follow
             the structure your chosen optimizer requires.
         break_condition_callable : Callable, optional
-            Autonomous loop will stop when this function returns True. The function takes as input a gpcam.autonomous_experimenter instance
+            Autonomous loop will stop when this function returns True. The function takes as input a gpcam.AutonomousExperimenterGP instance.
         ask_args : dict, optional
-            For now, only required for acquisiton function "target probability". In this case it should be
+            For now, only required for acquisition function "target probability". In this case it should be
             defined as {"a": some lower bound, "b":some upper bound}, example: "ask_args = {"a": 1.0,"b": 3.0}".
 
         """
@@ -441,7 +442,7 @@ class AutonomousExperimenterGP():
                 self.input_space_bounds,
                 position=current_position,
                 n=number_of_suggested_measurements,
-                acquisition_function=self.acq_func,
+                acquisition_function=self.acquisition_function,
                 method=local_method,
                 pop_size=acq_func_opt_pop_size,
                 max_iter=acq_func_opt_max_iter,
@@ -491,10 +492,6 @@ class AutonomousExperimenterGP():
 
 
             # retrain()
-            logger.info(inspect.cleandoc("""#
-                ++++++++++++++++++++++++++
-                |Training ...            |
-                ++++++++++++++++++++++++++"""))
             if any(n in retrain_async_at for n in range(n_measurements,len(self.x_data))) and n_measurements<N:
                 if self.training_dask_client is None: self.training_dask_client = dask.distributed.Client()
                 logger.info("    Starting a new asynchronous training after killing the current one.")
@@ -520,7 +517,7 @@ class AutonomousExperimenterGP():
                 self.update_hps()
             logger.info("    Training successfully concluded")
 
-            #run a uder-defined callable
+            #run a user-defined callable
             if self.run_every_iteration is not None: self.run_every_iteration(self)
 
 
@@ -587,7 +584,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         If `x` and `y` are not provided and `dataset` is not provided, `init_dataset_size` must be provided. An initial
         dataset is constructed randomly with this length. The `instrument_func` is immediately called to measure values
         at these initial points.
-    acq_func : Callable, optional
+    acquisition_function : Callable, optional
         The acquisition function accepts as input a numpy array of size V x D (such that V is the number of input
         points, and D is the parameter space dimensionality) and a `GPOptimizer` object. The return value is 1-D array
         of length V providing 'scores' for each position, such that the highest scored point will be measured next.
@@ -598,7 +595,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         A function encoding the cost of motion through the input space and the cost of a measurement. Its inputs are an
         `origin` (np.ndarray of size V x D), `x` (np.ndarray of size V x D), and the value of `cost_func_params`;
         `origin` is the starting position, and `x` is the destination position. The return value is a 1-D array of
-        length V describing the costs as floats. The 'score' from acq_func is divided by this returned cost to determine
+        length V describing the costs as floats. The 'score' from acquisition_function is divided by this returned cost to determine
         the next measurement point. If None, the default is a uniform cost of 1.
     cost_update_func : Callable, optional
         A function that updates the `cost_func_params` which are communicated to the `cost_func`. This accepts as input
@@ -618,7 +615,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         `fvgp.gp.GP.default_mean_function` is used.
     run_every_iteration : Callable, optional
         A function that is run at every iteration. It accepts as input this
-        `gpcam.autonomous_experimenter.AutonomousExperimenterGP` instance. The default is a no-op.
+        `gpcam.AutonomousExperimenterfvGP` instance. The default is a no-op.
     x_data : np.ndarray, optional
         Initial data point positions
     y_data : np.ndarray, optional
@@ -661,7 +658,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         A 2-D array of floats of size J x 2, such that J is the length matching the length of `hyperparameters` defining
         the bounds for training.
     gp_optimizer : gpcam.gp_optimizer.GPOptimizer
-        A GPOptimizer instance used for initializing a gaussian process and performing optimization of the posterior.
+        A GPOptimizer instance used for initializing a Gaussian process and performing optimization of the posterior.
 
 
     """
@@ -674,7 +671,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
                  hyperparameter_bounds,
                  instrument_func=None,
                  init_dataset_size=None,
-                 acq_func="variance",
+                 acquisition_function="variance",
                  cost_function=None,
                  cost_update_function=None,
                  cost_function_parameters={},
@@ -698,25 +695,22 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
                  args = None
                  ):
 
-
+        ################################
+        #getting the data ready#########
+        ################################
         dim = len(input_space_bounds)
         self.input_space_bounds = input_space_bounds
         self.instrument_func = instrument_func
-        self.hyperparameters = hyperparameters
         self.hyperparameter_bounds = hyperparameter_bounds
-        self.acq_func = acq_func
+        self.hyperparameters = hyperparameters
+        self.acquisition_function = acquisition_function
         self.run_every_iteration = run_every_iteration
         self.communicate_full_dataset = communicate_full_dataset
         self.async_train_in_progress = False
         self.training_dask_client = training_dask_client
+        self.acq_func_opt_dask_client = acq_func_opt_dask_client
         self.args = args
 
-        if self.training_dask_client is None: self.training_dask_client = dask.distributed.Client()
-        self.acq_func_opt_dask_client = acq_func_opt_dask_client
-        if self.acq_func_opt_dask_client is None: self.acq_func_opt_dask_client = self.training_dask_client
-        ################################
-        # getting the data ready#########
-        ################################
         if init_dataset_size is None and x_data is None and dataset is None:
             raise Exception("Either provide length of initial data or an inital dataset")
         self.data = fvgpData(dim, input_space_bounds,
@@ -746,6 +740,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
             self.x_data, self.y_data,
             output_space_dimension = output_dim,
             init_hyperparameters = hyperparameters,
+            hyperparameter_bounds = hyperparameter_bounds,
             noise_variances = self.noise_variances,
             compute_device = compute_device,
             gp_kernel_function = kernel_func,
@@ -768,14 +763,11 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
             cost_update_function = cost_update_function)
 
 
-        # init costs
-        self.info = info
-        if info:
-            logger.info(inspect.cleandoc("""#
-            ##################################################################################
-            Autonomous Experimenter fvGP initialization successfully concluded
-            now train(...) or train_async(...), and then go(...)
-            ##################################################################################"""))
+        logger.info(inspect.cleandoc("""#
+        ##################################################################################
+        Autonomous Experimenter fvGP initialization successfully concluded
+        now train(...) or train_async(...), and then go(...)
+        ##################################################################################"""))
 
     def _extract_data(self):
         x, y, v, t, c, vp = self.data.extract_data()

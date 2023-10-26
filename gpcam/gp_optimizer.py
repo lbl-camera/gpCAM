@@ -26,7 +26,9 @@ class GPOptimizer(GP):
     the fvgp.GP class. Check fvgp.readthedocs.io for a full list of capabilities.
 
     V ... number of input points
+
     D ... input space dimensionality
+
     N ... arbitrary integers (N1, N2,...)
 
 
@@ -42,6 +44,10 @@ class GPOptimizer(GP):
         The default is an array of ones, with a shape appropriate
         for the default kernel (D + 1), which is an anisotropic Matern
         kernel with automatic relevance determination (ARD).
+    hyperparameter_bounds : np.ndarray, optional
+        A 2d numpy array of shape (N x 2), where N is the number of needed hyperparameters.
+        The default is None, in that case hyperparameter_bounds have to be specified
+        in the train calls or default bounds are used. Those only work for the default kernel.
     noise_variances : np.ndarray, optional
         An numpy array defining the uncertainties/noise in the data
         `y_data` in form of a point-wise variance. Shape (len(y_data), 1) or (len(y_data)).
@@ -168,14 +174,14 @@ class GPOptimizer(GP):
         Datapoint positions
     y_data : np.ndarray
         Datapoint values
-    variances : np.ndarray
-        Datapoint observation variances
+    noise_variances : np.ndarray
+        Datapoint observation (co)variances
     input_dim : int
         Dimensionality of the input space
     input_space_bounds : np.ndarray
         Bounds of the input space
     hyperparameters : np.ndarray
-        Only available after training is executed.
+        Current hyperparameters in use.
     """
 
     def __init__(
@@ -183,6 +189,7 @@ class GPOptimizer(GP):
         x_data,
         y_data,
         init_hyperparameters = None,
+        hyperparameter_bounds = None,
         noise_variances = None,
         compute_device = "cpu",
         gp_kernel_function = None,
@@ -214,6 +221,7 @@ class GPOptimizer(GP):
                 x_data,
                 y_data,
                 init_hyperparameters = init_hyperparameters,
+                hyperparameter_bounds = hyperparameter_bounds,
                 noise_variances = noise_variances,
                 compute_device = compute_device,
                 gp_kernel_function = gp_kernel_function,
@@ -361,7 +369,6 @@ class GPOptimizer(GP):
             A Dask Distributed Client instance for distributed training if HGDL is used. If None is provided, a new
             `dask.distributed.Client` instance is constructed.
         """
-        
 
         super().train(
         hyperparameter_bounds = hyperparameter_bounds,
@@ -663,9 +670,13 @@ class fvGPOptimizer(fvGP):
     the fvgp.GP class. Check fvgp.readthedocs.io for a full list of capabilities.
 
     V ... number of input points
+
     Di... input space dimensionality
+
     Do... output space dimensionality
+
     No... number of outputs
+
     N ... arbitrary integers (N1, N2,...)
 
 
@@ -677,9 +688,13 @@ class fvGPOptimizer(fvGP):
     see that the input ``x'' is defined over this combined space. 
     For example, if your input space is a Euclidean 2d space and your output
     is labelled [[0],[1]], the input to the mean, kernel, and noise function might be
+    
     x =
+
     [[0.2, 0.3,0],[0.9,0.6,0],
+
      [0.2, 0.3,1],[0.9,0.6,1]]
+    
     This has to be understood and taken into account when customizing fvGP for multi-task
     use.
 
@@ -701,6 +716,10 @@ class fvGPOptimizer(fvGP):
         fvgp.fvGP.gp_deep_kernel_layer_width. If you specify 
         another kernel, please provide
         init_hyperparameters.
+    hyperparameter_bounds : np.ndarray, optional
+        A 2d numpy array of shape (N x 2), where N is the number of needed hyperparameters.
+        The default is None, in that case hyperparameter_bounds have to be specified
+        in the train calls or default bounds are used. Those only work for the default kernel.
     output_positions : np.ndarray, optional
         A 3-D numpy array of shape (U x output_number x output_dim), so that for each measurement position, the outputs
         are clearly defined by their positions in the output space. The default is np.array([[0],[1],[2],[3],...,[output_number - 1]]) for each
@@ -834,16 +853,21 @@ class fvGPOptimizer(fvGP):
         Datapoint positions
     y_data : np.ndarray
         Datapoint values
+    fvgp_x_data : np.ndarray
+        Datapoint positions as seen by fvgp
+    fvgp_y_data : np.ndarray
+        Datapoint values as seen by fvgp
     noise_variances : np.ndarray
-        Datapoint observation variances
-    input_dim : int
-        Dimensionality of the input space
-    input_space_bounds : np.ndarray
-        Bounds of the input space
-    gp_initialized : bool
-        A check whether the object instance has an initialized Gaussian Process.
+        Datapoint observation (co)variances.
     hyperparameters : np.ndarray
-        Only available after the training is executed.
+        Current hyperparameters in use.
+    K : np.ndarray
+        Current prior covariance matrix of the GP
+    KVinv : np.ndarray
+        If enabled, the inverse of the prior covariance + nosie matrix V
+        inv(K+V)
+    KVlogdet : float
+        logdet(K+V)
     """
 
 
@@ -853,6 +877,7 @@ class fvGPOptimizer(fvGP):
         y_data,
         output_space_dimension = 1,
         init_hyperparameters = None,
+        hyperparameter_bounds = None,
         output_positions = None,
         noise_variances = None,
         compute_device = "cpu",
@@ -882,7 +907,7 @@ class fvGPOptimizer(fvGP):
         else: input_dim = 1
         if np.ndim(y_data) != 2: raise Exception("Your y_data is not a 2d numpy array.")
         output_number = y_data.shape[1]
-        
+
         if gp_kernel_function is None: self.user_kernel_provided = False
         else: self.user_kernel_provided = True
 
@@ -894,6 +919,7 @@ class fvGPOptimizer(fvGP):
                 x_data,
                 y_data,
                 init_hyperparameters = init_hyperparameters,
+                hyperparameter_bounds = hyperparameter_bounds,
                 output_positions = output_positions,
                 noise_variances = noise_variances,
                 compute_device = compute_device,
@@ -912,6 +938,7 @@ class fvGPOptimizer(fvGP):
                 ram_economy = ram_economy,
                 args = args,
                 info = info)
+
 
         self.cost_function = cost_function
         self.cost_function_parameters = cost_function_parameters
@@ -958,11 +985,6 @@ class fvGPOptimizer(fvGP):
         The acquisition function evaluations at all points `x` : np.ndarray
         """
         if self.cost_function and origin is None: print("Warning: For the cost function to be active, an origin has to be provided.")
-        if self.gp_initialized is False:
-            raise Exception(
-                "Initialize GP before evaluating the acquisition function. "
-                "See help(gp_init)."
-            )
         x = np.array(x)
         cost_function = self.cost_function
         try:
@@ -1053,9 +1075,10 @@ class fvGPOptimizer(fvGP):
             A Dask Distributed Client instance for distributed training if HGDL is used. If None is provided, a new
             `dask.distributed.Client` instance is constructed.
         """
-        if self.user_kernel_provided: hyperparameter_bounds, init_hyperparameters = hyperparameter_bounds, init_hyperparameters
-        else: hyperparameter_bounds, init_hyperparameters = self.hyperparameter_bounds, self.init_hyperparameters
-        
+        if not self.user_kernel_provided: hyperparameter_bounds, init_hyperparameters = self.hyperparameter_bounds, self.hyperparameters
+        elif (hyperparameter_bounds is None and self.hyperparameter_bounds is None) or (init_hyperparameters is None and self.hyperparameters is None):
+            raise Exception("If a kernel is provided, init_hyperparameters and hyperparameter_bounds have to be provided in the traning or at initialization.")
+
         super().train(
         hyperparameter_bounds = hyperparameter_bounds,
         init_hyperparameters = init_hyperparameters,
@@ -1111,6 +1134,10 @@ class fvGPOptimizer(fvGP):
         ------
         Optimization object that can be given to `fvgp.GP.update_hyperparameters()` to update the prior GP : object instance
         """
+        if not self.user_kernel_provided: hyperparameter_bounds, init_hyperparameters = self.hyperparameter_bounds, self.hyperparameters
+        elif (hyperparameter_bounds is None and self.hyperparameter_bounds is None) or (init_hyperparameters is None and self.hyperparameters is None):
+            raise Exception("If a kernel is provided, init_hyperparameters and hyperparameter_bounds have to be provided in the traning or at initialization.")
+
 
         opt_obj = super().train_async(
         hyperparameter_bounds = hyperparameter_bounds ,

@@ -265,9 +265,9 @@ def acq_function_vectorization_wrapper(x, func = None,vectorized = False):
 
 def gradient(x, func = None):
     epsilon = 1e-6
-    gradient = np.zeros((len(point)))
-    for i in range(len(point)):
-        new_point = np.array(point)
+    gradient = np.zeros((len(x)))
+    for i in range(len(x)):
+        new_point = np.array(x)
         new_point[i] += epsilon
-        gradient[i] = (function(new_point) - function(point)) / epsilon
+        gradient[i] = (func(new_point) - func(x)) / epsilon
     return gradient
