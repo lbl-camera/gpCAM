@@ -106,9 +106,9 @@ class GPOptimizer(GP):
         A function that evaluates the gradient of the ``gp_noise_function'' at an input position with respect to the hyperparameters.
         It accepts as input an array of positions (of size N x D), hyperparameters (a 1d array of length D+1 for the default kernel)
         and a `fvgp.GP` instance. The return value is a 3-D array of shape (len(hyperparameters) x N x N). If None is provided, either
-        zeros are returned since the default noise function does not dpeend on hyperparametes. If ``gp_noise_function'' is provided but no gradient function,
+        zeros are returned since the default noise function does not depend on hyperparametes. If ``gp_noise_function'' is provided but no gradient function,
         a finite-difference approximation will be used.
-        The same rules regarding ram economoy as for the kernel definition apply here.
+        The same rules regarding ram economy as for the kernel definition apply here.
     normalize_y : bool, optional
         If True, the data values ``y_data'' will be normalized to max(y_data) = 1, min(y_data) = 0. The default is False.
         Variances will be updated accordingly.
@@ -213,11 +213,13 @@ class GPOptimizer(GP):
         ):
         if isinstance(x_data,np.ndarray):
             if np.ndim(x_data) == 1: x_data = x_data.reshape(-1,1)
-            input_dim = x_data.shape[1]
-        else: input_dim = 1
+            self.input_dim = x_data.shape[1]
+        else: 
+            self.input_dim = 1
+            warnings.warn("gpCAM on non-Euclidean inputs is still experimental. Use with cautions!")
 
         super().__init__(
-                input_dim,
+                self.input_dim,
                 x_data,
                 y_data,
                 init_hyperparameters = init_hyperparameters,
@@ -288,7 +290,7 @@ class GPOptimizer(GP):
         if origin is not None and self.cost_function is None: warnings.warn("Warning: An origin is given but no cost function is defined. Cost function ignored")
         try:
             res = sm.evaluate_acquisition_function(
-                x, self, acquisition_function, origin = origin, number_of_maxima_sought = None, cost_function = self.cost_function, cost_function_parameters = self.cost_function_parameters, args = args)
+                x, self, acquisition_function, origin = origin, number_of_maxima_sought = 1, cost_function = self.cost_function, cost_function_parameters = self.cost_function_parameters)
             return -res
         except Exception as ex:
             raise Exception("Evaluating the acquisition function was not successful.", ex)
@@ -326,6 +328,7 @@ class GPOptimizer(GP):
         global_optimizer = "genetic",
         constraints = (),
         dask_client = None):
+
         """
         This function finds the maximum of the log marginal likelihood and therefore trains the GP (synchronously).
         This can be done on a remote cluster/computer by specifying the method to be be 'hgdl' and
@@ -480,8 +483,8 @@ class GPOptimizer(GP):
 
     ##############################################################
     def ask(self,
-            bounds,
-            position=None, 
+            bounds=None,
+            position=None,
             n=1,
             acquisition_function="variance",
             method="global",
@@ -491,7 +494,6 @@ class GPOptimizer(GP):
             constraints = (),
             x0=None,
             vectorized = True,
-            args = {},
             info = False,
             candidate_set = {},
             dask_client=None):
@@ -502,9 +504,9 @@ class GPOptimizer(GP):
 
         Parameters
         ----------
-        bounds : np.ndarray
+        bounds : np.ndarray, optional
             A numpy array of floats of shape D x 2 describing the
-            search range.
+            search range. While this is optional, bounds or a candidate set has to be provided.
         position : np.ndarray, optional
             Current position in the input space. If a cost function is 
             provided this position will be taken into account
@@ -542,7 +544,8 @@ class GPOptimizer(GP):
             probability of inprovement: as the name would suggest
             expected improvement: as the name would suggest
             total correlation: extension of mutual information to more than 2 random variables
-            target probabilty: probability of a target, needs dectionaries with bounds defined
+            target probabilty: probability of a target; needs a dictionary
+            GPOptimizer.args = {'a': lower bound, 'b': upper bound} to be defined.
         method : str, optional
             A string defining the method used to find the maximum
             of the acquisition function. Choose from `global`,
@@ -575,11 +578,6 @@ class GPOptimizer(GP):
         candidate_set : set, optional
             If provided, ask will statistically choose a best candidate from the set. 
             This is usually desirable for non-Eucledian inputs.
-        args : dict, optional
-            Provides arguments for certain acquisition
-            functions, such as, "target_probability". In this case it should be
-            defined as {"a": some lower bound, "b":some upper bound}, 
-            example: "args = {"a": 1.0,"b": 3.0}".
         dask_client : distributed.client.Client, optional
             A Dask Distributed Client instance for distributed
             `acquisition_function` optimization. If None is provided,
@@ -597,8 +595,9 @@ class GPOptimizer(GP):
         logger.info("bounds:\n{}", bounds)
         logger.info("acq func: {}", acquisition_function)
 
-        if np.ndim(bounds) != 2: raise Exception("The bounds parameter has to be a 2d numpy array.")
-        if n > 1 and method != "hgdl":
+        if bounds is not None and candidate_set: raise Exception("Bounds and candidate set provided. Only one whould be given.")
+        if bounds is not None and np.ndim(bounds) != 2: raise Exception("The bounds parameter has to be a 2d numpy array.")
+        if bounds is not None and n > 1 and method != "hgdl":
             method = "global"
             new_optimization_bounds = np.row_stack([bounds for i in range(n)])
             bounds = new_optimization_bounds
@@ -623,11 +622,10 @@ class GPOptimizer(GP):
             constraints = constraints,
             candidate_set = candidate_set,
             vectorized = vectorized,
-            args = args,
             info = info,
             dask_client=dask_client)
-        if n > 1: return {'x': maxima.reshape(n,self.input_space_dim), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
-        return {'x': np.array(maxima), "f(x)": -np.array(func_evals), "opt_obj": opt_obj}
+        if n > 1: return {'x': maxima.reshape(-1,self.input_space_dim), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
+        return {'x': np.array(maxima), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
 
     ##############################################################
     def update_cost_function(self, measurement_costs):
@@ -649,6 +647,10 @@ class GPOptimizer(GP):
         if self.cost_function_parameters is None: warnings.warn("No cost_function_parameters specified. Cost update failed.")
         if callable(self.cost_update_function): self.cost_function_parameters = self.cost_update_function(measurement_costs, self.cost_function_parameters)
         else: warnings.warn("No cost_update_function available. Cost update failed.")
+    ##############################################################
+    def in_bounds(v,bounds):
+        if any(v<bounds[:,0]) or any(v>bounds[:,1]): return False
+        return True
 
 ######################################################################################
 ######################################################################################
@@ -785,7 +787,7 @@ class fvGPOptimizer(fvGP):
         and a `fvgp.GP` instance. The return value is a 3-D array of shape (len(hyperparameters) x N x N). If None is provided, either
         zeros are returned since the default noise function does not dpeend on hyperparametes. If ``gp_noise_function'' is provided but no gradient function,
         a finite-difference approximation will be used. 
-        The same rules regarding ram economoy as for the kernel definition apply here.
+        The same rules regarding ram economy as for the kernel definition apply here.
     normalize_y : bool, optional
         If True, the data values ``y_data'' will be normalized to max(y_data) = 1, min(y_data) = 0. The default is False.
         Variances will be updated accordingly.
@@ -821,7 +823,7 @@ class fvGPOptimizer(fvGP):
         If ram_economy=False, the function should be of the form f(x1[, x2,] hyperparameters, obj) and return a numpy array of shape
         H x len(x1) x len(x2), where H is the number of hyperparameters. CAUTION: This array will be stored and is very large.
     args : any, optional
-        args will be a class attribute and therefore available to kernel, noise and prior mean functions.
+        args will be a class attribute and therefore available to kernel, noise, prior mean functions and acquisition function.
     info : bool, optional
         Provides a way how to see the progress of gp2Scale, Default is False
     cost_function : Callable, optional
@@ -903,8 +905,8 @@ class fvGPOptimizer(fvGP):
         ):
         if isinstance(x_data,np.ndarray):
             if np.ndim(x_data) == 1: x_data = x_data.reshape(-1,1)
-            input_dim = x_data.shape[1]
-        else: input_dim = 1
+            self.input_dim = x_data.shape[1]
+        else: self.input_dim = 1
         if np.ndim(y_data) != 2: raise Exception("Your y_data is not a 2d numpy array.")
         output_number = y_data.shape[1]
 
@@ -913,7 +915,7 @@ class fvGPOptimizer(fvGP):
 
 
         super().__init__(
-                input_dim,
+                self.input_dim,
                 output_space_dimension,
                 output_number,
                 x_data,
@@ -965,7 +967,7 @@ class fvGPOptimizer(fvGP):
             "cost function": self.cost_function}
 
     ############################################################################
-    def evaluate_acquisition_function(self, x, acquisition_function="variance", origin=None):
+    def evaluate_acquisition_function(self, x, x_out,acquisition_function="variance", origin=None):
         """
         Function to evaluate the acquisition function.
 
@@ -973,6 +975,8 @@ class fvGPOptimizer(fvGP):
         ----------
         x : np.ndarray
             Point positions at which the acquisition function is evaluated. This is a point in the input space.
+        x_out : np.ndarray
+            Point positions in the output space.
         acquisition_function : Callable, optional
             Acquisition function to execute. Callable with inputs (x,gpcam.gp_optimizer.GPOptimizer),
             where x is a V x D array of input x_data. The return value is a 1-D array of length V.
@@ -989,7 +993,7 @@ class fvGPOptimizer(fvGP):
         cost_function = self.cost_function
         try:
             res = sm.evaluate_acquisition_function(
-                x, self, acquisition_function, origin = origin, number_of_maxima_sought = None, cost_function = cost_function, cost_function_parameters = self.cost_function_parameters, args = None)
+                x, self, acquisition_function, origin = origin, number_of_maxima_sought = 1, cost_function = cost_function, cost_function_parameters = self.cost_function_parameters, x_out = x_out)
             return -res
         except Exception as ex:
             raise Exception("Evaluating the acquisition function was not successful.", ex)
@@ -1206,7 +1210,6 @@ class fvGPOptimizer(fvGP):
             x0=None,
             vectorized = True,
             candidate_set = {},
-            args = {},
             info = False,
             dask_client=None):
 
@@ -1250,7 +1253,6 @@ class fvGPOptimizer(fvGP):
             The acquisition function can be a callable of the form my_func(x,gpcam.GPOptimizer)
             which will be maximized (!!!), so make sure desirable new measurement points
             will be located at maxima.
-            Explanations of the acquisition functions:
         method : str, optional
             A string defining the method used to find the maximum 
             of the acquisition function. Choose from `global`,
@@ -1284,11 +1286,6 @@ class fvGPOptimizer(fvGP):
         candidate_set : set, optional
             If provided, ask will statistically choose a best candidate from the set. 
             This is usually desirable for non-Eucledian inputs.
-        args : dict, optional
-            Provides arguments for certain acquisition 
-            functions, such as, "target probability". In this case it should be
-            defined as {"a": some lower bound, "b":some upper bound}, 
-            example: "args = {"a": 1.0,"b": 3.0}".
         dask_client : distributed.client.Client, optional
             A Dask Distributed Client instance for distributed 
             `acquisition_func` computation. If None is provided,
@@ -1305,6 +1302,8 @@ class fvGPOptimizer(fvGP):
         logger.info("optimization method: {}", method)
         logger.info("bounds:\n{}", bounds)
         logger.info("acq func: {}", acquisition_function)
+
+        if candidate_set: raise Exception("Non-Euclidean ask() not implemented yet.")
 
         if np.ndim(bounds) != 2: raise Exception("The bounds parameter has to be a 2d numpy array.")
         if n > 1 and method != "hgdl":
@@ -1333,10 +1332,9 @@ class fvGPOptimizer(fvGP):
             candidate_set = candidate_set,
             vectorized = vectorized,
             x_out = x_out,
-            args = args,
             dask_client=dask_client)
         if n > 1: return {'x': maxima.reshape(n,self.orig_input_space_dim), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
-        return {'x': np.array(maxima), "f(x)": -np.array(func_evals), "opt_obj": opt_obj}
+        return {'x': np.array(maxima), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
 
     ##############################################################
     def update_cost_function(self, measurement_costs):

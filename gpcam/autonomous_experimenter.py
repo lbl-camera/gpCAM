@@ -20,62 +20,99 @@ class AutonomousExperimenterGP():
     ----------
     input_space_bounds : np.ndarray
         A numpy array of floats of shape D x 2 describing the input space.
-    hyperparameters : np.ndarray
+    hyperparameters : np.ndarray, optional
         A 1-D numpy array of floats. The default kernel function expects a length of D+1, where the first
         value is a signal variance, followed by a length scale in each direction of the input space. If a kernel
-        function is provided, then the expected length is determined by that function.
-    hyperparameter_bounds : np.ndarray
+        function is provided, then the expected length is determined by that function. The default will
+        initialize the hyperparameters for the default kernel.
+    hyperparameter_bounds : np.ndarray, optional
         A 2-D array of floats of size J x 2, such that J is the length matching the length of `hyperparameters` defining
-        the bounds for training.
-    instrument_func : Callable, optional
+        the bounds for training. If None, default bounds will be used based on the default kernel and
+        the size if th domain.
+    instrument_function : Callable, optional
          A function that takes data points (a list of dicts), and returns a similar structure with data filled in. The function is
          expected to communicate with the instrument and perform measurements, populating fields of the data input.
     init_dataset_size : int, optional
         If `x` and `y` are not provided and `dataset` is not provided, `init_dataset_size` must be provided. An initial
-        dataset is constructed randomly with this length. The `instrument_func` is immediately called to measure values
+        dataset is constructed randomly with this length. The `instrument_function` is immediately called to measure values
         at these initial points.
     acquisition_function : Callable, optional
-        The acquisition function accepts as input a numpy array of size V x D (such that V is the number of input
-        points, and D is the parameter space dimensionality) and a `GPOptimizer` object. The return value is 1-D array
-        of length V providing 'scores' for each position, such that the highest scored point will be measured next.
-        Built-in functions can be used by one of the following keys: `'shannon_ig'`, `'shannon_ig_vec'`, `'ucb'`, `'maximum'`, `'minimum'`,
-        `'covariance'`, `'variance'`, and `'gradient'`. If None, the default function is the `'variance'`, meaning
-        `fvgp.gp.GP.posterior_covariance` with variance_only = True.
-    cost_func : Callable, optional
+        The acquisition function accepts as input a numpy array
+        of size V x D (such that V is the number of input
+        points, and D is the parameter space dimensionality) and
+        a `GPOptimizer` object. The return value is 1-D array
+        of length V providing 'scores' for each position,
+        such that the highest scored point will be measured next.
+        Built-in functions can be used by one of the following keys: 
+        `'ucb'`,`'lcb'`,`'maximum'`,
+        `'minimum'`, `'variance'`,`'expected_improvement'`,
+        `'relative information entropy'`,`'relative information entropy set'`,
+        `'probability of improvement'`, `'gradient'`,`'total correlation'`,`'target probability'`.
+        If None, the default function `'variance'`, meaning
+        `fvgp.GP.posterior_covariance` with variance_only = True will be used.
+        The acquisition function can be a callable of the form my_func(x,gpcam.GPOptimizer)
+        which will be maximized (!!!), so make sure desirable new measurement points
+        will be located at maxima.
+        Explanations of the acquisition functions:
+        variance: simply the posterior variance
+        relative information entropy: the KL divergence of the prior over predictions and the posterior
+        relative information entropy set: the KL divergence of the prior over predictions and the posterior point-by-point
+        ucb: upper confidence bound, posterior mean + 3. std
+        lcb: lower confidence bound, -(posterior mean - 3. std)
+        maximum: finds the maximum of the current posterior mean
+        minimum: finds the maximum of the current posterior mean
+        gradient: puts focus on high-gradient regions
+        probability of inprovement: as the name would suggest
+        expected improvement: as the name would suggest
+        total correlation: extension of mutual information to more than 2 random variables
+        target probabilty: probability of a target; needs a dictionary
+        GPOptimizer.args = {'a': lower bound, 'b': upper bound} to be defined.
+    cost_function : Callable, optional
         A function encoding the cost of motion through the input space and the cost of a measurement. Its inputs are an
         `origin` (np.ndarray of size V x D), `x` (np.ndarray of size V x D), and the value of `cost_func_params`;
         `origin` is the starting position, and `x` is the destination position. The return value is a 1-D array of
         length V describing the costs as floats. The 'score' from acquisition_function is divided by this returned cost to determine
         the next measurement point. If None, the default is a uniform cost of 1.
-    cost_update_func : Callable, optional
-        A function that updates the `cost_func_params` which are communicated to the `cost_func`. This accepts as input
-        costs (a list of cost values determined by `instrument_func`), bounds (a V x 2 numpy array) and parameters
+    cost_update_function : Callable, optional
+        A function that updates the `cost_func_params` which are communicated to the `cost_function`. This accepts as input
+        costs (a list of cost values determined by `instrument_function`), bounds (a V x 2 numpy array) and parameters
         object. The default is a no-op.
-    cost_func_params : Any, optional
-        An object that is communicated to the `cost_func` and `cost_update_func`. The default is `{}`.
-    kernel_func : Callable, optional
-        A function that calculates the covariance between data points. It accepts as input x1 (a V x D array of positions),
-        x2 (a U x D array of positions), hyperparameters (a 1-D array of length D+1 for the default kernel), and a
-        `gpcam.gp_optimizer.GPOptimizer` instance. The default is a stationary anisotropic kernel
-        (`fvgp.gp.GP.default_kernel`).
-    prior_mean_func : Callable, optional
-        A function that evaluates the prior mean at an input position. It accepts as input a
-        `gpcam.gp_optimizer.GPOptimizer` instance, an array of positions (of size V x D), and hyperparameters (a 1-D
-        array of length D+1 for the default kernel). The return value is a 1-D array of length V. If None is provided,
-        `fvgp.gp.GP.default_mean_function` is used.
+    cost_function_params : Any, optional
+        An object that is communicated to the `cost_function` and `cost_update_function`. The default is `{}`.
+    kernel_function : Callable, optional
+        A symmetric positive semi-definite covariance function (a kernel)
+        that calculates the covariance between
+        data points. It is a function of the form k(x1,x2,hyperparameters, obj).
+        The input x1 is a N1 x D array of positions, x2 is a N2 x D
+        array of positions, the hyperparameters argument
+        is a 1d array of length D+1 for the default kernel and of a different
+        user-defined length for other kernels
+        obj is an `fvgp.GP` instance. The default is a stationary anisotropic kernel
+        (`fvgp.GP.default_kernel`) which performs automatic relevance determination (ARD).
+        The output is a covariance matrix, an N1 x N2 numpy array.
+    prior_mean_function : Callable, optional
+        A function that evaluates the prior mean at a set of input position. It accepts as input
+        an array of positions (of shape N1 x D), hyperparameters (a 1d array of length D+1 for the default kernel)
+        and a `fvgp.GP` instance. The return value is a 1d array of length N1. If None is provided,
+        `fvgp.GP._default_mean_function` is used.
+    noise_function : Callable optional
+        The noise function is a callable f(x,hyperparameters,obj) that returns a
+        positive symmetric definite matrix of shape(len(x),len(x)).
+        The input x is a numpy array of shape (N x D). The hyperparameter array is the same
+        that is communicated to mean and kernel functions. The obj is a fvgp.GP instance.
     run_every_iteration : Callable, optional
-        A function that is run at every iteration. It accepts as input this
+        A function that is run at every iteration. It accepts as input a
         `gpcam.AutonomousExperimenterGP` instance. The default is a no-op.
     x_data : np.ndarray, optional
         Initial data point positions
     y_data : np.ndarray, optional
         Initial data point values
-    variances : np.ndarray, optional
+    noise_variances : np.ndarray, optional
         Initial data point observation variances
     dataset : string, optional
         A filename of a gpcam-generated file that is used to initialize a new instance.
     communicate_full_dataset : bool, optional
-        If True, the full dataset will be communicated to the `instrument_func` on each iteration. If False, only the
+        If True, the full dataset will be communicated to the `instrument_function` on each iteration. If False, only the
         newly suggested data points will be communicated. The default is False.
     compute_device : str, optional
         One of "cpu" or "gpu", determines how linear system solves are run. The default is "cpu".
@@ -88,10 +125,10 @@ class AutonomousExperimenterGP():
         A Dask Distributed Client instance for distributed training. If None is provided, a new
         `dask.distributed.Client` instance is constructed.
     acq_func_opt_dask_client : distributed.client.Client, optional
-        A Dask Distributed Client instance for distributed `acquisition_func` computation. If None is provided, a new
+        A Dask Distributed Client instance for distributed `acquisition_function` computation. If None is provided, a new
         `dask.distributed.Client` instance is constructed.
     info : bool, optional
-        bool specifying if the should be extensive std out. Default = False
+        Specifies if info should be displayed. Default = False
 
 
     Attributes
@@ -107,24 +144,24 @@ class AutonomousExperimenterGP():
     hyperparameter_bounds : np.ndarray
         A 2-D array of floats of size J x 2, such that J is the length matching the length of `hyperparameters` defining
         the bounds for training.
-    gp_optimizer : gpcam.gp_optimizer.GPOptimizer
-        A GPOptimizer instance used for initializing a gaussian process and performing optimization of the posterior.
+    gp_optimizer : gpcam.GPOptimizer
+        A GPOptimizer instance used for initializing a Gaussian process and performing optimization of the posterior.
 
 
     """
 
     def __init__(self,
                  input_space_bounds,
-                 hyperparameters,
-                 hyperparameter_bounds,
-                 instrument_func=None,
+                 hyperparameters = None,
+                 hyperparameter_bounds = None,
+                 instrument_function=None,
                  init_dataset_size=None,
                  acquisition_function="variance",
                  cost_function=None,
                  cost_update_function=None,
                  cost_function_parameters={},
-                 kernel_func=None,
-                 prior_mean_func=None,
+                 kernel_function=None,
+                 prior_mean_function=None,
                  noise_function=None,
                  run_every_iteration=None,
                  x_data=None, y_data=None, noise_variances=None, dataset=None,
@@ -154,7 +191,7 @@ class AutonomousExperimenterGP():
 
         dim = len(input_space_bounds)
         self.input_space_bounds = input_space_bounds
-        self.instrument_func = instrument_func
+        self.instrument_function = instrument_function
         self.hyperparameter_bounds = hyperparameter_bounds
         self.hyperparameters = hyperparameters
         self.acquisition_function = acquisition_function
@@ -172,16 +209,16 @@ class AutonomousExperimenterGP():
         self.data = gpData(dim, input_space_bounds)
         if x_data is None and dataset is None:
             self.data.create_random_dataset(init_dataset_size)
-            if instrument_func is None: raise Exception("You need to provide an instrument function.")
-            self.data.dataset = self.instrument_func(self.data.dataset)
+            if instrument_function is None: raise Exception("You need to provide an instrument function.")
+            self.data.dataset = self.instrument_function(self.data.dataset)
         elif dataset is not None:
             self.data.inject_dataset(list(np.load(dataset, allow_pickle=True)))
             hyperparameters = self.data.dataset[-1]["hyperparameters"]
         elif x_data is not None and y_data is not None:
             self.data.dataset = self.data.inject_arrays(x_data, y=y_data, v=noise_variances)
         elif x_data is not None and y_data is None:
-            if instrument_func is None: raise Exception("You need to provide an instrument function.")
-            self.data.dataset = self.instrument_func(self.data.inject_arrays(x_data, y=y_data, v=noise_variances))
+            if instrument_function is None: raise Exception("You need to provide an instrument function.")
+            self.data.dataset = self.instrument_function(self.data.inject_arrays(x_data, y=y_data, v=noise_variances))
         else:
             raise Exception("No viable option for data given!")
         self.data.check_incoming_data()
@@ -196,11 +233,11 @@ class AutonomousExperimenterGP():
             hyperparameter_bounds = hyperparameter_bounds,
             noise_variances = self.noise_variances,
             compute_device = compute_device,
-            gp_kernel_function = kernel_func,
+            gp_kernel_function = kernel_function,
             gp_kernel_function_grad = None,
             gp_noise_function = noise_function,
             gp_noise_function_grad = None,
-            gp_mean_function = prior_mean_func,
+            gp_mean_function = prior_mean_function,
             gp_mean_function_grad = None,
             sparse_mode = sparse_mode,
             gp2Scale = gp2Scale,
@@ -241,7 +278,7 @@ class AutonomousExperimenterGP():
             Maximum number of iterations for the global method. Default = 20
         method : str, optional
             Method to be used for the training. Default is `'global'` which means
-            a differetnial evolution algorithm is run with the specified parameters.
+            a differential evolution algorithm is run with the specified parameters.
             The options are `'global'` or `'local'`, or `'mcmc'`.
         """
 
@@ -354,7 +391,6 @@ class AutonomousExperimenterGP():
            number_of_suggested_measurements=1,
            checkpoint_filename=None,
            constraints = (),
-           ask_args = None,
            break_condition_callable = lambda n: False
            ):
         """
@@ -376,7 +412,7 @@ class AutonomousExperimenterGP():
             Retrains the hyperparameters at the given number of measurements using the HGDL algorithm. This training is
             asynchronous and can be run in a distributed fashion using `training_dask_client`. The default is `[]`.
         update_cost_func_at : Iterable[int], optional
-            Calls the `update_cost_func` at the given number of measurements.
+            Calls the `update_cost_function` at the given number of measurements.
             Default = ()
         acq_func_opt_setting : Callable, optional
             A callable that accepts as input the iteration index and returns either `'local'`, `'global'`, `'hgdl'`. This
@@ -412,10 +448,6 @@ class AutonomousExperimenterGP():
             the structure your chosen optimizer requires.
         break_condition_callable : Callable, optional
             Autonomous loop will stop when this function returns True. The function takes as input a gpcam.AutonomousExperimenterGP instance.
-        ask_args : dict, optional
-            For now, only required for acquisition function "target probability". In this case it should be
-            defined as {"a": some lower bound, "b":some upper bound}, example: "ask_args = {"a": 1.0,"b": 3.0}".
-
         """
         #set up
         start_time = time.time()
@@ -447,7 +479,6 @@ class AutonomousExperimenterGP():
                 pop_size=acq_func_opt_pop_size,
                 max_iter=acq_func_opt_max_iter,
                 tol=acq_func_opt_tol,
-                args = ask_args,
                 constraints = constraints,
                 dask_client=self.acq_func_opt_dask_client)
 
@@ -475,9 +506,9 @@ class AutonomousExperimenterGP():
             new_data = self.data.inject_arrays(next_measurement_points, info=info)
             logger.info("Sending request to instrument ...")
             if self.communicate_full_dataset:
-                self.data.dataset = self.instrument_func(self.data.dataset + new_data)
+                self.data.dataset = self.instrument_function(self.data.dataset + new_data)
             else:
-                self.data.dataset = self.data.dataset + self.instrument_func(new_data)
+                self.data.dataset = self.data.dataset + self.instrument_function(new_data)
 
 
             #receive new data
@@ -576,13 +607,13 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
     hyperparameter_bounds : np.ndarray
         A 2-D array of floats of size J x 2, such that J is the length matching the length of `hyperparameters` defining
         the bounds for training.
-    instrument_func : Callable, optional
+    instrument_function : Callable, optional
          A function that takes data points (a list of dicts), and returns a similar structure. The function is
          expected to
          communicate with the instrument and perform measurements, populating fields of the data input. If
     init_dataset_size : int, optional
         If `x` and `y` are not provided and `dataset` is not provided, `init_dataset_size` must be provided. An initial
-        dataset is constructed randomly with this length. The `instrument_func` is immediately called to measure values
+        dataset is constructed randomly with this length. The `instrument_function` is immediately called to measure values
         at these initial points.
     acquisition_function : Callable, optional
         The acquisition function accepts as input a numpy array of size V x D (such that V is the number of input
@@ -598,17 +629,17 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         length V describing the costs as floats. The 'score' from acquisition_function is divided by this returned cost to determine
         the next measurement point. If None, the default is a uniform cost of 1.
     cost_update_func : Callable, optional
-        A function that updates the `cost_func_params` which are communicated to the `cost_func`. This accepts as input
-        costs (a list of cost values determined by `instrument_func`), bounds (a V x 2 numpy array) and parameters
+        A function that updates the `cost_func_params` which are communicated to the `cost_function`. This accepts as input
+        costs (a list of cost values determined by `instrument_function`), bounds (a V x 2 numpy array) and parameters
         object. The default is a no-op.
     cost_func_params : Any, optional
-        An object that is communicated to the `cost_func` and `cost_update_func`. The default is `{}`.
-    kernel_func : Callable, optional
+        An object that is communicated to the `cost_function` and `cost_update_function`. The default is `{}`.
+    kernel_function : Callable, optional
         A function that calculates the covariance between data points. It accepts as input x1 (a V x D array of positions),
         x2 (a U x D array of positions), hyperparameters (a 1-D array of length D+1 for the default kernel), and a
         `gpcam.gp_optimizer.GPOptimizer` instance. The default is a stationary anisotropic kernel
         (`fvgp.gp.GP.default_kernel`).
-    prior_mean_func : Callable, optional
+    prior_mean_function : Callable, optional
         A function that evaluates the prior mean at an input position. It accepts as input a
         `gpcam.gp_optimizer.GPOptimizer` instance, an array of positions (of size V x D), and hyperparameters (a 1-D
         array of length D+1 for the default kernel). The return value is a 1-D array of length V. If None is provided,
@@ -627,7 +658,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         are clearly defined by their positions in the output space. The default is np.array([[0],[1],[2],[3],...,[output_number - 1]]) for each
         point in the input space. The default is only permissible if output_dim is 1.
     communicate_full_dataset : bool, optional
-        If True, the full dataset will be communicated to the `instrument_func` on each iteration. If False, only the
+        If True, the full dataset will be communicated to the `instrument_function` on each iteration. If False, only the
         newly suggested data points will be communicated. The default is False.
     compute_device : str, optional
         One of "cpu" or "gpu", determines how linear system solves are run. The default is "cpu".
@@ -640,10 +671,10 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         A Dask Distributed Client instance for distributed training. If None is provided, a new
         `dask.distributed.Client` instance is constructed.
     acq_func_opt_dask_client : distributed.client.Client, optional
-        A Dask Distributed Client instance for distributed `acquisition_func` computation. If None is provided, a new
+        A Dask Distributed Client instance for distributed `acquisition_function` computation. If None is provided, a new
         `dask.distributed.Client` instance is constructed.
     info : bool, optional
-        bool specifying if the should be extensive std out. Default = False
+        Specifies if info should be displayed. Default = False
 
 
     Attributes
@@ -654,12 +685,13 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         Data point values
     variances : np.ndarray
         Data point observation variances
+    data.dataset : list
+        All data
     hyperparameter_bounds : np.ndarray
         A 2-D array of floats of size J x 2, such that J is the length matching the length of `hyperparameters` defining
         the bounds for training.
-    gp_optimizer : gpcam.gp_optimizer.GPOptimizer
+    gp_optimizer : gpcam.GPOptimizer
         A GPOptimizer instance used for initializing a Gaussian process and performing optimization of the posterior.
-
 
     """
 
@@ -667,16 +699,16 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
                  input_space_bounds,
                  output_number,
                  output_dim,
-                 hyperparameters,
-                 hyperparameter_bounds,
-                 instrument_func=None,
+                 hyperparameters = None,
+                 hyperparameter_bounds = None,
+                 instrument_function=None,
                  init_dataset_size=None,
                  acquisition_function="variance",
                  cost_function=None,
                  cost_update_function=None,
                  cost_function_parameters={},
-                 kernel_func=None,
-                 prior_mean_func=None,
+                 kernel_function=None,
+                 prior_mean_function=None,
                  noise_function = None,
                  run_every_iteration=None,
                  x_data=None, y_data=None, variances=None, vp=None, dataset=None,
@@ -700,7 +732,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         ################################
         dim = len(input_space_bounds)
         self.input_space_bounds = input_space_bounds
-        self.instrument_func = instrument_func
+        self.instrument_function = instrument_function
         self.hyperparameter_bounds = hyperparameter_bounds
         self.hyperparameters = hyperparameters
         self.acquisition_function = acquisition_function
@@ -717,16 +749,16 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
                              output_number=output_number, output_dim=output_dim)
         if x_data is None and dataset is None:
             self.data.create_random_dataset(init_dataset_size)
-            if instrument_func is None: raise Exception("You need to provide an instrument function.")
-            self.data.dataset = self.instrument_func(self.data.dataset)
+            if instrument_function is None: raise Exception("You need to provide an instrument function.")
+            self.data.dataset = self.instrument_function(self.data.dataset)
         elif dataset is not None:
             self.data.inject_dataset(list(np.load(dataset, allow_pickle=True)))
             self.hyperparameters = self.data.dataset[-1]["hyperparameters"]
         elif x_data is not None and y_data is not None:
             self.data.dataset = self.data.inject_arrays(x_data, y=y_data, v=variances, vp=vp)
         elif x_data is not None and y_data is None:
-            if instrument_func is None: raise Exception("You need to provide an instrument function.")
-            self.data.dataset = self.instrument_func(self.data.inject_arrays(x_data, y=y_data, v=variances))
+            if instrument_function is None: raise Exception("You need to provide an instrument function.")
+            self.data.dataset = self.instrument_function(self.data.inject_arrays(x_data, y=y_data, v=variances))
         else:
             raise Exception("No viable option for data given!")
         self.data.check_incoming_data()
@@ -743,11 +775,11 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
             hyperparameter_bounds = hyperparameter_bounds,
             noise_variances = self.noise_variances,
             compute_device = compute_device,
-            gp_kernel_function = kernel_func,
+            gp_kernel_function = kernel_function,
             gp_kernel_function_grad = None,
             gp_noise_function = noise_function,
             gp_noise_function_grad = None,
-            gp_mean_function = prior_mean_func,
+            gp_mean_function = prior_mean_function,
             gp_mean_function_grad = None,
             sparse_mode = sparse_mode,
             gp2Scale = gp2Scale,
