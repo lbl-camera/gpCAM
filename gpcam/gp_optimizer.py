@@ -41,13 +41,17 @@ class GPOptimizer(GP):
     init_hyperparameters : np.ndarray, optional
         Vector of hyperparameters used by the GP initially.
         This class provides methods to train hyperparameters.
-        The default is an array of ones, with a shape appropriate
+        The default is a random draw from a uniform distribution
+        within hyperparameter_bounds, with a shape appropriate
         for the default kernel (D + 1), which is an anisotropic Matern
-        kernel with automatic relevance determination (ARD).
+        kernel with automatic relevance determination (ARD). If sparse_node or gp2Scale is
+        enabled, the default kernel changes to the anisotropic Wendland kernel.
     hyperparameter_bounds : np.ndarray, optional
         A 2d numpy array of shape (N x 2), where N is the number of needed hyperparameters.
-        The default is None, in that case hyperparameter_bounds have to be specified
-        in the train calls or default bounds are used. Those only work for the default kernel.
+        The default is None, in which case the hyperparameter_bounds are estimated from the domain size
+        and the initial y_data. If normalize_y is True or the data changes significantly,
+        the hyperparameters and the bounds should be changed/retrained. Initial hyperparameters and bounds
+        can also be set in the train calls. The default only works for the default kernels.
     noise_variances : np.ndarray, optional
         An numpy array defining the uncertainties/noise in the data
         `y_data` in form of a point-wise variance. Shape (len(y_data), 1) or (len(y_data)).
@@ -57,7 +61,7 @@ class GPOptimizer(GP):
         noise covariances are required, also make use of the gp_noise_function.
     compute_device : str, optional
         One of "cpu" or "gpu", determines how linear system solves are run. The default is "cpu".
-        For "gpu", pytoch has to be installed manually.
+        For "gpu", pytorch has to be installed manually.
         If gp2Scale is enabled but no kernel is provided, the choice of the compute_device
         becomes much more important. In that case, the default kernel will be computed on
         the cpu or the gpu which will significantly change the compute time depending on the compute
@@ -74,7 +78,7 @@ class GPOptimizer(GP):
         (`fvgp.GP.default_kernel`) which performs automatic relevance determination (ARD).
         The output is a covariance matrix, an N1 x N2 numpy array.
     gp_kernel_function_grad : Callable, optional
-        A function that calculates the derivative of the ``gp_kernel_function'' with respect to the hyperparameters.
+        A function that calculates the derivative of the `'gp_kernel_function'` with respect to the hyperparameters.
         If provided, it will be used for local training (optimization) and can speed up the calculations.
         It accepts as input x1 (a N1 x D array of positions),
         x2 (a N2 x D array of positions),
@@ -92,56 +96,80 @@ class GPOptimizer(GP):
         and a `fvgp.GP` instance. The return value is a 1d array of length N1. If None is provided,
         `fvgp.GP._default_mean_function` is used.
     gp_mean_function_grad : Callable, optional
-        A function that evaluates the gradient of the ``gp_mean_function'' at a set of input positions with respect to the hyperparameters.
-        It accepts as input an array of positions (of size N1 x D), hyperparameters (a 1d array of length D+1 for the default kernel)
-        and a `fvgp.GP` instance. The return value is a 2d array of shape (len(hyperparameters) x N1). If None is provided, either
-        zeros are returned since the default mean function does not depend on hyperparametes, or a finite-difference approximation
-        is used if ``gp_mean_function'' is provided.
+        A function that evaluates the gradient of the `'gp_mean_function'` at
+        a set of input positions with respect to the hyperparameters.
+        It accepts as input an array of positions (of size N1 x D), hyperparameters
+        (a 1d array of length D+1 for the default kernel)
+        and a `fvgp.GP` instance. The return value is a 2d array of
+        shape (len(hyperparameters) x N1). If None is provided, either
+        zeros are returned since the default mean function does not depend on hyperparameters,
+        or a finite-difference approximation
+        is used if `'gp_mean_function'` is provided.
     gp_noise_function : Callable optional
         The noise function is a callable f(x,hyperparameters,obj) that returns a
         positive symmetric definite matrix of shape(len(x),len(x)).
         The input x is a numpy array of shape (N x D). The hyperparameter array is the same
         that is communicated to mean and kernel functions. The obj is a fvgp.GP instance.
     gp_noise_function_grad : Callable, optional
-        A function that evaluates the gradient of the ``gp_noise_function'' at an input position with respect to the hyperparameters.
-        It accepts as input an array of positions (of size N x D), hyperparameters (a 1d array of length D+1 for the default kernel)
-        and a `fvgp.GP` instance. The return value is a 3-D array of shape (len(hyperparameters) x N x N). If None is provided, either
-        zeros are returned since the default noise function does not depend on hyperparametes. If ``gp_noise_function'' is provided but no gradient function,
+        A function that evaluates the gradient of the `'gp_noise_function'`
+        at an input position with respect to the hyperparameters.
+        It accepts as input an array of positions (of size N x D),
+        hyperparameters (a 1d array of length D+1 for the default kernel)
+        and a `fvgp.GP` instance. The return value is a 3-D array of
+        shape (len(hyperparameters) x N x N). If None is provided, either
+        zeros are returned since the default noise function does not depend on
+        hyperparameters. If `'gp_noise_function'` is provided but no gradient function,
         a finite-difference approximation will be used.
         The same rules regarding ram economy as for the kernel definition apply here.
     normalize_y : bool, optional
-        If True, the data values ``y_data'' will be normalized to max(y_data) = 1, min(y_data) = 0. The default is False.
+        If True, the data values `'y_data'` will be normalized to max(y_data) = 1, min(y_data) = 0.
+        The default is False.
         Variances will be updated accordingly.
     sparse_mode : bool, optional
-        When sparse_mode is enabled, the algorithm will use a user-defined kernel function or, if that's not provided, an anisotropic Wendland kernel
-        and check for sparsity in the prior covariance. If sparsity is present, sparse operations will be used to speed up computations.
-        Caution: the covariace is still stored at first in a dense format. For more extreme scaling, check out the gp2Scale option.
+        When sparse_mode is enabled, the algorithm will use a user-defined kernel
+        function or, if that's not provided, an anisotropic Wendland kernel
+        and check for sparsity in the prior covariance. If sparsity is present,
+        sparse operations will be used to speed up computations.
+        Caution: the covariance is still stored at first in a dense format.
+        For more extreme scaling, check out the gp2Scale option.
     gp2Scale: bool, optional
-        Turns on gp2Scale. This will distribute the covariance computations across multiple workers. This is an advaced feature for HPC GPs up to 10
-        million datapoints. If gp2Scale is used, the default kernel is an anisotropic Wemsland kernel which is compactly supported. The noise function will have
-        to return a scipy.sparse matrix instead of a numpy array. There are a few more things to consider (read on); this is an advanced option.
-        If no kernel is provided, the compute_device option should be revisited. The kernel will use the specified device to compute covariances.
+        Turns on gp2Scale. This will distribute the covariance computations across multiple workers.
+        This is an advanced feature for HPC GPs up to 10
+        million data points. If gp2Scale is used, the default kernel is an anisotropic
+        Wendland kernel which is compactly supported. The noise function will have
+        to return a scipy.sparse matrix instead of a numpy array. There are a few more
+        things to consider (read on); this is an advanced option.
+        If no kernel is provided, the compute_device option should be revisited.
+        The kernel will use the specified device to compute covariances.
         The default is False.
     gp2Scale_dask_client : dask.distributed.Client, optional
         A dask client for gp2Scale to distribute covariance computations over. Has to contain at least 3 workers.
-        On HPC architecture, this client is provided by the jobscript. Please have a look at the examples.
+        On HPC architecture, this client is provided by the job script. Please have a look at the examples.
         A local client is used as default.
     gp2Scale_batch_size : int, optional
         Matrix batch size for distributed computing in gp2Scale. The default is 10000.
     store_inv : bool, optional
-        If True, the algorithm calculates and stores the inverse of the covariance matrix after each training or update of the dataset or hyperparameters,
+        If True, the algorithm calculates and stores the inverse of the covariance
+        matrix after each training or update of the dataset or hyperparameters,
         which makes computing the posterior covariance faster.
-        For larger problems (>2000 data points), the use of inversion should be avoided due to computational instability and costs. The default is
-        True. Note, the training will always use Cholesky or LU decomposition instead of the inverse for stability reasons. Storing the inverse is
+        For larger problems (>2000 data points), the use of inversion should be avoided due
+        to computational instability and costs. The default is
+        True. Note, the training will always use Cholesky or LU decomposition instead of the
+        inverse for stability reasons. Storing the inverse is
         a good option when the dataset is not too large and the posterior covariance is heavily used.
     ram_economy : bool, optional
         Only of interest if the gradient and/or Hessian of the marginal log_likelihood is/are used for the training.
-        If True, components of the derivative of the marginal log-likelihood are calculated subsequently, leading to a slow-down
-        but much less RAM usage. If the derivative of the kernel (or noise function) with respect to the hyperparameters (gp_kernel_function_grad) is
-        going to be provided, it has to be tailored: for ram_economy=True it should be of the form f(x1[, x2], direction, hyperparameters, obj)
+        If True, components of the derivative of the marginal log-likelihood are
+        calculated subsequently, leading to a slow-down
+        but much less RAM usage. If the derivative of the kernel (or noise function) with
+        respect to the hyperparameters (gp_kernel_function_grad) is
+        going to be provided, it has to be tailored: for ram_economy=True it should be
+        of the form f(x1[, x2], direction, hyperparameters, obj)
         and return a 2d numpy array of shape len(x1) x len(x2).
-        If ram_economy=False, the function should be of the form f(x1[, x2,] hyperparameters, obj) and return a numpy array of shape
-        H x len(x1) x len(x2), where H is the number of hyperparameters. CAUTION: This array will be stored and is very large.
+        If ram_economy=False, the function should be of the form f(x1[, x2,] hyperparameters, obj)
+        and return a numpy array of shape
+        H x len(x1) x len(x2), where H is the number of hyperparameters.
+        CAUTION: This array will be stored and is very large.
     args : any, optional
         args will be a class attribute and therefore available to kernel, noise and prior mean functions.
     info : bool, optional
@@ -176,12 +204,17 @@ class GPOptimizer(GP):
         Datapoint values
     noise_variances : np.ndarray
         Datapoint observation (co)variances
-    input_dim : int
-        Dimensionality of the input space
-    input_space_bounds : np.ndarray
-        Bounds of the input space
     hyperparameters : np.ndarray
         Current hyperparameters in use.
+    K : np.ndarray
+        Current prior covariance matrix of the GP
+    KVinv : np.ndarray
+        If enabled, the inverse of the prior covariance + noise matrix V
+        inv(K+V)
+    KVlogdet : float
+        logdet(K+V)
+    V : np.ndarray
+        the noise covariance matrix
     """
 
     def __init__(
@@ -283,8 +316,8 @@ class GPOptimizer(GP):
 
         Return
         ------
-        np.ndarray
-            The acquisition function evaluations at all points `x`.
+        Evaluation : np.ndarray
+            The acquisition function evaluations at all points x.
         """
         if self.cost_function and origin is None: warnings.warn("Warning: For the cost function to be active, an origin has to be provided.")
         if origin is not None and self.cost_function is None: warnings.warn("Warning: An origin is given but no cost function is defined. Cost function ignored")
@@ -331,8 +364,8 @@ class GPOptimizer(GP):
 
         """
         This function finds the maximum of the log marginal likelihood and therefore trains the GP (synchronously).
-        This can be done on a remote cluster/computer by specifying the method to be be 'hgdl' and
-        providing a dask client. However, in that case fvgp.GP.train_aync() is preferred.
+        This can be done on a remote cluster/computer by specifying the method to be 'hgdl' and
+        providing a dask client. However, in that case gpcam.GPOptimizer.train_async() is preferred.
         The GP prior will automatically be updated with the new hyperparameters after the training.
 
         Parameters
@@ -348,13 +381,14 @@ class GPOptimizer(GP):
             hyperparameter bounds.
         init_hyperparameters : np.ndarray, optional
             Initial hyperparameters used as starting location for all optimizers with local component.
-            The default is reusing the initial hyperparameters given at initialization
+            The default is a random draw from a uniform distribution within the bounds.
         method : str or Callable, optional
-            The method used to train the hyperparameters. The options are `'global'`, `'local'`, `'hgdl'`, `'mcmc'`, and a callable.
-            The callable gets an gp.GP instance and has to return a 1d np.array of hyperparameters.
+            The method used to train the hyperparameters.
+            The options are `'global'`, `'local'`, `'hgdl'`, `'mcmc'`, and a callable.
+            The callable gets a fvgp.GP instance and has to return a 1d np.ndarray of hyperparameters.
             The default is `'global'` (scipy's differential evolution).
             If method = "mcmc",
-            the attribute fvgp.GP.mcmc_info is updated and contains convergence and distribution information.
+            the attribute gpcam.GPOptimizer.mcmc_info is updated and contains convergence and distribution information.
         pop_size : int, optional
             A number of individuals used for any optimizer with a global component. Default = 20.
         tolerance : float, optional
@@ -366,11 +400,17 @@ class GPOptimizer(GP):
         global_optimizer : str, optional
             Defining the global optimizer. Only applicable to method = hgdl. Default = `genetic`
         constraints : tuple of object instances, optional
-            Equality and inequality constraints for the optimization. If the optimizer is ``hgdl'' see ``hgdl.readthedocs.io''.
+            Equality and inequality constraints for the optimization.
+            If the optimizer is `'hgdl'` see `'hgdl.readthedocs.io'`.
             If the optimizer is a scipy optimizer, see the scipy documentation.
         dask_client : distributed.client.Client, optional
             A Dask Distributed Client instance for distributed training if HGDL is used. If None is provided, a new
             `dask.distributed.Client` instance is constructed.
+
+        Return
+        ------
+        hyperparameters : np.ndarray
+            Returned are the hyperparameters, however, the GP is automatically updated.
         """
 
         super().train(
@@ -401,17 +441,19 @@ class GPOptimizer(GP):
         This function asynchronously finds the maximum of the log marginal likelihood and therefore trains the GP.
         This can be done on a remote cluster/computer by
         providing a dask client. This function submits the training and returns
-        an object which can be given to `fvgp.GP.update_hyperparameters()`, 
+        an object which can be given to `'gpcam.GPOptimizer.update_hyperparameters()'`,
         which will automatically update the GP prior with the new hyperparameters.
 
         Parameters
         ----------
         hyperparameter_bounds : np.ndarray, optional
-            A numpy array of shape (D x 2), defining the bounds for the optimization. The default is an array of bounds for the default kernel D = input_space_dim + 1
-            with all bounds defined practically as [0.00001, inf]. This choice is only recommended in very basic scenarios.
+            A numpy array of shape (D x 2), defining the bounds for the optimization.
+            The default is an array of bounds for the default kernel D = input_space_dim + 1
+            with all bounds defined practically as [0.00001, inf].
+            This choice is only recommended in very basic scenarios.
         init_hyperparameters : np.ndarray, optional
             Initial hyperparameters used as starting location for all optimizers with local component.
-            The default is reusing the initial hyperparameters given at initialization
+            The default is a random draw from a uniform distribution within the bounds.
         max_iter : int, optional
             Maximum number of epochs for HGDL. Default = 10000.
         local_optimizer : str, optional
@@ -419,14 +461,15 @@ class GPOptimizer(GP):
         global_optimizer : str, optional
             Defining the global optimizer. Only applicable to method = hgdl. Default = `genetic`
         constraints : tuple of hgdl.NonLinearConstraint instances, optional
-            Equality and inequality constraints for the optimization. See ``hgdl.readthedocs.io''
+            Equality and inequality constraints for the optimization. See `'hgdl.readthedocs.io'`
         dask_client : distributed.client.Client, optional
             A Dask Distributed Client instance for distributed training if HGDL is used. If None is provided, a new
             `dask.distributed.Client` instance is constructed.
 
         Return
         ------
-        Optimization object that can be given to `gpcam.GPOptimizer.update_hyperparameters()` to update the prior GP : object instance
+        Optimization object that can be given to `gpcam.GPOptimizer.update_hyperparameters()`
+        to update the prior GP : object instance
         """
 
         opt_obj = super().train_async(
@@ -448,7 +491,7 @@ class GPOptimizer(GP):
         Parameters
         ----------
         opt_obj : object instance
-            Object instance created by gpcam.GPOptimizer.train_gp_async()
+            Object created by gpcam.GPOptimizer.train_gp_async()
         """
         super().stop_training(opt_obj)
 
@@ -459,7 +502,7 @@ class GPOptimizer(GP):
         Parameters
         ----------
         opt_obj : object instance
-            Object instance created by gpcam.GPOptimizer.train_gp_async()
+            Object created by gpcam.GPOptimizer.train_gp_async()
         """
         super().kill_training(opt_obj)
 
@@ -471,7 +514,7 @@ class GPOptimizer(GP):
         Parameters
         ----------
         opt_obj : object instance
-            Object instance created by gpcam.gp_optimizer.train_gp_async()
+            Object created by gpcam.gp_optimizer.train_gp_async(). However, the GP is automatically updated.
 
         Return
         ------
@@ -498,9 +541,11 @@ class GPOptimizer(GP):
             candidate_set = {},
             dask_client=None):
         """
-        Given that the acquisition device is at "position", this function ask()s for
+        Given that the acquisition device is at "position", this function `'ask()'`s for
         "n" new optimal points within certain "bounds" and using the optimization setup: "method",
         "acquisition_function_pop_size", "max_iter", "tol", "constraints", and "x0".
+        This function can also choose the best candidate of a candidate set for Bayesian optimization
+        on non-Euclidean input spaces.
 
         Parameters
         ----------
@@ -535,16 +580,17 @@ class GPOptimizer(GP):
             Explanations of the acquisition functions:
             variance: simply the posterior variance
             relative information entropy: the KL divergence of the prior over predictions and the posterior
-            relative information entropy set: the KL divergence of the prior over predictions and the posterior point-by-point
+            relative information entropy set: the KL divergence of the prior
+            defined over predictions and the posterior point-by-point
             ucb: upper confidence bound, posterior mean + 3. std
             lcb: lower confidence bound, -(posterior mean - 3. std)
             maximum: finds the maximum of the current posterior mean
             minimum: finds the maximum of the current posterior mean
             gradient: puts focus on high-gradient regions
-            probability of inprovement: as the name would suggest
+            probability of improvement: as the name would suggest
             expected improvement: as the name would suggest
             total correlation: extension of mutual information to more than 2 random variables
-            target probabilty: probability of a target; needs a dictionary
+            target probability: probability of a target; needs a dictionary
             GPOptimizer.args = {'a': lower bound, 'b': upper bound} to be defined.
         method : str, optional
             A string defining the method used to find the maximum
@@ -577,7 +623,7 @@ class GPOptimizer(GP):
             scipy constraints instances, depending on the used optimizer.
         candidate_set : set, optional
             If provided, ask will statistically choose a best candidate from the set. 
-            This is usually desirable for non-Eucledian inputs.
+            This is usually desirable for non-Euclidean inputs.
         dask_client : distributed.client.Client, optional
             A Dask Distributed Client instance for distributed
             `acquisition_function` optimization. If None is provided,
@@ -585,7 +631,7 @@ class GPOptimizer(GP):
 
         Return
         ------
-        dictionary : {'x': np.array(maxima), "f(x)" : np.array(func_evals), "opt_obj" : opt_obj}
+        Solution : {'x': np.array(maxima), "f(x)" : np.array(func_evals), "opt_obj" : opt_obj}
             Found maxima of the acquisition function, the associated function values and optimization object
             that, only in case of `method` = `hgdl` can be queried for solutions.
         """
@@ -633,15 +679,14 @@ class GPOptimizer(GP):
         This function updates the parameters for the user-defined cost function
         It essentially calls the user-given cost_update_function which
         should return the new parameters.
+
         Parameters
         ----------
         measurement_costs: object
             An arbitrary object that describes the costs when moving in the parameter space.
             It can be arbitrary because the cost function using the parameters and the cost_update_function
-            updating the parameters are both user-defined and this object has to be in accordance with those definitions.
-        Return
-        ------
-            No return, the cost function parameters will automatically be updated.
+            updating the parameters are both user-defined and this object has to be in accordance
+            with those definitions.
         """
 
         if self.cost_function_parameters is None: warnings.warn("No cost_function_parameters specified. Cost update failed.")
@@ -684,38 +729,39 @@ class fvGPOptimizer(fvGP):
 
     The main logic of fvGP is that any multi-task GP is just a single-task GP
     over a Cartesian product space of input and output space, as long as the kernel
-    is flexible enough, so prepare to work on your kernel. This is the best 
+    is flexible enough, so prepare to work on your kernel. This is the best
     way to give the user optimal control and power. At various instances, for instances
     prior-mean function, noise function, and kernel function definitions, you will
-    see that the input ``x'' is defined over this combined space. 
+    see that the input ``x'' is defined over this combined space.
     For example, if your input space is a Euclidean 2d space and your output
     is labelled [[0],[1]], the input to the mean, kernel, and noise function might be
-    
+
     x =
 
     [[0.2, 0.3,0],[0.9,0.6,0],
 
-     [0.2, 0.3,1],[0.9,0.6,1]]
-    
-    This has to be understood and taken into account when customizing fvGP for multi-task
+    [0.2, 0.3,1],[0.9,0.6,1]]
+
+    This has to be understood and taken into account when customizing fvGPOptimizer for multi-task
     use.
 
     Parameters
     ----------
     x_data : np.ndarray
-        The input point positions. Shape (V x D), where D is the `input_space_dim`.
+        The input point positions. Shape (V x D), where D is the `'input_space_dim'`.
     y_data : np.ndarray
         The values of the data points. Shape (V,No).
-    output_space_dimension : int, optional
-        Integer specifying the number of dimensions of the output space. Most often 1, which is the default. This is not the number of outputs/tasks.
+    output_space_dimension : int
+        Integer specifying the number of dimensions of the output space. Most often 1.
+        This is not the number of outputs/tasks.
         For instance, a spectrum as output at each input is itself a function over a 1d space but has many outputs.
     init_hyperparameters : np.ndarray, optional
         Vector of hyperparameters used by the GP initially.
         This class provides methods to train hyperparameters.
         The default is an array that specifies the right number of
         initial hyperparameters for the default kernel, which is
-        a deek kernel with two layers of width
-        fvgp.fvGP.gp_deep_kernel_layer_width. If you specify 
+        a deep kernel with two layers of width
+        fvgp.fvGP.gp_deep_kernel_layer_width. If you specify
         another kernel, please provide
         init_hyperparameters.
     hyperparameter_bounds : np.ndarray, optional
@@ -724,7 +770,8 @@ class fvGPOptimizer(fvGP):
         in the train calls or default bounds are used. Those only work for the default kernel.
     output_positions : np.ndarray, optional
         A 3-D numpy array of shape (U x output_number x output_dim), so that for each measurement position, the outputs
-        are clearly defined by their positions in the output space. The default is np.array([[0],[1],[2],[3],...,[output_number - 1]]) for each
+        are clearly defined by their positions in the output space. The default is
+        np.array([[0],[1],[2],[3],...,[output_number - 1]]) for each
         point in the input space. The default is only permissible if output_dim is 1.
     noise_variances : np.ndarray, optional
         An numpy array defining the uncertainties/noise in the data
@@ -735,7 +782,7 @@ class fvGPOptimizer(fvGP):
         noise covariances are required, also make use of the gp_noise_function.
     compute_device : str, optional
         One of "cpu" or "gpu", determines how linear system solves are run. The default is "cpu".
-        For "gpu", pytoch has to be installed manually.
+        For "gpu", pytorch has to be installed manually.
         If gp2Scale is enabled but no kernel is provided, the choice of the compute_device
         becomes much more important. In that case, the default kernel will be computed on
         the cpu or the gpu which will significantly change the compute time depending on the compute
@@ -746,7 +793,7 @@ class fvGPOptimizer(fvGP):
         data points. It is a function of the form k(x1,x2,hyperparameters, obj).
         The input x1 is a N1 x Di+Do array of positions, x2 is a N2 x Di+Do
         array of positions, the hyperparameters argument
-        is a 1d array of length N depending on how many hyperpapameters are initialized, and
+        is a 1d array of length N depending on how many hyperparameters are initialized, and
         obj is an `fvgp.GP` instance. The default is a deep kernel with 2 hidden layers and
         a width of fvgp.fvGP.gp_deep_kernel_layer_width.
     gp_deep_kernel_layer_width : int, optional
@@ -771,35 +818,46 @@ class fvGPOptimizer(fvGP):
         and a `fvgp.GP` instance. The return value is a 1d array of length N1. If None is provided,
         `fvgp.GP._default_mean_function` is used.
     gp_mean_function_grad : Callable, optional
-        A function that evaluates the gradient of the ``gp_mean_function'' at a set of input positions with respect to the hyperparameters.
-        It accepts as input an array of positions (of size N1 x Di+Do), hyperparameters
-        and a `fvgp.GP` instance. The return value is a 2d array of shape (len(hyperparameters) x N1). If None is provided, either
-        zeros are returned since the default mean function does not depend on hyperparametes, or a finite-difference approximation
-        is used if ``gp_mean_function'' is provided.
+        A function that evaluates the gradient of the ``gp_mean_function'' at a set of input positions with respect to
+        the hyperparameters. It accepts as input an array of positions (of size N1 x Di+Do), hyperparameters
+        and a `fvgp.GP` instance. The return value is a 2d array of shape (len(hyperparameters) x N1). If None is
+        provided, either zeros are returned since the default mean function does not depend on hyperparameters, or a
+        finite-difference approximation is used if ``gp_mean_function'' is provided.
     gp_noise_function : Callable optional
         The noise function is a callable f(x,hyperparameters,obj) that returns a
         positive symmetric definite matrix of shape(len(x),len(x)).
         The input x is a numpy array of shape (N x Di+Do). The hyperparameter array is the same
         that is communicated to mean and kernel functions. The obj is a fvgp.fvGP instance.
     gp_noise_function_grad : Callable, optional
-        A function that evaluates the gradient of the ``gp_noise_function'' at an input position with respect to the hyperparameters.
-        It accepts as input an array of positions (of size N x Di+Do), hyperparameters (a 1d array of length D+1 for the default kernel)
-        and a `fvgp.GP` instance. The return value is a 3-D array of shape (len(hyperparameters) x N x N). If None is provided, either
-        zeros are returned since the default noise function does not dpeend on hyperparametes. If ``gp_noise_function'' is provided but no gradient function,
-        a finite-difference approximation will be used. 
+        A function that evaluates the gradient of the ``gp_noise_function'' at an input position with respect
+        to the hyperparameters. It accepts as input an array of positions (of size N x Di+Do),
+        hyperparameters (a 1d array of length D+1 for the default kernel)
+        and a `fvgp.GP` instance. The return value is a 3-D array of shape
+        (len(hyperparameters) x N x N). If None is provided, either
+        zeros are returned since the default noise function does not depend on hyperparameters.
+        If ``gp_noise_function'' is provided but no gradient function,
+        a finite-difference approximation will be used.
         The same rules regarding ram economy as for the kernel definition apply here.
     normalize_y : bool, optional
-        If True, the data values ``y_data'' will be normalized to max(y_data) = 1, min(y_data) = 0. The default is False.
+        If True, the data values ``y_data'' will be normalized to max(y_data) = 1, min(y_data) = 0.
+        The default is False.
         Variances will be updated accordingly.
     sparse_mode : bool, optional
-        When sparse_mode is enabled, the algorithm will use a user-defined kernel function or, if that's not provided, an anisotropic Wendland kernel
-        and check for sparsity in the prior covariance. If sparsity is present, sparse operations will be used to speed up computations.
-        Caution: the covariace is still stored at first in a dense format. For more extreme scaling, check out the gp2Scale option.
+        When sparse_mode is enabled, the algorithm will use a user-defined kernel function or,
+        if that's not provided, an anisotropic Wendland kernel
+        and check for sparsity in the prior covariance. If sparsity is present,
+        sparse operations will be used to speed up computations.
+        Caution: the covariance is still stored at first in a dense format. For more extreme scaling,
+        check out the gp2Scale option.
     gp2Scale: bool, optional
-        Turns on gp2Scale. This will distribute the covariance computations across multiple workers. This is an advaced feature for HPC GPs up to 10
-        million datapoints. If gp2Scale is used, the default kernel is an anisotropic Wemsland kernel which is compactly supported. The noise function will have
-        to return a scipy.sparse matrix instead of a numpy array. There are a few more things to consider (read on); this is an advanced option.
-        If no kernel is provided, the compute_device option should be revisited. The kernel will use the specified device to compute covariances.
+        Turns on gp2Scale. This will distribute the covariance computations across multiple workers.
+        This is an advanced feature for HPC GPs up to 10
+        million datapoints. If gp2Scale is used, the default kernel is an anisotropic Wendland
+        kernel which is compactly supported. The noise function will have
+        to return a scipy.sparse matrix instead of a numpy array. There are a few more things
+        to consider (read on); this is an advanced option.
+        If no kernel is provided, the compute_device option should be revisited. The kernel will
+        use the specified device to compute covariances.
         The default is False.
     gp2Scale_dask_client : dask.distributed.Client, optional
         A dask client for gp2Scale to distribute covariance computations over. Has to contain at least 3 workers.
@@ -808,22 +866,31 @@ class fvGPOptimizer(fvGP):
     gp2Scale_batch_size : int, optional
         Matrix batch size for distributed computing in gp2Scale. The default is 10000.
     store_inv : bool, optional
-        If True, the algorithm calculates and stores the inverse of the covariance matrix after each training or update of the dataset or hyperparameters,
+        If True, the algorithm calculates and stores the inverse of the covariance matrix
+        after each training or update of the dataset or hyperparameters,
         which makes computing the posterior covariance faster.
-        For larger problems (>2000 data points), the use of inversion should be avoided due to computational instability and costs. The default is
-        True. Note, the training will always use Cholesky or LU decomposition instead of the inverse for stability reasons. Storing the inverse is
+        For larger problems (>2000 data points), the use of inversion should be avoided due to
+        computational instability and costs. The default is
+        True. Note, the training will always use Cholesky or LU decomposition instead of the inverse
+        for stability reasons. Storing the inverse is
         a good option when the dataset is not too large and the posterior covariance is heavily used.
         If sparse_mode or gp2Scale is used, store_inv will be set to False.
     ram_economy : bool, optional
-        Only of interest if the gradient and/or Hessian of the marginal log_likelihood is/are used for the training.
-        If True, components of the derivative of the marginal log-likelihood are calculated subsequently, leading to a slow-down
-        but much less RAM usage. If the derivative of the kernel (or noise function) with respect to the hyperparameters (gp_kernel_function_grad) is
-        going to be provided, it has to be tailored: for ram_economy=True it should be of the form f(x1[, x2], direction, hyperparameters, obj)
+        Only of interest if the gradient and/or Hessian of the marginal log_likelihood
+        is/are used for the training.
+        If True, components of the derivative of the marginal log-likelihood are calculated
+        subsequently, leading to a slow-down
+        but much less RAM usage. If the derivative of the kernel (or noise function) with
+        respect to the hyperparameters (gp_kernel_function_grad) is
+        going to be provided, it has to be tailored: for ram_economy=True it should be of
+        the form f(x1[, x2], direction, hyperparameters, obj)
         and return a 2d numpy array of shape len(x1) x len(x2).
-        If ram_economy=False, the function should be of the form f(x1[, x2,] hyperparameters, obj) and return a numpy array of shape
-        H x len(x1) x len(x2), where H is the number of hyperparameters. CAUTION: This array will be stored and is very large.
+        If ram_economy=False, the function should be of the form f(x1[, x2,] hyperparameters, obj)
+        and return a numpy array of shape
+        H x len(x1) x len(x2), where H is the number of hyperparameters. CAUTION:
+        This array will be stored and is very large.
     args : any, optional
-        args will be a class attribute and therefore available to kernel, noise, prior mean functions and acquisition function.
+        args will be a class attribute and therefore available to kernel, noise and prior mean functions.
     info : bool, optional
         Provides a way how to see the progress of gp2Scale, Default is False
     cost_function : Callable, optional
@@ -866,7 +933,7 @@ class fvGPOptimizer(fvGP):
     K : np.ndarray
         Current prior covariance matrix of the GP
     KVinv : np.ndarray
-        If enabled, the inverse of the prior covariance + nosie matrix V
+        If enabled, the inverse of the prior covariance + nose matrix V.
         inv(K+V)
     KVlogdet : float
         logdet(K+V)
@@ -986,7 +1053,7 @@ class fvGPOptimizer(fvGP):
 
         Return
         ------
-        The acquisition function evaluations at all points `x` : np.ndarray
+        The acquisition function evaluations at all points x : np.ndarray
         """
         if self.cost_function and origin is None: print("Warning: For the cost function to be active, an origin has to be provided.")
         x = np.array(x)
@@ -1004,7 +1071,7 @@ class fvGPOptimizer(fvGP):
     def tell(self, x, y, noise_variances=None, output_positions=None):
         """
         This function can tell() the gp_optimizer class
-        the data that was collected. The data will instantly be used to update the gp_daa
+        the data that was collected. The data will instantly be used to update the GP data.
 
         Parameters
         ----------
@@ -1012,7 +1079,7 @@ class fvGPOptimizer(fvGP):
             Point positions (of shape U x D) to be communicated to the Gaussian Process.
         y : np.ndarray
             Point values (of shape U x 1 or U) to be communicated to the Gaussian Process.
-        variances : np.ndarray, optional
+        noise_variances : np.ndarray, optional
             Point value variances (of shape U x 1 or U) to be communicated 
             to the Gaussian Process.
             If not provided, the GP will 1% of the y values as variances.
@@ -1036,10 +1103,11 @@ class fvGPOptimizer(fvGP):
         global_optimizer = "genetic",
         constraints = (),
         dask_client = None):
+
         """
         This function finds the maximum of the log marginal likelihood and therefore trains the GP (synchronously).
-        This can be done on a remote cluster/computer by specifying the method to be be 'hgdl' and
-        providing a dask client. However, in that case fvgp.GP.train_aync() is preferred.
+        This can be done on a remote cluster/computer by specifying the method to be 'hgdl' and
+        providing a dask client. However, in that case gpcam.GPOptimizer.train_async() is preferred.
         The GP prior will automatically be updated with the new hyperparameters after the training.
 
         Parameters
@@ -1055,13 +1123,14 @@ class fvGPOptimizer(fvGP):
             hyperparameter bounds.
         init_hyperparameters : np.ndarray, optional
             Initial hyperparameters used as starting location for all optimizers with local component.
-            The default is reusing the initial hyperparameters given at initialization
+            The default is a random draw from a uniform distribution within the bounds.
         method : str or Callable, optional
-            The method used to train the hyperparameters. The options are `'global'`, `'local'`, `'hgdl'`, `'mcmc'`, and a callable.
-            The callable gets an gp.GP instance and has to return a 1d np.array of hyperparameters.
+            The method used to train the hyperparameters.
+            The options are `'global'`, `'local'`, `'hgdl'`, `'mcmc'`, and a callable.
+            The callable gets a fvgp.GP instance and has to return a 1d np.ndarray of hyperparameters.
             The default is `'global'` (scipy's differential evolution).
             If method = "mcmc",
-            the attribute fvgp.GP.mcmc_info is updated and contains convergence and distribution information.
+            the attribute gpcam.GPOptimizer.mcmc_info is updated and contains convergence and distribution information.
         pop_size : int, optional
             A number of individuals used for any optimizer with a global component. Default = 20.
         tolerance : float, optional
@@ -1073,11 +1142,17 @@ class fvGPOptimizer(fvGP):
         global_optimizer : str, optional
             Defining the global optimizer. Only applicable to method = hgdl. Default = `genetic`
         constraints : tuple of object instances, optional
-            Equality and inequality constraints for the optimization. If the optimizer is ``hgdl'' see ``hgdl.readthedocs.io''.
+            Equality and inequality constraints for the optimization.
+            If the optimizer is `'hgdl'` see `'hgdl.readthedocs.io'`.
             If the optimizer is a scipy optimizer, see the scipy documentation.
         dask_client : distributed.client.Client, optional
             A Dask Distributed Client instance for distributed training if HGDL is used. If None is provided, a new
             `dask.distributed.Client` instance is constructed.
+
+        Return
+        ------
+        hyperparameters : np.ndarray
+            Returned are the hyperparameters, however, the GP is automatically updated.
         """
         if not self.user_kernel_provided: hyperparameter_bounds, init_hyperparameters = self.hyperparameter_bounds, self.hyperparameters
         elif (hyperparameter_bounds is None and self.hyperparameter_bounds is None) or (init_hyperparameters is None and self.hyperparameters is None):
@@ -1111,17 +1186,19 @@ class fvGPOptimizer(fvGP):
         This function asynchronously finds the maximum of the log marginal likelihood and therefore trains the GP.
         This can be done on a remote cluster/computer by
         providing a dask client. This function submits the training and returns
-        an object which can be given to `fvgp.GP.update_hyperparameters()`, 
+        an object which can be given to `'gpcam.GPOptimizer.update_hyperparameters()'`,
         which will automatically update the GP prior with the new hyperparameters.
 
         Parameters
         ----------
         hyperparameter_bounds : np.ndarray, optional
-            A numpy array of shape (D x 2), defining the bounds for the optimization. The default is an array of bounds for the default kernel D = input_space_dim + 1
-            with all bounds defined practically as [0.00001, inf]. This choice is only recommended in very basic scenarios.
+            A numpy array of shape (D x 2), defining the bounds for the optimization.
+            The default is an array of bounds for the default kernel D = input_space_dim + 1
+            with all bounds defined practically as [0.00001, inf].
+            This choice is only recommended in very basic scenarios.
         init_hyperparameters : np.ndarray, optional
             Initial hyperparameters used as starting location for all optimizers with local component.
-            The default is reusing the initial hyperparameters given at initialization
+            The default is a random draw from a uniform distribution within the bounds.
         max_iter : int, optional
             Maximum number of epochs for HGDL. Default = 10000.
         local_optimizer : str, optional
@@ -1129,14 +1206,15 @@ class fvGPOptimizer(fvGP):
         global_optimizer : str, optional
             Defining the global optimizer. Only applicable to method = hgdl. Default = `genetic`
         constraints : tuple of hgdl.NonLinearConstraint instances, optional
-            Equality and inequality constraints for the optimization. See ``hgdl.readthedocs.io''
+            Equality and inequality constraints for the optimization. See `'hgdl.readthedocs.io'`
         dask_client : distributed.client.Client, optional
             A Dask Distributed Client instance for distributed training if HGDL is used. If None is provided, a new
             `dask.distributed.Client` instance is constructed.
 
         Return
         ------
-        Optimization object that can be given to `fvgp.GP.update_hyperparameters()` to update the prior GP : object instance
+        Optimization object that can be given to `gpcam.GPOptimizer.update_hyperparameters()`
+        to update the prior GP : object instance
         """
         if not self.user_kernel_provided: hyperparameter_bounds, init_hyperparameters = self.hyperparameter_bounds, self.hyperparameters
         elif (hyperparameter_bounds is None and self.hyperparameter_bounds is None) or (init_hyperparameters is None and self.hyperparameters is None):
@@ -1162,7 +1240,7 @@ class fvGPOptimizer(fvGP):
         Parameters
         ----------
         opt_obj : object instance
-            Object instance created by gpcam.GPOptimizer.train_gp_async()
+            Object created by gpcam.GPOptimizer.train_gp_async()
         """
         super().stop_training(opt_obj)
 
@@ -1173,7 +1251,7 @@ class fvGPOptimizer(fvGP):
         Parameters
         ----------
         opt_obj : object instance
-            Object instance created by gpcam.GPOptimizer.train_gp_async()
+            Object created by gpcam.GPOptimizer.train_gp_async()
         """
         super().kill_training(opt_obj)
 
@@ -1185,11 +1263,12 @@ class fvGPOptimizer(fvGP):
         Parameters
         ----------
         opt_obj : object instance
-            Object instance created by gpcam.gp_optimizer.train_gp_async()
+            Object created by gpcam.gp_optimizer.train_gp_async()
 
         Return
         ------
-            hyperparameters : np.ndarray
+        hyperparameters : np.ndarray
+            Hyperparameter are returned but are also automatically used to update the GP.
         """
 
         hps = super().update_hyperparameters(self, opt_obj)
@@ -1216,7 +1295,7 @@ class fvGPOptimizer(fvGP):
         """
         Given that the acquisition device is at "position", the function ask()s for
         "n" new optimal points within certain "bounds" and using the optimization setup:
-        "acquisition_function_pop_size", "max_iter" and "tol"
+        "acquisition_function_pop_size", "max_iter" and "tol".
 
         Parameters
         ----------
@@ -1275,17 +1354,14 @@ class fvGPOptimizer(fvGP):
             optimization
             algorithm. The default is None.
         vectorized : bool, optional
-            If your acquisiiton function vecotrized to return the 
+            If your acquisition function vectorized to return the
             solution to an array of inquiries as an array, 
-            this optionmakes the optimization faster if method = 'global'
+            this option makes the optimization faster if method = 'global'
             is used. The default is True but will be set to 
             False if method is not global.
         constraints : tuple of object instances, optional
             Either a tuple of hgdl.constraints.NonLinearConstraint 
             or scipy constraints instances, depending on the used optimizer.
-        candidate_set : set, optional
-            If provided, ask will statistically choose a best candidate from the set. 
-            This is usually desirable for non-Eucledian inputs.
         dask_client : distributed.client.Client, optional
             A Dask Distributed Client instance for distributed 
             `acquisition_func` computation. If None is provided,
@@ -1339,18 +1415,17 @@ class fvGPOptimizer(fvGP):
     ##############################################################
     def update_cost_function(self, measurement_costs):
         """
-        This function updates the parameters for the user-defined cost function
+        This function updates the parameters for the user-defined cost function.
         It essentially calls the user-given cost_update_function which
         should return the new parameters.
+
         Parameters
         ----------
         measurement_costs: object
             An arbitrary object that describes the costs when moving in the parameter space.
             It can be arbitrary because the cost function using the parameters and the cost_update_function
-            updating the parameters are both user-defined and this object has to be in accordance with those definitions.
-        Return
-        ------
-            No return, the cost function parameters will automatically be updated.
+            updating the parameters are both user-defined and this object has to be in
+            accordance with those definitions.
         """
 
         if self.cost_function_parameters is None: warnings.warn("No cost_function_parameters specified. Cost update failed.")

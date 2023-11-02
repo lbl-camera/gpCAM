@@ -27,6 +27,8 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon'
 ]
+#if notebooks should not be executed:
+nb_execution_mode='off'
 
 # MyST extensions
 myst_enable_extensions = ['colon_fence']
