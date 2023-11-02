@@ -14,13 +14,6 @@ with open('README.md') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-# requirements = ["requirements.txt"]
-
-# setup_requirements = ["requirements.txt"]
-
-# test_requirements = ["requirements.txt"]
-
-
 here = path.abspath(path.dirname(__file__))
 with open(path.join(here, 'requirements.txt')) as requirements_file:
     # Parse requirements.txt, ignoring any commented-out lines.
@@ -56,6 +49,6 @@ setup(
     zip_safe=False,
     extras_require={
         'tests': ['pytest', 'codecov', 'pytest-cov'],
-        'docs': ['sphinx', 'sphinx-rtd-theme', 'myst-parser', 'myst-nb', 'sphinx-panels', 'autodocs']
+        'docs': ['sphinx', 'sphinx-rtd-theme', 'myst-parser', 'myst-nb', 'sphinx-panels', 'autodocs', 'sphinx-hoverxref']
     }
 )
