@@ -195,7 +195,7 @@ class AutonomousExperimenterGP():
                  normalize_y = False,
                  ram_economy=True,
                  info=False,
-                 args = None
+                 args=None
                  ):
         if info:
             logger.enable('gpcam')

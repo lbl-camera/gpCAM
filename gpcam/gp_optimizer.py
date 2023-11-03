@@ -28,6 +28,56 @@ class GPOptimizer(GP):
     N ... arbitrary integers (N1, N2,...)
 
 
+    All posterior evaluation functions are inherited from :py:class:`fvgp.GP` class.
+    Check there for a full list of capabilities.
+    These include, but are not limited to:
+
+    :py:meth:`fvgp.GP.posterior_mean`
+
+    :py:meth:`fvgp.GP.posterior_covariance`
+
+    :py:meth:`fvgp.GP.posterior_mean_grad`
+
+    :py:meth:`fvgp.GP.posterior_covariance_grad`
+
+    :py:meth:`fvgp.GP.joint_gp_prior`
+
+    :py:meth:`fvgp.GP.joint_gp_prior_grad`
+
+    :py:meth:`fvgp.GP.gp_entropy`
+
+    :py:meth:`fvgp.GP.gp_entropy_grad`
+
+    :py:meth:`fvgp.GP.gp_kl_div`
+
+    :py:meth:`fvgp.GP.gp_kl_div_grad`
+
+    :py:meth:`fvgp.GP.gp_mutual_information`
+
+    :py:meth:`fvgp.GP.gp_total_correlation`
+
+    :py:meth:`fvgp.GP.gp_relative_information_entropy`
+
+    :py:meth:`fvgp.GP.gp_relative_information_entropy_set`
+
+    :py:meth:`fvgp.GP.posterior_probability`
+
+    :py:meth:`fvgp.GP.posterior_probability_grad`
+
+    Several kernel functions are also inherited:
+
+    :py:meth:`fvgp.GP.squared_exponential_kernel`
+
+    :py:meth:`fvgp.GP.squared_exponential_kernel_robust`
+
+    :py:meth:`fvgp.GP.exponential_kernel`
+
+    :py:meth:`fvgp.GP.exponential_kernel_robust`
+
+    :py:meth:`fvgp.GP.matern_kernel_diff1`
+
+    :py:meth:`fvgp.GP.matern_kernel_diff1_robust`
+
     Parameters
     ----------
     x_data : np.ndarray
@@ -191,55 +241,6 @@ class GPOptimizer(GP):
         input costs (a list of cost values usually determined by
         `instrument_func`) and a parameter
         object. The default is a no-op.
-
-    All posterior evaluation functions are inherited from :py:class:`fvgp.GP` class.
-    These include:
-
-    :py:meth:`fvgp.GP.posterior_mean`
-
-    :py:meth:`fvgp.GP.posterior_covariance`
-
-    :py:meth:`posterior_mean_grad`
-
-    :py:meth:`posterior_covariance_grad`
-
-    :py:meth:`joint_gp_prior`
-
-    :py:meth:`joint_gp_prior_grad`
-
-    :py:meth:`gp_entropy`
-
-    :py:meth:`gp_entropy_grad`
-
-    :py:meth:`gp_kl_div`
-
-    :py:meth:`gp_kl_div_grad`
-
-    :py:meth:`gp_mutual_information`
-
-    :py:meth:`gp_total_correlation`
-
-    :py:meth:`gp_relative_information_entropy`
-
-    :py:meth:`gp_relative_information_entropy_set`
-
-    :py:meth:`posterior_probability`
-
-    :py:meth:`posterior_probability_grad`
-
-    Several kernel functions are also inherited:
-
-    :py:meth:`squared_exponential_kernel`
-
-    :py:meth:`squared_exponential_kernel_robust`
-
-    :py:meth:`exponential_kernel`
-
-    :py:meth:`exponential_kernel_robust`
-
-    :py:meth:`matern_kernel_diff1`
-
-    :py:meth:`matern_kernel_diff1_robust`
 
     Attributes
     ----------
@@ -787,7 +788,7 @@ class fvGPOptimizer(fvGP):
 
     [[0.2, 0.3,0],[0.9,0.6,0],
 
-     [0.2, 0.3,1],[0.9,0.6,1]]
+    [0.2, 0.3,1],[0.9,0.6,1]]
     
     This has to be understood and taken into account when customizing :doc:`fvgp <fvgp:index>` for multi-task
     use.
