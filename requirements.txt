@@ -1,13 +1,13 @@
 wheel
-numpy==1.23.5
-scipy==1.11.2
+numpy == 1.23.5
+scipy == 1.11.2
 matplotlib
 pandas
 ophyd
 dask >= 2021.6.2
 distributed >= 2021.6.2
 zmq
-fvgp==4.0.10
+fvgp == 4.0.10
 plotly
 notebook
 loguru
