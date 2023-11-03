@@ -78,6 +78,24 @@ class GPOptimizer(GP):
 
     :py:meth:`fvgp.GP.matern_kernel_diff1_robust`
 
+    :py:meth:`fvgp.GP.matern_kernel_diff2`
+
+    :py:meth:`fvgp.GP.matern_kernel_diff2_robust`
+
+    :py:meth:`fvgp.GP.sparse_kernel`
+
+    :py:meth:`fvgp.GP.periodic_kernel`
+
+    :py:meth:`fvgp.GP.linear_kernel`
+
+    :py:meth:`fvgp.GP.dot_product_kernel`
+
+    :py:meth:`fvgp.GP.polynomial_kernel`
+
+    :py:meth:`fvgp.GP.wendland_anisotropic`
+
+    :py:meth:`fvgp.GP.non_stat_kernel`
+
     Parameters
     ----------
     x_data : np.ndarray
@@ -763,6 +781,7 @@ class fvGPOptimizer(fvGP):
     the posterior can be evaluated and used via acquisition functions,
     and plugged into optimizers to find its maxima. This class inherits many methods from
     the :py:class:`fvgp.GP` class. Check :doc:`fvgp.readthedocs.io <fvgp:index>` for a full list of capabilities.
+    Please check :py:class:`gpcam.GPOptimizer` for a list of capabilities. 
 
     V ... number of input points
 
