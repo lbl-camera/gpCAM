@@ -223,8 +223,11 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gp, number_of_maxi
             cdf = norm.cdf(gamma)
             return std * (gamma * cdf + pdf)
         elif acquisition_function == "target probability":
-            a = gp.args["a"]
-            b = gp.args["b"]
+            try:
+                a = gp.args["a"]
+                b = gp.args["b"]
+            except:
+                raise Exception("Reading the arguments for acq func `target probability` failed.")
             mean = gp.posterior_mean(x, x_out = x_out)["f(x)"]
             cov = gp.posterior_covariance(x, x_out = x_out)["v(x)"]
             result = np.zeros((len(x)))

@@ -43,37 +43,37 @@ class AutonomousExperimenterGP():
         is immediately called to measure values
         at these initial points.
     acquisition_function : Callable, optional
-            The acquisition function accepts as input a numpy array
-            of size V x D (such that V is the number of input
-            points, and D is the parameter space dimensionality) and
-            a `GPOptimizer` object. The return value is 1-D array
-            of length V providing 'scores' for each position,
-            such that the highest scored point will be measured next.
-            Built-in functions can be used by one of the following keys:
-            `'ucb'`,`'lcb'`,`'maximum'`,
-            `'minimum'`, `'variance'`,`'expected_improvement'`,
-            `'relative information entropy'`,`'relative information entropy set'`,
-            `'probability of improvement'`, `'gradient'`,`'total correlation'`,`'target probability'`.
-            If None, the default function `'variance'`, meaning
-            `fvgp.GP.posterior_covariance` with variance_only = True will be used.
-            The acquisition function can be a callable of the form my_func(x,gpcam.GPOptimizer)
-            which will be maximized (!!!), so make sure desirable new measurement points
-            will be located at maxima.
-            Explanations of the acquisition functions:
-            variance: simply the posterior variance
-            relative information entropy: the KL divergence of the prior over predictions and the posterior
-            relative information entropy set: the KL divergence of the prior
-            defined over predictions and the posterior point-by-point
-            ucb: upper confidence bound, posterior mean + 3. std
-            lcb: lower confidence bound, -(posterior mean - 3. std)
-            maximum: finds the maximum of the current posterior mean
-            minimum: finds the maximum of the current posterior mean
-            gradient: puts focus on high-gradient regions
-            probability of improvement: as the name would suggest
-            expected improvement: as the name would suggest
-            total correlation: extension of mutual information to more than 2 random variables
-            target probability: probability of a target; needs a dictionary
-            GPOptimizer.args = {'a': lower bound, 'b': upper bound} to be defined.
+        The acquisition function accepts as input a numpy array
+        of size V x D (such that V is the number of input
+        points, and D is the parameter space dimensionality) and
+        a `GPOptimizer` object. The return value is 1-D array
+        of length V providing 'scores' for each position,
+        such that the highest scored point will be measured next.
+        Built-in functions can be used by one of the following keys:
+        `'ucb'`,`'lcb'`,`'maximum'`,
+        `'minimum'`, `'variance'`,`'expected_improvement'`,
+        `'relative information entropy'`,`'relative information entropy set'`,
+        `'probability of improvement'`, `'gradient'`,`'total correlation'`,`'target probability'`.
+        If None, the default function `'variance'`, meaning
+        `fvgp.GP.posterior_covariance` with variance_only = True will be used.
+        The acquisition function can be a callable of the form my_func(x,gpcam.GPOptimizer)
+        which will be maximized (!!!), so make sure desirable new measurement points
+        will be located at maxima.
+        Explanations of the acquisition functions:
+        variance: simply the posterior variance
+        relative information entropy: the KL divergence of the prior over predictions and the posterior
+        relative information entropy set: the KL divergence of the prior
+        defined over predictions and the posterior point-by-point
+        ucb: upper confidence bound, posterior mean + 3. std
+        lcb: lower confidence bound, -(posterior mean - 3. std)
+        maximum: finds the maximum of the current posterior mean
+        minimum: finds the maximum of the current posterior mean
+        gradient: puts focus on high-gradient regions
+        probability of improvement: as the name would suggest
+        expected improvement: as the name would suggest
+        total correlation: extension of mutual information to more than 2 random variables
+        target probability: probability of a target; needs a dictionary
+        GPOptimizer.args = {'a': lower bound, 'b': upper bound} to be defined.
     cost_function : Callable, optional
         A function encoding the cost of motion through the input space and the
         cost of a measurements. Its inputs are an
@@ -306,7 +306,7 @@ class AutonomousExperimenterGP():
             If the optimizer is a scipy optimizer, see the scipy documentation.
         """
 
-        self.gp_optimizer.train_gp(
+        self.gp_optimizer.train(
             hyperparameter_bounds = self.hyperparameter_bounds,
             init_hyperparameters = init_hyperparameters,
             method=method,
@@ -347,7 +347,7 @@ class AutonomousExperimenterGP():
         if self.training_dask_client is None: self.training_dask_client = dask.distributed.Client()
 
         logger.info("AutonomousExperimenter starts async training with dask client:")
-        self.opt_obj = self.gp_optimizer.train_gp_async(
+        self.opt_obj = self.gp_optimizer.train_async(
             hyperparameter_bounds = self.hyperparameter_bounds,
             init_hyperparameters = init_hyperparameters,
             max_iter=max_iter,
@@ -364,7 +364,7 @@ class AutonomousExperimenterGP():
         Function to stop an asynchronous training. This leaves the dask.distributed.Client alive.
         """
         if self.async_train_in_progress:
-            self.gp_optimizer.stop_async_train(self.opt_obj)
+            self.gp_optimizer.stop_training(self.opt_obj)
             self.async_train_in_progress = False
         else:
             logger.info("no training to be killed")
@@ -398,6 +398,53 @@ class AutonomousExperimenterGP():
             self.gp_optimizer.tell(x, y, noise_variances=v)
         else:
             self.gp_optimizer.tell(x, y, noise_variances=v, output_positions=vp)
+
+
+    def _ask(self,
+            bounds=None,
+            position=None,
+            x_out = None,
+            n=1,
+            acquisition_function="variance",
+            method="global",
+            pop_size=20,
+            max_iter=20,
+            tol=1e-6,
+            constraints = (),
+            x0=None,
+            vectorized = True,
+            info = False,
+            candidate_set=None,
+            dask_client=None):
+
+        if x_out is None:
+            res = self.gp_optimizer.ask(
+                bounds,
+                position=position,
+                n=n,
+                acquisition_function=acquisition_function,
+                method=method,
+                pop_size=pop_size,
+                max_iter=max_iter,
+                tol=tol,
+                constraints=constraints,
+                dask_client=dask_client)
+        else:
+            res = self.gp_optimizer.ask(
+                bounds,
+                x_out,
+                position=position,
+                n=n,
+                acquisition_function=acquisition_function,
+                method=method,
+                pop_size=pop_size,
+                max_iter=max_iter,
+                tol=tol,
+                constraints=constraints,
+                dask_client=dask_client)
+        return res
+
+
 
     def _extract_data(self):
         x, y, v, t, c = self.data.extract_data()
@@ -500,20 +547,24 @@ class AutonomousExperimenterGP():
             # ask() for new suggestions
             current_position = self.x_data[-1]
             logger.info("current hps: {}", self.gp_optimizer.hyperparameters)
-            local_method = acq_func_opt_setting(i)
-            if number_of_suggested_measurements > 1 and local_method != "hgdl": local_method = "global"
+            current_method = acq_func_opt_setting(self)
+            if number_of_suggested_measurements > 1 and current_method != "hgdl": current_method = "global"
+            if current_method == "hgdl" and self.acq_func_opt_dask_client is None: self.acq_func_opt_dask_client = dask.distributed.Client()
+            try: x_out = self.data.dataset[-1]["output positions"]
+            except: x_out = None
 
-            if local_method == "hgdl" and self.acq_func_opt_dask_client is None: self.acq_func_opt_dask_client = dask.distributed.Client()
-            res = self.gp_optimizer.ask(
+
+            res = self._ask(
                 self.input_space_bounds,
                 position=current_position,
+                x_out = x_out,
                 n=number_of_suggested_measurements,
                 acquisition_function=self.acquisition_function,
-                method=local_method,
+                method=current_method,
                 pop_size=acq_func_opt_pop_size,
                 max_iter=acq_func_opt_max_iter,
                 tol=acq_func_opt_tol,
-                constraints = constraints,
+                constraints=constraints,
                 dask_client=self.acq_func_opt_dask_client)
 
             self.acq_func_max_opt_obj = res["opt_obj"]
