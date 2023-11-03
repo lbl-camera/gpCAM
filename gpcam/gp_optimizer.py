@@ -2,9 +2,9 @@
 
 import numpy as np
 from loguru import logger
-from fvgp.fvgp import fvGP
-from fvgp.gp import GP
-from gpcam import surrogate_model as sm
+from fvgp import fvGP
+from fvgp import GP
+from . import surrogate_model as sm
 import warnings
 
 
@@ -19,7 +19,8 @@ import warnings
 
 class GPOptimizer(GP):
     """
-    This class is an optimization wrapper around the :doc:`fvgp <fvgp:index>` package for single-task (scalar-valued) Gaussian Processes.
+    This class is an optimization wrapper around the :doc:`fvgp <fvgp:index>` package
+    for single-task (scalar-valued) Gaussian Processes.
     Gaussian Processes can be initialized, trained, and conditioned; also
     the posterior can be evaluated and used via acquisition functions,
     and plugged into optimizers to find its maxima. This class inherits many methods from
@@ -57,7 +58,7 @@ class GPOptimizer(GP):
         in form of a point-wise variance. Shape (len(y_data), 1) or (len(y_data)).
         Note: if no noise_variances are provided here, the gp_noise_function
         callable will be used; if the callable is not provided, the noise variances
-        will be set to `abs(np.mean(y_data) / 100.0`. If
+        will be set to `abs(np.mean(y_data)) / 100.0`. If
         noise covariances are required, also make use of the gp_noise_function.
     compute_device : str, optional
         One of "cpu" or "gpu", determines how linear system solves are run. The default is "cpu".
@@ -118,7 +119,7 @@ class GPOptimizer(GP):
         and a :py:class:`fvgp.GP` instance. The return value is a 3d array of 
         shape (len(hyperparameters) x N x N). If None is provided, either
         zeros are returned since the default noise function does not depend on 
-        hyperparametes. If `gp_noise_function` is provided but no gradient function,
+        hyperparameters. If `gp_noise_function` is provided but no gradient function,
         a finite-difference approximation will be used.
         The same rules regarding ram economy as for the kernel definition apply here.
     normalize_y : bool, optional
@@ -326,9 +327,10 @@ class GPOptimizer(GP):
                 x, self, acquisition_function, origin = origin, number_of_maxima_sought = 1, cost_function = self.cost_function, cost_function_parameters = self.cost_function_parameters)
             return -res
         except Exception as ex:
-            raise Exception("Evaluating the acquisition function was not successful.", ex)
             logger.error(ex)
             logger.error("Evaluating the acquisition function was not successful.")
+            raise Exception("Evaluating the acquisition function was not successful.", ex)
+
 
     def tell(self, x, y, noise_variances=None):
         """
@@ -540,7 +542,7 @@ class GPOptimizer(GP):
             x0=None,
             vectorized = True,
             info = False,
-            candidate_set = {},
+            candidate_set=None,
             dask_client=None):
         """
         Given that the acquisition device is at "position", this function `'ask()'`s for
@@ -624,7 +626,7 @@ class GPOptimizer(GP):
         constraints : tuple of object instances, optional
             scipy constraints instances, depending on the used optimizer.
         candidate_set : set, optional
-            If provided, ask will statistically choose a best candidate from the set. 
+            If provided, ask will statistically choose the best candidate from the set.
             This is usually desirable for non-Euclidean inputs.
         dask_client : distributed.client.Client, optional
             A Dask Distributed Client instance for distributed
@@ -638,6 +640,8 @@ class GPOptimizer(GP):
             that, only in case of `method` = `'hgdl'` can be queried for solutions.
         """
 
+        if candidate_set is None:
+            candidate_set = {}
         logger.info("ask() initiated with hyperparameters: {}", self.hyperparameters)
         logger.info("optimization method: {}", method)
         logger.info("bounds:\n{}", bounds)
@@ -708,7 +712,8 @@ class GPOptimizer(GP):
 ######################################################################################
 class fvGPOptimizer(fvGP):
     """
-    This class is an optimization wrapper around the :doc:`fvgp <fvgp:index>` package for multi-task (scalar-valued) Gaussian Processes.
+    This class is an optimization wrapper around the :doc:`fvgp <fvgp:index>`
+    package for multi-task (scalar-valued) Gaussian Processes.
     Gaussian Processes can be initialized, trained, and conditioned; also
     the posterior can be evaluated and used via acquisition functions,
     and plugged into optimizers to find its maxima. This class inherits many methods from
@@ -777,7 +782,7 @@ class fvGPOptimizer(fvGP):
         `y_data` in form of a point-wise variance. Shape y_data.shape.
         Note: if no noise_variances are provided here, the gp_noise_function
         callable will be used; if the callable is not provided, the noise variances
-        will be set to `abs(np.mean(y_data) / 100.0`. If
+        will be set to `abs(np.mean(y_data)) / 100.0`. If
         noise covariances are required, also make use of the gp_noise_function.
     compute_device : str, optional
         One of "cpu" or "gpu", determines how linear system solves are run. The default is "cpu".
@@ -792,7 +797,7 @@ class fvGPOptimizer(fvGP):
         data points. It is a function of the form k(x1,x2,hyperparameters, obj).
         The input x1 is a N1 x Di+Do array of positions, x2 is a N2 x Di+Do
         array of positions, the hyperparameters argument
-        is a 1d array of length N depending on how many hyperpapameters are initialized, and
+        is a 1d array of length N depending on how many hyperparameters are initialized, and
         obj is an :py:class:`fvgp.GP` instance. The default is a deep kernel with 2 hidden layers and
         a width of :py:attr:`fvgp.fvGP.gp_deep_kernel_layer_width`.
     gp_deep_kernel_layer_width : int, optional
@@ -819,8 +824,9 @@ class fvGPOptimizer(fvGP):
     gp_mean_function_grad : Callable, optional
         A function that evaluates the gradient of the `gp_mean_function` at a set of input positions with respect to 
         the hyperparameters. It accepts as input an array of positions (of size N1 x Di+Do), hyperparameters
-        and a :py:class:`fvgp.GP` instance. The return value is a 2d array of shape (len(hyperparameters) x N1). If None is 
-        provided, either zeros are returned since the default mean function does not depend on hyperparametes, or a 
+        and a :py:class:`fvgp.GP` instance. The return value is a 2d array of shape (len(hyperparameters) x N1).
+        If None is provided, either zeros are returned since the default mean function
+        does not depend on hyperparameters, or a
         finite-difference approximation is used if `gp_mean_function` is provided.
     gp_noise_function : Callable optional
         The noise function is a callable f(x,hyperparameters,obj) that returns a
@@ -833,7 +839,7 @@ class fvGPOptimizer(fvGP):
         hyperparameters (a 1d array of length D+1 for the default kernel)
         and a :py:class:`fvgp.GP` instance. The return value is a 3d array of shape 
         (len(hyperparameters) x N x N). If None is provided, either
-        zeros are returned since the default noise function does not dpeend on hyperparametes. 
+        zeros are returned since the default noise function does not depend on hyperparameters.
         If `gp_noise_function` is provided but no gradient function,
         a finite-difference approximation will be used. 
         The same rules regarding ram economy as for the kernel definition apply here.
@@ -932,7 +938,7 @@ class fvGPOptimizer(fvGP):
     K : np.ndarray
         Current prior covariance matrix of the GP
     KVinv : np.ndarray
-        If enabled, the inverse of the prior covariance + nose matrix V.
+        If enabled, the inverse of the prior covariance + noise matrix V.
         inv(K+V)
     KVlogdet : float
         logdet(K+V)
@@ -1372,7 +1378,7 @@ class fvGPOptimizer(fvGP):
         ------
         dictionary : {'x': np.array(maxima), "f(x)" : np.array(func_evals), "opt_obj" : opt_obj}
             Found maxima of the acquisition function, the associated function values and optimization object
-            that, only in case of `method` = `'hgdl'` can be queried for solutions.
+            that, only in case of `method` = `hgdl` can be queried for solutions.
         """
 
         logger.info("ask() initiated with hyperparameters: {}", self.hyperparameters)

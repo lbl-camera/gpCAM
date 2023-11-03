@@ -97,7 +97,7 @@ class AutonomousExperimenterGP():
         The input x1 is a N1 x D array of positions, x2 is a N2 x D
         array of positions, the hyperparameters argument
         is a 1d array of length D+1 for the default kernel and of a different
-        user-defined length for other kernels
+        userdefined length for other kernels
         obj is an `fvgp.GP` instance. The default is a stationary anisotropic kernel
         (`fvgp.GP.default_kernel`) which performs automatic relevance determination (ARD).
         The output is a covariance matrix, an N1 x N2 numpy array.
@@ -159,7 +159,7 @@ class AutonomousExperimenterGP():
     data.dataset : list
         All data
     hyperparameter_bounds : np.ndarray
-        A 2-D array of floats of size J x 2, such that J is the length
+        A 2d array of floats of size J x 2, such that J is the length
         matching the length of `hyperparameters` defining
         the bounds for training.
     gp_optimizer : gpcam.GPOptimizer
@@ -299,10 +299,10 @@ class AutonomousExperimenterGP():
         method : str, optional
             Method to be used for the training. Default is `'global'` which means
             a differential evolution algorithm is run with the specified parameters.
-            The options are `'global'` or `'local'`, or `'mcmc'`.
+            The options are `global` or `local`, or `mcmc`.
         constraints : tuple of object instances, optional
             Equality and inequality constraints for the optimization.
-            If the optimizer is `'hgdl'` see `'hgdl.readthedocs.io'`.
+            If the optimizer is `hgdl` see `hgdl.readthedocs.io`.
             If the optimizer is a scipy optimizer, see the scipy documentation.
         """
 
@@ -664,7 +664,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         The acquisition function accepts as input a numpy array
         of size V x D (such that V is the number of input
         points, and D is the parameter space dimensionality) and
-        a `GPOptimizer` object. The return value is 1-D array
+        a `GPOptimizer` object. The return value is 1d array
         of length V providing 'scores' for each position,
         such that the highest scored point will be measured next.
         Built-in functions can be used by one of the following keys:
@@ -683,8 +683,8 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         A function encoding the cost of motion through the input space and the
         cost of a measurements. Its inputs are an
         `origin` (np.ndarray of size V x D), `x` (np.ndarray of size V x D),
-        and the value of `cost_func_params`;
-        `origin` is the starting position, and `x` is the destination position. The return value is a 1-D array of
+        and the value of `cost_function_parameters`;
+        `origin` is the starting position, and `x` is the destination position. The return value is a 1d array of
         length V describing the costs as floats. The 'score' from
         acquisition_function is divided by this returned cost to determine
         the next measurement point. If None, the default is a uniform cost of 1.
@@ -719,7 +719,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
     noise_variances : np.ndarray, optional
         Initial data point observation variances.
     vp : np.ndarray, optional
-        A 3-D numpy array of shape (U x output_number x output_dim), so that for each measurement position, the outputs
+        A 3d numpy array of shape (U x output_number x output_dim), so that for each measurement position, the outputs
         are clearly defined by their positions in the output space.
         The default is np.array([[0],[1],[2],[3],...,[output_number - 1]]) for each
         point in the input space. The default is only permissible if output_dim is 1.
@@ -758,7 +758,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
     data.dataset : list
         All data
     hyperparameter_bounds : np.ndarray
-        A 2-D array of floats of size J x 2, such that J is the length matching
+        A 2d array of floats of size J x 2, such that J is the length matching
         the length of `hyperparameters` defining
         the bounds for training.
     gp_optimizer : gpcam.GPOptimizer
