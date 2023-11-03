@@ -15,6 +15,7 @@ caption: API
 ---
 api/index.md
 api/autonomous-experimenter.md
+api/autonomous-experimenterfvgp.md
 api/gpOptimizer.md
 api/fvgpOptimizer.md
 ```

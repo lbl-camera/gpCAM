@@ -11,7 +11,7 @@ from gpcam.gp_optimizer import GPOptimizer, fvGPOptimizer
 class AutonomousExperimenterGP():
     """
     Executes the autonomous loop for a single-task Gaussian process.
-    Use class AutonomousExperimenterfvGP for multi-task experiments.
+    Use class AutonomousExperimenterFvGP for multi-task experiments.
 
     Parameters
     ----------

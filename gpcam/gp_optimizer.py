@@ -781,7 +781,7 @@ class fvGPOptimizer(fvGP):
     the posterior can be evaluated and used via acquisition functions,
     and plugged into optimizers to find its maxima. This class inherits many methods from
     the :py:class:`fvgp.GP` class. Check :doc:`fvgp.readthedocs.io <fvgp:index>` for a full list of capabilities.
-    Please check :py:class:`gpcam.GPOptimizer` for a list of capabilities. 
+    Please check :py:class:`gpcam.GPOptimizer` for a list of capabilities.
 
     V ... number of input points
 
