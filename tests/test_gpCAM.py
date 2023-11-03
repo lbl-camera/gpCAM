@@ -27,6 +27,10 @@ def instrument2(data, instrument_dict=None):
         entry["output positions"] = np.array([[0],[1]])
     return data
 
+def mt_kernel(x1,x2,hps,obj):
+    d = obj._get_distance_matrix(x1,x2)
+    return np.exp(-d)
+
 
 
 class TestgpCAM(unittest.TestCase):
@@ -76,16 +80,10 @@ class TestgpCAM(unittest.TestCase):
         hps_bounds = np.array([[0.001, 1e9], [0.001, 100], [0.001, 100]])
         hps_guess = np.ones((3))
         ###################################################################################
-        gp = fvGPOptimizer(x,y)
-        gp.tell(x,y,noise_variances = np.ones(y.shape))
-        gp.train(hyperparameter_bounds=hps_bounds)
-
-        gp = fvGPOptimizer(x,y)
+        gp = fvGPOptimizer(x,y, gp_kernel_function = mt_kernel, init_hyperparameters = np.array([1.,1.,1.]), hyperparameter_bounds = hps_bounds)
         gp.tell(x,y,noise_variances = np.ones(y.shape))
         gp.get_data()
         gp.evaluate_acquisition_function(np.array([[0.0,0.6],[0.1,0.2]]), x_out = np.array([[0.],[1.]]))
-        gp.train(hyperparameter_bounds=hps_bounds)
-        gp.train(hps_bounds)
         gp.train(hps_bounds, method='global', max_iter = 2)
         gp.train(hps_bounds, method='local', max_iter = 2)
         gp.train(hps_bounds, method='mcmc', max_iter=2)
@@ -140,13 +138,13 @@ class TestgpCAM(unittest.TestCase):
         hps_bounds =  np.array([[0.01,100],[0.01,100.0],[0.01,100]])
 
         ##let's initialize the autonomous experimenter ...
-        my_ae = AutonomousExperimenterFvGP(input_space, 2, hyperparameters=init_hyperparameters,
+        my_ae = AutonomousExperimenterFvGP(input_space, 2, hyperparameters=init_hyperparameters, kernel_function = mt_kernel,
                                         hyperparameter_bounds=hps_bounds,instrument_function = instrument2,
                                         init_dataset_size=10)
         #...train...
         my_ae.data.inject_dataset(my_ae.data.dataset)
         my_ae.data.inject_arrays(np.array([[0.,0.1],[1.,1.]]), y = np.array([[3.,4.],[5.,9.]]), v = np.array([[.1,.2],[0.01,0.03]]), vp = np.array([[[2.0,3.0]],[[1.,2.]]]),info = [{"f": 2.}, {'d':3.}])
-        my_ae = AutonomousExperimenterFvGP(input_space,2, hyperparameters=init_hyperparameters,
+        my_ae = AutonomousExperimenterFvGP(input_space,2, hyperparameters=init_hyperparameters, kernel_function = mt_kernel,
                                         hyperparameter_bounds=hps_bounds,instrument_function = instrument2,
                                         init_dataset_size=4)
 
