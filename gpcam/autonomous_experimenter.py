@@ -561,8 +561,7 @@ class AutonomousExperimenterGP():
                 if self.training_dask_client is None: self.training_dask_client = dask.distributed.Client()
                 logger.info("    Starting a new asynchronous training after killing the current one.")
                 self.kill_training()
-                self.train_async(max_iter=training_opt_max_iter,
-                                 dask_client=self.training_dask_client)
+                self.train_async(max_iter=10000)
             elif any(n in retrain_globally_at for n in range(n_measurements,len(self.x_data))) and n_measurements<N:
                 self.kill_training()
                 logger.info("    Fresh optimization from scratch via global optimization")

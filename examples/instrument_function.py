@@ -22,7 +22,7 @@ import numpy as np
 from loguru import logger
 
 
-def synthetic_function(data, instrument_dict):
+def synthetic_function(data):
     for idx_data in range(len(data)):
         if data[idx_data]["measured"] == True: continue
         x1 = data[idx_data]["position"][0]
@@ -59,7 +59,7 @@ def recv_zipped_pickle(socket, flags=0):
 # msg = recv_zipped_pickle(socket)
 # print(msg)
 
-def comm_via_zmq(data, instrument_dict):
+def comm_via_zmq(data):
     send_zipped_pickle(data, socket)
     logger.debug("gpCAM has sent data of length: ", len(data))
     logger.debug(data)

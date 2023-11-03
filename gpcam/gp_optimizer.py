@@ -1278,7 +1278,7 @@ class fvGPOptimizer(fvGP):
             Hyperparameter are returned but are also automatically used to update the GP.
         """
 
-        hps = super().update_hyperparameters(self, opt_obj)
+        hps = super().update_hyperparameters(opt_obj)
         return hps
 
 
