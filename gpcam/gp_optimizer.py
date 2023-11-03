@@ -11,11 +11,6 @@ import warnings
 
 #TODO
 #   check all docstrings for fvgp specific stuff (fvgp.GP...)
-#   double check ask() in single-task
-#   do ALL multi-task
-#   remember the (fv)GPautonomous_experimenter classes
-#   Make new tests
-#   Multi-task test has to wait for fvgp update
 
 class GPOptimizer(GP):
     """
@@ -197,6 +192,55 @@ class GPOptimizer(GP):
         `instrument_func`) and a parameter
         object. The default is a no-op.
 
+    All posterior evaluation functions are inherited from :py:class:`fvgp.GP` class.
+    These include:
+
+    :py:meth:`fvgp.GP.posterior_mean`
+
+    :py:meth:`fvgp.GP.posterior_covariance`
+
+    :py:meth:`posterior_mean_grad`
+
+    :py:meth:`posterior_covariance_grad`
+
+    :py:meth:`joint_gp_prior`
+
+    :py:meth:`joint_gp_prior_grad`
+
+    :py:meth:`gp_entropy`
+
+    :py:meth:`gp_entropy_grad`
+
+    :py:meth:`gp_kl_div`
+
+    :py:meth:`gp_kl_div_grad`
+
+    :py:meth:`gp_mutual_information`
+
+    :py:meth:`gp_total_correlation`
+
+    :py:meth:`gp_relative_information_entropy`
+
+    :py:meth:`gp_relative_information_entropy_set`
+
+    :py:meth:`posterior_probability`
+
+    :py:meth:`posterior_probability_grad`
+
+    Several kernel functions are also inherited:
+
+    :py:meth:`squared_exponential_kernel`
+
+    :py:meth:`squared_exponential_kernel_robust`
+
+    :py:meth:`exponential_kernel`
+
+    :py:meth:`exponential_kernel_robust`
+
+    :py:meth:`matern_kernel_diff1`
+
+    :py:meth:`matern_kernel_diff1_robust`
+
     Attributes
     ----------
     x_data : np.ndarray
@@ -352,7 +396,7 @@ class GPOptimizer(GP):
         super().update_gp_data(x,y,noise_variances = noise_variances)
 
     ##############################################################
-    def train_gp(self,
+    def train(self,
         hyperparameter_bounds = None,
         init_hyperparameters = None,
         method = "global",
@@ -429,7 +473,7 @@ class GPOptimizer(GP):
 
         return self.hyperparameters
     ##############################################################
-    def train_gp_async(self,
+    def train_async(self,
         hyperparameter_bounds = None,
         init_hyperparameters = None,
         max_iter = 10000,
@@ -487,26 +531,26 @@ class GPOptimizer(GP):
         return opt_obj
 
     ##############################################################
-    def stop_async_train(self, opt_obj):
+    def stop_training(self, opt_obj):
         """
         Function to stop an asynchronous training. This leaves the :py:class:`distributed.client.Client` alive.
 
         Parameters
         ----------
         opt_obj : object instance
-            Object created by :py:meth:`train_gp_async()`.
+            Object created by :py:meth:`train_async()`.
 
         """
         super().stop_training(opt_obj)
 
-    def kill_async_train(self, opt_obj):
+    def kill_training(self, opt_obj):
         """
         Function to kill an asynchronous training. This shuts down the associated :py:class:`distributed.client.Client`.
 
         Parameters
         ----------
         opt_obj : object instance
-            Object created by :py:meth:`train_gp_async()`.
+            Object created by :py:meth:`train_async()`.
         """
         super().kill_training(opt_obj)
 
@@ -518,7 +562,7 @@ class GPOptimizer(GP):
         Parameters
         ----------
         opt_obj : object instance
-            Object created by :py:meth:`train_gp_async()`.
+            Object created by :py:meth:`train_async()`.
 
         Return
         ------
@@ -1033,13 +1077,13 @@ class fvGPOptimizer(fvGP):
             "input dim": self.input_space_dim,
             "x data": self.x_data,
             "y data": self.y_data,
-            "measurement variances": self.measurmenet_noise,
+            "measurement variances": self.V,
             "hyperparameters": self.hyperparameters,
             "cost function parameters": self.cost_function_parameters,
             "cost function": self.cost_function}
 
     ############################################################################
-    def evaluate_acquisition_function(self, x, x_out,acquisition_function="variance", origin=None):
+    def evaluate_acquisition_function(self, x, x_out, acquisition_function="variance", origin=None):
         """
         Function to evaluate the acquisition function.
 
@@ -1097,7 +1141,7 @@ class fvGPOptimizer(fvGP):
         """
         super().update_gp_data(x,y,noise_variances = noise_variances, output_positions = output_positions)
     ##############################################################
-    def train_gp(self,
+    def train(self,
         hyperparameter_bounds = None,
         init_hyperparameters = None,
         method = "global",
@@ -1178,7 +1222,7 @@ class fvGPOptimizer(fvGP):
 
         return self.hyperparameters
     ##############################################################
-    def train_gp_async(self,
+    def train_async(self,
         hyperparameter_bounds = None,
         init_hyperparameters = None,
         max_iter = 10000,
@@ -1240,25 +1284,25 @@ class fvGPOptimizer(fvGP):
         return opt_obj
 
     ##############################################################
-    def stop_async_train(self, opt_obj):
+    def stop_training(self, opt_obj):
         """
         Function to stop an asynchronous training. This leaves the :py:class:`distributed.client.Client` alive.
 
         Parameters
         ----------
         opt_obj : object instance
-            Object created by :py:meth:`train_gp_async()`.
+            Object created by :py:meth:`train_async()`.
         """
         super().stop_training(opt_obj)
 
-    def kill_async_train(self, opt_obj):
+    def kill_training(self, opt_obj):
         """
         Function to kill an asynchronous training. This shuts down the associated :py:class:`distributed.client.Client`.
 
         Parameters
         ----------
         opt_obj : object instance
-            Object created by :py:meth:`train_gp_async()`.
+            Object created by :py:meth:`train_async()`.
         """
         super().kill_training(opt_obj)
 
@@ -1270,7 +1314,7 @@ class fvGPOptimizer(fvGP):
         Parameters
         ----------
         opt_obj : object instance
-            Object created by :py:meth:`train_gp_async()`.
+            Object created by :py:meth:`train_async()`.
 
         Return
         ------
@@ -1284,7 +1328,7 @@ class fvGPOptimizer(fvGP):
 
     def ask(self,
             bounds,
-            x_out = None,
+            x_out,
             acquisition_function = 'variance',
             position=None, 
             n=1,
@@ -1387,7 +1431,6 @@ class fvGPOptimizer(fvGP):
         logger.info("acq func: {}", acquisition_function)
 
         if candidate_set: raise Exception("Non-Euclidean ask() not implemented yet.")
-
         if np.ndim(bounds) != 2: raise Exception("The bounds parameter has to be a 2d numpy array.")
         if n > 1 and method != "hgdl":
             method = "global"

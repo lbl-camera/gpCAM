@@ -17,7 +17,6 @@ api/index.md
 api/autonomous-experimenter.md
 api/gpOptimizer.md
 api/fvgpOptimizer.md
-api/advanced-gpCAM.md
 ```
 
 

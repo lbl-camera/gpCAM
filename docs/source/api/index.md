@@ -1,15 +1,11 @@
 # gpCAM API Levels
 
-Starting with version 7 of gpCAM, the user has several access points (from high level to low level):
+The user has two options to deploy gpCAM: by using the AutonomousExperimenter of the gpOptimizer.
+Both come in single-task and multi-task versions. The AutonomousExperimenter is simpler to set up and implements a high-level
+loop, while the GPOptimizer is a thin optimization wrapper around the fvgp package and inherits all of its capabilities, including
+GPs on non-Euclidean input spaces and world-record-holding scaling of exact GPs.
 
-- Using the AutonomousExperimenter functionality
-  - AutonomousExperimenterGP: implements an autonomous loop for a single-task GP
-  - AutonomousExperimenterfvGP: implements an autonomous loop for a multi-task GP
-
-- The user can use the gpOptimizer (already available in version 6) functionality directly to get full control. The gpOptimizer class is a function optimization wrapper around fvGP, the same is true for the fvgpOptimizer class. Using the gpOptimizer functionality means implementing your own loop
-- For GP related work only, the user can use the fvgp package directly (no suggestion capability, no native steering)
-
-For tests and examples, check out the case studies on this very website, download the repository and go to "./tests", or visit the project [website](https://gpcam.lbl.gov/).
+To get to know gpCAM, check out the examples on this website, download the repository and go to "./tests", or visit the project [website](https://gpcam.lbl.gov/).
 
 
 Quick Links:
