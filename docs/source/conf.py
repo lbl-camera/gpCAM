@@ -25,8 +25,12 @@ extensions = [
     'myst_nb',
     'sphinx_panels',
     'sphinx.ext.autodoc',
-    'sphinx.ext.napoleon'
+    'sphinx.ext.napoleon',
+    'sphinx.ext.intersphinx',
+    'hoverxref.extension'
 ]
+#if notebooks should not be executed:
+nb_execution_mode='off'
 
 # MyST extensions
 myst_enable_extensions = ['colon_fence']
@@ -34,6 +38,24 @@ myst_enable_extensions = ['colon_fence']
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 exclude_patterns = []
+
+# hoverxref
+hoverxref_role_types = {
+    'hoverxref': 'modal',
+    'ref': 'modal',  # for hoverxref_auto_ref config
+    'confval': 'tooltip',  # for custom object
+    'mod': 'tooltip',  # for Python Sphinx Domain
+    'class': 'tooltip',  # for Python Sphinx Domain
+}
+hoverxref_auto_ref = True
+hoverxref_intersphinx = ['fvgp', 'hgdl']
+
+# Support links to partnered pacakges
+intersphinx_mapping = {
+    "fvgp": ("https://fvgp.readthedocs.io/en/latest/", None),
+    "hgdl": ("https://hgdl.readthedocs.io/en/latest/", None),
+    "dask": ("https://docs.dask.org/en/stable/", None),
+}
 
 
 

@@ -4,7 +4,6 @@ from loguru import logger
 
 
 def write_vtk_file(gp_optimizer_obj):
-    # FIXME: unused function?
     logger.debug("This will be printed in every iteration of gpCAM")
     plot_dim = [[0, 28], [0, 41]]
     resolution = [100, 100]

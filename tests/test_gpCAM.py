@@ -3,8 +3,8 @@
 """Tests for `gpcam` package."""
 import unittest
 import numpy as np
-from gpcam.autonomous_experimenter import AutonomousExperimenterGP
-from gpcam.gp_optimizer import GPOptimizer
+from gpcam import AutonomousExperimenterGP
+from gpcam import GPOptimizer
 
 
 def ac_func1(x, obj):
@@ -17,7 +17,7 @@ def ac_func1(x, obj):
 
 def instrument(data, instrument_dict=None):
     for entry in data:
-        entry["value"] = np.sin(np.linalg.norm(entry["position"]))
+        entry["y_data"] = np.sin(np.linalg.norm(entry["x_data"]))
     return data
 
 
@@ -33,10 +33,9 @@ class TestgpCAM(unittest.TestCase):
         hyperparameter_bounds = np.array([[0.001, 1e9], [0.001, 100], [0.001, 100]])
         hps_guess = np.ones((3))
         ###################################################################################
-        gp = GPOptimizer(dim, index_set_bounds)
-        gp.tell(x, y)
-        gp.init_gp(hps_guess)
-        gp.train_gp(hyperparameter_bounds)
+        gp = GPOptimizer(x,y)
+        gp.tell(x,y,noise_variances = np.ones(y.shape))
+        gp.train_gp(hyperparameter_bounds=hyperparameter_bounds)
 
     def test_single_task(self, dim=2, N=20, write_data_cube=False):
         """Test something."""
@@ -50,24 +49,20 @@ class TestgpCAM(unittest.TestCase):
             for i in range(len(x1[0])):
                 distance_matrix += abs(np.subtract.outer(x1[:, i], x2[:, i]) / hps[i + 1]) ** 2
             distance_matrix = np.sqrt(distance_matrix)
-            # if len(x1) == len(x2): noise = np.identity(len(x1)) * hps[2]
-            # else: noise = 0.0
             return hps[0] * obj.exponential_kernel(distance_matrix, 1)  # + noise
 
         index_set_bounds = np.array([[0., 1.], [0., 1.]])
         hyperparameter_bounds = np.array([[0.001, 1e9], [0.001, 100], [0.001, 100]])
         hps_guess = np.ones((3))
         ###################################################################################
-        gp = GPOptimizer(dim, index_set_bounds)
-        gp.tell(x, y)
-        gp.init_gp(hps_guess, gp_kernel_function=kernel_l2_single_task)
+        gp = GPOptimizer(x,y)
         gp.train_gp(hyperparameter_bounds)
         ######################################################
         ######################################################
         ######################################################
         print("evaluating acquisition function at [0.5,0.5,0.5]")
         print("=======================")
-        r1 = gp.evaluate_acquisition_function(np.array([0.5, 0.5]), acquisition_function="shannon_ig")
+        r1 = gp.evaluate_acquisition_function(np.array([0.5, 0.5]), acquisition_function="relative information entropy")
         r2 = gp.evaluate_acquisition_function(np.array([0.5, 0.5]), acquisition_function=ac_func1)
         print("results: ", r1, r2)
         print()
@@ -78,22 +73,22 @@ class TestgpCAM(unittest.TestCase):
         print()
         print("ask()ing for new suggestions")
         print("=======================")
-        r = gp.ask()
+        r = gp.ask(np.array([[0.,1.],[0.,1.]]))
         print(r)
         print()
         print("getting the maximum (remember that this means getting the minimum of -f(x)):")
         print("=======================")
-        r = gp.ask(acquisition_function="maximum")
+        r = gp.ask(np.array([[0.,1.],[0.,1.]]),acquisition_function="maximum")
         print(r)
         print("getting the minimum:")
         print("=======================")
-        r = gp.ask(acquisition_function="minimum")
+        r = gp.ask(np.array([[0.,1.],[0.,1.]]),acquisition_function="minimum")
         print(r)
         print()
 
     def test_ae(self):
         ##set up your parameter space
-        parameters = np.array([[3.0,45.8],
+        input_space = np.array([[3.0,45.8],
                               [4.0,47.0]])
 
         ##set up some hyperparameters, if you have no idea, set them to 1 and make the training bounds large
@@ -101,8 +96,8 @@ class TestgpCAM(unittest.TestCase):
         hyperparameter_bounds =  np.array([[0.01,100],[0.01,100.0],[0.01,100]])
 
         ##let's initialize the autonomous experimenter ...
-        my_ae = AutonomousExperimenterGP(parameters, init_hyperparameters,
-                                        hyperparameter_bounds,instrument_func = instrument,
+        my_ae = AutonomousExperimenterGP(input_space, init_hyperparameters,
+                                        hyperparameter_bounds,instrument_function = instrument,
                                         init_dataset_size=10)
         #...train...
         my_ae.train()
@@ -125,27 +120,28 @@ class TestgpCAM(unittest.TestCase):
 
 
         #initialize the GPOptimizer
-        my_gpo = GPOptimizer(3,np.array([[1.,2.],[4.,5.],[6.,7.]]))
+        my_gpo = GPOptimizer(x_data, y_data)
         #tell() it some data
-        my_gpo.tell(x_data,y_data)
-        #initialize a GP ...
-        my_gpo.init_gp(np.ones(4))
-        #and train it
         my_gpo.train_gp(np.array([[0.001,100],[0.001,100],[0.001,100],[0.001,100]]))
 
         #let's make a prediction
-        print("an example posterior mean at x = 0.44 :",my_gpo.posterior_mean(np.array([0.44,1.,1.])))
+        print("an example posterior mean at x = 0.44 :",my_gpo.posterior_mean(np.array([[0.44,1.,1.]])))
         print("")
         #now we can ask for a new point
 
-        r = my_gpo.ask(n = 5, acquisition_function="shannon_ig_multi")
-        r = my_gpo.ask(n = 1, acquisition_function="shannon_ig")
-        r = my_gpo.ask(n = 1, acquisition_function="shannon_ig_vec")
-        r = my_gpo.ask(n = 1, acquisition_function="variance")
-        r = my_gpo.ask(n = 1, acquisition_function="covariance")
-        r = my_gpo.ask(n = 1, acquisition_function="ucb")
-        r = my_gpo.ask(n = 1, acquisition_function="maximum")
-        r = my_gpo.ask(n = 5, acquisition_function="gradient", method = "local")
-        r = my_gpo.ask(n = 1, acquisition_function="target_probability", method = "local", args = {"a":1.,"b":2.})
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="relative information entropy set")
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 5, acquisition_function="relative information entropy")
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="relative information entropy")
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="probability of improvement")
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="total correlation")
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="variance")
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="ucb")
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="lcb")
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="maximum")
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="minimum")
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 5, acquisition_function="gradient", method = "local")
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 5, acquisition_function="gradient", method = "hgdl")
+        my_gpo.args = {'a':2.,'b':3.}
+        r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="target probability", method = "local")
 
 

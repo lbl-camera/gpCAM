@@ -11,27 +11,6 @@ banner_contents: >
 ---
 hidden: true
 maxdepth: 2
-caption: Setup
----
-getting-started.md
-installation.md
-```
-
-```{toctree}
----
-hidden: true
-maxdepth: 2
-caption: Usage
----
-case-studies/index.md
-common-bugs.md
-logging.md
-```
-
-```{toctree}
----
-hidden: true
-maxdepth: 2
 caption: API
 ---
 api/index.md
@@ -40,6 +19,24 @@ api/gpOptimizer.md
 api/fvgpOptimizer.md
 api/advanced-gpCAM.md
 ```
+
+
+```{toctree}
+---
+hidden: true
+maxdepth: 2
+caption: Examples
+---
+examples/basic_test.ipynb
+examples/advanced_test.ipynb
+examples/1dSingleTaskAcqFuncTest.ipynb
+examples/GPOptimizer_SingleTaskTest.ipynb
+examples/gp2ScaleTest.ipynb 
+examples/GPONonEuclideanInputSpaces.ipynb
+examples/GPOptimizer_gp2ScaleTest.ipynb
+examples/GPOptimizer_MultiTaskTest.ipynb
+```
+
 
 # gpCAM
 

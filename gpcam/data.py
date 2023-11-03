@@ -2,6 +2,7 @@ import datetime
 import math
 import time
 import uuid
+import warnings
 
 import numpy as np
 
@@ -64,9 +65,9 @@ class gpData:
             x ... 1d numpy array
         """
         d = {}
-        d["position"] = x
-        d["value"] = y
-        d["variance"] = v
+        d["x_data"] = x
+        d["y_data"] = y
+        d["noise variance"] = v
         d["cost"] = None
         d["id"] = str(uuid.uuid4())
         d["time stamp"] = time.time()
@@ -76,27 +77,12 @@ class gpData:
         # d["hyperparameters"] = None #hps
         return d
 
-    ###############################################################
-    ###Printing####################################################
-    ###############################################################
-    def print_data(self, data):
-        np.set_printoptions(precision=5)
-        for idx in range(len(data)):
-            print(idx, " ==> ")
-            for key in list(data[idx]):
-                if isinstance(data[idx][key], dict):
-                    print("     ", key, " :")
-                    for key2 in data[idx][key]:
-                        print("          ", key2, " : ", data[idx][key][key2])
-                else:
-                    print("     ", key, " : ", data[idx][key])
-
     ################################################################
     ########Extracting##############################################
     ################################################################
     def extract_data(self):
         x = self.extract_points_from_data()
-        y = self.extract_values_from_data()
+        y = self.extract_y_data_from_data()
         v = self.extract_variances_from_data()
         t = self.extract_times_from_data()
         c = self.extract_costs_from_data()
@@ -106,22 +92,22 @@ class gpData:
         self.point_number = len(self.dataset)
         P = np.zeros((self.point_number, self.dim))
         for idx_data in range(self.point_number):
-            P[idx_data] = self.dataset[idx_data]["position"]
+            P[idx_data] = self.dataset[idx_data]["x_data"]
         return P
 
-    def extract_values_from_data(self):
+    def extract_y_data_from_data(self):
         self.point_number = len(self.dataset)
         M = np.zeros((self.point_number))
         for idx_data in range(self.point_number):
-            M[idx_data] = self.dataset[idx_data]["value"]
+            M[idx_data] = self.dataset[idx_data]["y_data"]
         return M
 
     def extract_variances_from_data(self):
         self.point_number = len(self.dataset)
         Variance = np.zeros((self.point_number))
         for idx_data in range(self.point_number):
-            if self.dataset[idx_data]["variance"] is None: return None
-            Variance[idx_data] = self.dataset[idx_data]["variance"]
+            if self.dataset[idx_data]["noise variance"] is None: return None
+            Variance[idx_data] = self.dataset[idx_data]["noise variance"]
         return Variance
 
     def extract_costs_from_data(self):
@@ -158,10 +144,10 @@ class gpData:
     def check_incoming_data(self):
         try:
             for entry in self.dataset:
-                if entry["value"] is None:
-                    raise Exception("Entry with no specified value in communicated list of data dictionaries")
-                if entry["position"] is None:
-                    raise Exception("Entry with no specified position in communicated list of data dictionaries")
+                if entry["y_data"] is None:
+                    raise Exception("Entry with no specified y_data in communicated list of data dictionaries")
+                if entry["x_data"] is None:
+                    raise Exception("Entry with no specified x_data in communicated list of data dictionaries")
         except:
             raise Exception(
                 "Checking the incoming data could not be accomplished. This normally means that wrong formats were "
@@ -170,7 +156,7 @@ class gpData:
     def clean_data_NaN(self):
         for entry in self.dataset:
             if self._nan_in_dict(entry):
-                print("CAUTION, NaN detected in data")
+                warnings.warn("CAUTION, NaN detected in data")
                 self.dataset.remove(entry)
         self.point_number = len(self.data_set)
 
@@ -258,10 +244,10 @@ class fvgpData(gpData):
         x ... 1d numpy array
         """
         d = {}
-        d["position"] = x
-        d["values"] = y
-        d["variances"] = v
-        d["value positions"] = vp
+        d["x_data"] = x
+        d["y_data"] = y
+        d["noise variances"] = v
+        d["output positions"] = vp
         d["cost"] = None
         d["id"] = str(uuid.uuid4())
         d["time stamp"] = time.time()
@@ -276,48 +262,47 @@ class fvgpData(gpData):
     ################################################################
     def extract_data(self):
         x = self.extract_points_from_data()
-        y = self.extract_values_from_data()
+        y = self.extract_y_data_from_data()
         v = self.extract_variances_from_data()
         t = self.extract_times_from_data()
         c = self.extract_costs_from_data()
-        vp = self.extract_value_positions_from_data()
+        vp = self.extract_output_positions_from_data()
         return x, y, v, t, c, vp
 
-    def extract_value_positions_from_data(self):
+    def extract_output_positions_from_data(self):
         self.point_number = len(self.dataset)
         VP = np.zeros((self.point_number, self.output_number, self.output_dim))
         for idx_data in range(self.point_number):
-            if ("value positions" in self.dataset[idx_data]):
-                VP[idx_data] = self.dataset[idx_data]["value positions"]
+            if ("output positions" in self.dataset[idx_data]):
+                VP[idx_data] = self.dataset[idx_data]["output positions"]
             else:
-                VP[idx_data] = self.dataset[idx_data - 1]["value positions"]
+                VP[idx_data] = self.dataset[idx_data - 1]["output positions"]
         return VP
 
-    def extract_values_from_data(self):
+    def extract_y_data_from_data(self):
         self.point_number = len(self.dataset)
         M = np.zeros((self.point_number, self.output_number))
         for idx_data in range(self.point_number):
-            M[idx_data] = self.dataset[idx_data]["values"]
+            M[idx_data] = self.dataset[idx_data]["y_data"]
         return M
 
     def extract_variances_from_data(self):
         self.point_number = len(self.dataset)
         Variance = np.zeros((self.point_number, self.output_number))
         for idx_data in range(self.point_number):
-            if self.dataset[idx_data]["variances"] is None: return None
-            Variance[idx_data] = self.dataset[idx_data]["variances"]
+            if self.dataset[idx_data]["noise variances"] is None: return None
+            Variance[idx_data] = self.dataset[idx_data]["noise variances"]
         return Variance
 
     def check_incoming_data(self):
         try:
             for entry in self.dataset:
-                print(entry)
-                if entry["values"] is None:
-                    raise Exception("Entry with no specified value in communicated list of data dictionaries")
-                if entry["position"] is None:
-                    raise Exception("Entry with no specified position in communicated list of data dictionaries")
-                if entry["value positions"] is None:
-                    raise Exception("Entry with no specified position in communicated list of data dictionaries")
+                if entry["y_data"] is None:
+                    raise Exception("Entry with no specified y_data in communicated list of data dictionaries")
+                if entry["x_data"] is None:
+                    raise Exception("Entry with no specified x_data in communicated list of data dictionaries")
+                if entry["output positions"] is None:
+                    raise Exception("Entry with no specified output positions in communicated list of data dictionaries")
         except Exception as e:
             raise Exception(
                     "Checking the incoming data could not be accomplished. This normally means that wrong formats were communicated: ", e)
