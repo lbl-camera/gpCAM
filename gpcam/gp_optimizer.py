@@ -8,8 +8,7 @@ from . import surrogate_model as sm
 import warnings
 
 
-
-#TODO
+# TODO
 #   check all docstrings for fvgp specific stuff (fvgp.GP...)
 
 class GPOptimizer(GP):
@@ -282,63 +281,63 @@ class GPOptimizer(GP):
     """
 
     def __init__(
-        self,
-        x_data,
-        y_data,
-        init_hyperparameters = None,
-        hyperparameter_bounds = None,
-        noise_variances = None,
-        compute_device = "cpu",
-        gp_kernel_function = None,
-        gp_kernel_function_grad = None,
-        gp_noise_function = None,
-        gp_noise_function_grad = None,
-        gp_mean_function = None,
-        gp_mean_function_grad = None,
-        sparse_mode = False,
-        gp2Scale = False,
-        gp2Scale_dask_client = None,
-        gp2Scale_batch_size = 10000,
-        normalize_y = False,
-        store_inv = True,
-        ram_economy = False,
-        args = None,
-        info = False,
-        cost_function = None,
-        cost_function_parameters = None,
-        cost_update_function = None
-        ):
-        if isinstance(x_data,np.ndarray):
-            if np.ndim(x_data) == 1: x_data = x_data.reshape(-1,1)
+            self,
+            x_data,
+            y_data,
+            init_hyperparameters=None,
+            hyperparameter_bounds=None,
+            noise_variances=None,
+            compute_device="cpu",
+            gp_kernel_function=None,
+            gp_kernel_function_grad=None,
+            gp_noise_function=None,
+            gp_noise_function_grad=None,
+            gp_mean_function=None,
+            gp_mean_function_grad=None,
+            sparse_mode=False,
+            gp2Scale=False,
+            gp2Scale_dask_client=None,
+            gp2Scale_batch_size=10000,
+            normalize_y=False,
+            store_inv=True,
+            ram_economy=False,
+            args=None,
+            info=False,
+            cost_function=None,
+            cost_function_parameters=None,
+            cost_update_function=None
+    ):
+        if isinstance(x_data, np.ndarray):
+            if np.ndim(x_data) == 1: x_data = x_data.reshape(-1, 1)
             self.input_dim = x_data.shape[1]
-        else: 
+        else:
             self.input_dim = 1
             warnings.warn("gpCAM on non-Euclidean inputs is still experimental. Use with cautions!")
 
         super().__init__(
-                self.input_dim,
-                x_data,
-                y_data,
-                init_hyperparameters = init_hyperparameters,
-                hyperparameter_bounds = hyperparameter_bounds,
-                noise_variances = noise_variances,
-                compute_device = compute_device,
-                gp_kernel_function = gp_kernel_function,
-                gp_kernel_function_grad = gp_kernel_function_grad,
-                gp_noise_function = gp_noise_function,
-                gp_noise_function_grad = gp_noise_function_grad,
-                gp_mean_function = gp_mean_function,
-                gp_mean_function_grad = gp_mean_function_grad,
-                sparse_mode = sparse_mode,
-                gp2Scale = gp2Scale,
-                gp2Scale_dask_client = gp2Scale_dask_client,
-                gp2Scale_batch_size = gp2Scale_batch_size,
-                normalize_y = normalize_y,
-                store_inv = store_inv,
-                ram_economy = ram_economy,
-                args = args,
-                info = info,
-                )
+            self.input_dim,
+            x_data,
+            y_data,
+            init_hyperparameters=init_hyperparameters,
+            hyperparameter_bounds=hyperparameter_bounds,
+            noise_variances=noise_variances,
+            compute_device=compute_device,
+            gp_kernel_function=gp_kernel_function,
+            gp_kernel_function_grad=gp_kernel_function_grad,
+            gp_noise_function=gp_noise_function,
+            gp_noise_function_grad=gp_noise_function_grad,
+            gp_mean_function=gp_mean_function,
+            gp_mean_function_grad=gp_mean_function_grad,
+            sparse_mode=sparse_mode,
+            gp2Scale=gp2Scale,
+            gp2Scale_dask_client=gp2Scale_dask_client,
+            gp2Scale_batch_size=gp2Scale_batch_size,
+            normalize_y=normalize_y,
+            store_inv=store_inv,
+            ram_economy=ram_economy,
+            args=args,
+            info=info,
+        )
         self.cost_function = cost_function
         self.cost_function_parameters = cost_function_parameters
         self.cost_update_function = cost_update_function
@@ -361,7 +360,7 @@ class GPOptimizer(GP):
             "cost function parameters": self.cost_function_parameters,
             "cost function": self.cost_function}
 
-    def evaluate_acquisition_function(self, x, acquisition_function="variance", origin=None, args = None):
+    def evaluate_acquisition_function(self, x, acquisition_function="variance", origin=None, args=None):
         """
         Function to evaluate the acquisition function.
 
@@ -383,17 +382,19 @@ class GPOptimizer(GP):
         Evaluation : np.ndarray
             The acquisition function evaluations at all points x.
         """
-        if self.cost_function and origin is None: warnings.warn("Warning: For the cost function to be active, an origin has to be provided.")
-        if origin is not None and self.cost_function is None: warnings.warn("Warning: An origin is given but no cost function is defined. Cost function ignored")
+        if self.cost_function and origin is None:
+            warnings.warn("Warning: For the cost function to be active, an origin has to be provided.")
+        if origin is not None and self.cost_function is None:
+            warnings.warn("Warning: An origin is given but no cost function is defined. Cost function ignored")
         try:
             res = sm.evaluate_acquisition_function(
-                x, self, acquisition_function, origin = origin, number_of_maxima_sought = 1, cost_function = self.cost_function, cost_function_parameters = self.cost_function_parameters)
+                x, self, acquisition_function, origin=origin, number_of_maxima_sought=1,
+                cost_function=self.cost_function, cost_function_parameters=self.cost_function_parameters)
             return -res
         except Exception as ex:
             logger.error(ex)
             logger.error("Evaluating the acquisition function was not successful.")
             raise Exception("Evaluating the acquisition function was not successful.", ex)
-
 
     def tell(self, x, y, noise_variances=None):
         """
@@ -412,20 +413,21 @@ class GPOptimizer(GP):
             Point value variances (of shape U x 1 or U) to be communicated to the Gaussian Process.
             If not provided, the GP will 1% of the y values as variances.
         """
-        super().update_gp_data(x,y,noise_variances = noise_variances)
+        super().update_gp_data(x, y, noise_variances=noise_variances)
 
     ##############################################################
-    def train(self,
-        hyperparameter_bounds = None,
-        init_hyperparameters = None,
-        method = "global",
-        pop_size = 20,
-        tolerance = 0.0001,
-        max_iter = 120,
-        local_optimizer = "L-BFGS-B",
-        global_optimizer = "genetic",
-        constraints = (),
-        dask_client = None):
+    def train(
+            self,
+            hyperparameter_bounds=None,
+            init_hyperparameters=None,
+            method="global",
+            pop_size=20,
+            tolerance=0.0001,
+            max_iter=120,
+            local_optimizer="L-BFGS-B",
+            global_optimizer="genetic",
+            constraints=(),
+            dask_client=None):
 
         """
         This function finds the maximum of the log marginal likelihood and therefore trains the GP (synchronously).
@@ -479,28 +481,30 @@ class GPOptimizer(GP):
         """
 
         super().train(
-        hyperparameter_bounds = hyperparameter_bounds,
-        init_hyperparameters = init_hyperparameters,
-        method = method,
-        pop_size = pop_size,
-        tolerance = tolerance,
-        max_iter = max_iter,
-        local_optimizer = local_optimizer,
-        global_optimizer = global_optimizer,
-        constraints = constraints,
-        dask_client = dask_client)
+            hyperparameter_bounds=hyperparameter_bounds,
+            init_hyperparameters=init_hyperparameters,
+            method=method,
+            pop_size=pop_size,
+            tolerance=tolerance,
+            max_iter=max_iter,
+            local_optimizer=local_optimizer,
+            global_optimizer=global_optimizer,
+            constraints=constraints,
+            dask_client=dask_client)
 
         return self.hyperparameters
+
     ##############################################################
-    def train_async(self,
-        hyperparameter_bounds = None,
-        init_hyperparameters = None,
-        max_iter = 10000,
-        local_optimizer = "L-BFGS-B",
-        global_optimizer = "genetic",
-        constraints = (),
-        dask_client = None
-        ):
+    def train_async(
+            self,
+            hyperparameter_bounds=None,
+            init_hyperparameters=None,
+            max_iter=10000,
+            local_optimizer="L-BFGS-B",
+            global_optimizer="genetic",
+            constraints=(),
+            dask_client=None
+    ):
 
         """
         This function asynchronously finds the maximum of the log marginal likelihood and therefore trains the GP.
@@ -539,13 +543,13 @@ class GPOptimizer(GP):
         """
 
         opt_obj = super().train_async(
-        hyperparameter_bounds = hyperparameter_bounds ,
-        init_hyperparameters = init_hyperparameters,
-        max_iter = max_iter,
-        local_optimizer = local_optimizer,
-        global_optimizer = global_optimizer,
-        constraints = constraints,
-        dask_client = dask_client
+            hyperparameter_bounds=hyperparameter_bounds,
+            init_hyperparameters=init_hyperparameters,
+            max_iter=max_iter,
+            local_optimizer=local_optimizer,
+            global_optimizer=global_optimizer,
+            constraints=constraints,
+            dask_client=dask_client
         )
         return opt_obj
 
@@ -601,10 +605,10 @@ class GPOptimizer(GP):
             pop_size=20,
             max_iter=20,
             tol=1e-6,
-            constraints = (),
+            constraints=(),
             x0=None,
-            vectorized = True,
-            info = False,
+            vectorized=True,
+            info=False,
             candidate_set=None,
             dask_client=None):
         """
@@ -686,6 +690,8 @@ class GPOptimizer(GP):
             this option makes the optimization faster if method = 'global'
             is used. The default is True but will be set to
             False if method is not global.
+        info : bool, optional
+            Print optimization information. The default is False.
         constraints : tuple of object instances, optional
             scipy constraints instances, depending on the used optimizer.
         candidate_set : set, optional
@@ -710,17 +716,20 @@ class GPOptimizer(GP):
         logger.info("bounds:\n{}", bounds)
         logger.info("acq func: {}", acquisition_function)
 
-        if bounds is not None and candidate_set: raise Exception("Bounds and candidate set provided. Only one whould be given.")
-        if bounds is not None and np.ndim(bounds) != 2: raise Exception("The bounds parameter has to be a 2d np.ndarray.")
+        if bounds is not None and candidate_set:
+            raise Exception("Bounds and candidate set provided. Only one would be given.")
+        if bounds is not None and np.ndim(bounds) != 2:
+            raise Exception("The bounds parameter has to be a 2d np.ndarray.")
         if bounds is not None and n > 1 and method != "hgdl":
+            vectorized = False
             method = "global"
             new_optimization_bounds = np.row_stack([bounds for i in range(n)])
             bounds = new_optimization_bounds
             if acquisition_function != "total correlation" and acquisition_function != "relative information entropy":
                 acquisition_function = "total correlation"
-            vectorized = False
+
         if acquisition_function == "total correlation" or acquisition_function == "relative information entropy":
-               vectorized = False
+            vectorized = False
         if method != "global": vectorized = False
 
         maxima, func_evals, opt_obj = sm.find_acquisition_function_maxima(
@@ -734,12 +743,13 @@ class GPOptimizer(GP):
             cost_function=self.cost_function,
             cost_function_parameters=self.cost_function_parameters,
             optimization_x0=x0,
-            constraints = constraints,
-            candidate_set = candidate_set,
-            vectorized = vectorized,
-            info = info,
+            constraints=constraints,
+            candidate_set=candidate_set,
+            vectorized=vectorized,
+            info=info,
             dask_client=dask_client)
-        if n > 1: return {'x': maxima.reshape(-1,self.input_space_dim), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
+        if n > 1: return {'x': maxima.reshape(-1, self.input_space_dim), "f(x)": np.array(func_evals),
+                          "opt_obj": opt_obj}
         return {'x': np.array(maxima), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
 
     ##############################################################
@@ -758,9 +768,13 @@ class GPOptimizer(GP):
             with those definitions.
         """
 
-        if self.cost_function_parameters is None: warnings.warn("No cost_function_parameters specified. Cost update failed.")
-        if callable(self.cost_update_function): self.cost_function_parameters = self.cost_update_function(measurement_costs, self.cost_function_parameters)
-        else: warnings.warn("No cost_update_function available. Cost update failed.")
+        if self.cost_function_parameters is None: warnings.warn(
+            "No cost_function_parameters specified. Cost update failed.")
+        if callable(self.cost_update_function):
+            self.cost_function_parameters = self.cost_update_function(measurement_costs, self.cost_function_parameters)
+        else:
+            warnings.warn("No cost_update_function available. Cost update failed.")
+
 
 ######################################################################################
 ######################################################################################
@@ -1008,80 +1022,80 @@ class fvGPOptimizer(fvGP):
         logdet(K+V)
     """
 
-
     def __init__(
-        self,
-        x_data,
-        y_data,
-        output_space_dimension = 1,
-        init_hyperparameters = None,
-        hyperparameter_bounds = None,
-        output_positions = None,
-        noise_variances = None,
-        compute_device = "cpu",
-        gp_kernel_function = None,
-        gp_deep_kernel_layer_width = 5,
-        gp_kernel_function_grad = None,
-        gp_noise_function = None,
-        gp_noise_function_grad = None,
-        gp_mean_function = None,
-        gp_mean_function_grad = None,
-        sparse_mode = False,
-        gp2Scale = False,
-        gp2Scale_dask_client = None,
-        gp2Scale_batch_size = 10000,
-        normalize_y = False,
-        store_inv = True,
-        ram_economy = False,
-        args = None,
-        info = False,
-        cost_function = None,
-        cost_function_parameters=None,
-        cost_update_function=None,
-        ):
-        if isinstance(x_data,np.ndarray):
-            if np.ndim(x_data) == 1: x_data = x_data.reshape(-1,1)
+            self,
+            x_data,
+            y_data,
+            output_space_dimension=1,
+            init_hyperparameters=None,
+            hyperparameter_bounds=None,
+            output_positions=None,
+            noise_variances=None,
+            compute_device="cpu",
+            gp_kernel_function=None,
+            gp_deep_kernel_layer_width=5,
+            gp_kernel_function_grad=None,
+            gp_noise_function=None,
+            gp_noise_function_grad=None,
+            gp_mean_function=None,
+            gp_mean_function_grad=None,
+            sparse_mode=False,
+            gp2Scale=False,
+            gp2Scale_dask_client=None,
+            gp2Scale_batch_size=10000,
+            normalize_y=False,
+            store_inv=True,
+            ram_economy=False,
+            args=None,
+            info=False,
+            cost_function=None,
+            cost_function_parameters=None,
+            cost_update_function=None,
+    ):
+        if isinstance(x_data, np.ndarray):
+            if np.ndim(x_data) == 1: x_data = x_data.reshape(-1, 1)
             self.input_dim = x_data.shape[1]
-        else: self.input_dim = 1
+        else:
+            self.input_dim = 1
         if np.ndim(y_data) != 2: raise Exception("Your y_data is not a 2d numpy array.")
         output_number = y_data.shape[1]
 
-        if gp_kernel_function is None: self.user_kernel_provided = False
-        else: self.user_kernel_provided = True
-
+        if gp_kernel_function is None:
+            self.user_kernel_provided = False
+        else:
+            self.user_kernel_provided = True
 
         super().__init__(
-                self.input_dim,
-                output_space_dimension,
-                output_number,
-                x_data,
-                y_data,
-                init_hyperparameters = init_hyperparameters,
-                hyperparameter_bounds = hyperparameter_bounds,
-                output_positions = output_positions,
-                noise_variances = noise_variances,
-                compute_device = compute_device,
-                gp_kernel_function = gp_kernel_function,
-                gp_kernel_function_grad = gp_kernel_function_grad,
-                gp_noise_function = gp_noise_function,
-                gp_noise_function_grad = gp_noise_function_grad,
-                gp_mean_function = gp_mean_function,
-                gp_mean_function_grad = gp_mean_function_grad,
-                sparse_mode = sparse_mode,
-                gp2Scale = gp2Scale,
-                gp2Scale_dask_client = gp2Scale_dask_client,
-                gp2Scale_batch_size = gp2Scale_batch_size,
-                normalize_y = normalize_y,
-                store_inv = store_inv,
-                ram_economy = ram_economy,
-                args = args,
-                info = info)
-
+            self.input_dim,
+            output_space_dimension,
+            output_number,
+            x_data,
+            y_data,
+            init_hyperparameters=init_hyperparameters,
+            hyperparameter_bounds=hyperparameter_bounds,
+            output_positions=output_positions,
+            noise_variances=noise_variances,
+            compute_device=compute_device,
+            gp_kernel_function=gp_kernel_function,
+            gp_deep_kernel_layer_width=gp_deep_kernel_layer_width,
+            gp_kernel_function_grad=gp_kernel_function_grad,
+            gp_noise_function=gp_noise_function,
+            gp_noise_function_grad=gp_noise_function_grad,
+            gp_mean_function=gp_mean_function,
+            gp_mean_function_grad=gp_mean_function_grad,
+            sparse_mode=sparse_mode,
+            gp2Scale=gp2Scale,
+            gp2Scale_dask_client=gp2Scale_dask_client,
+            gp2Scale_batch_size=gp2Scale_batch_size,
+            normalize_y=normalize_y,
+            store_inv=store_inv,
+            ram_economy=ram_economy,
+            args=args,
+            info=info)
 
         self.cost_function = cost_function
         self.cost_function_parameters = cost_function_parameters
         self.cost_update_function = cost_update_function
-
 
     ############################################################################
     def get_data(self):
@@ -1124,17 +1138,20 @@ class fvGPOptimizer(fvGP):
         ------
         The acquisition function evaluations at all points x : np.ndarray
         """
-        if self.cost_function and origin is None: print("Warning: For the cost function to be active, an origin has to be provided.")
+        if self.cost_function and origin is None:
+            warnings.warn("Warning: For the cost function to be active, an origin has to be provided.")
         x = np.array(x)
         cost_function = self.cost_function
         try:
             res = sm.evaluate_acquisition_function(
-                x, self, acquisition_function, origin = origin, number_of_maxima_sought = 1, cost_function = cost_function, cost_function_parameters = self.cost_function_parameters, x_out = x_out)
+                x, self, acquisition_function, origin=origin, number_of_maxima_sought=1,
+                cost_function=cost_function, cost_function_parameters=self.cost_function_parameters,
+                x_out=x_out)
             return -res
         except Exception as ex:
-            raise Exception("Evaluating the acquisition function was not successful.", ex)
             logger.error(ex)
             logger.error("Evaluating the acquisition function was not successful.")
+            raise Exception("Evaluating the acquisition function was not successful.", ex)
 
     ############################################################################
     def tell(self, x, y, noise_variances=None, output_positions=None):
@@ -1159,19 +1176,20 @@ class fvGPOptimizer(fvGP):
             The default is np.array([[0],[1],[2],[3],...,[output_number - 1]]) for each
             point in the input space. The default is only permissible if output_dim is 1.
         """
-        super().update_gp_data(x,y,noise_variances = noise_variances, output_positions = output_positions)
+        super().update_gp_data(x, y, noise_variances=noise_variances, output_positions=output_positions)
+
     ##############################################################
     def train(self,
-        hyperparameter_bounds = None,
-        init_hyperparameters = None,
-        method = "global",
-        pop_size = 20,
-        tolerance = 0.0001,
-        max_iter = 120,
-        local_optimizer = "L-BFGS-B",
-        global_optimizer = "genetic",
-        constraints = (),
-        dask_client = None):
+              hyperparameter_bounds=None,
+              init_hyperparameters=None,
+              method="global",
+              pop_size=20,
+              tolerance=0.0001,
+              max_iter=120,
+              local_optimizer="L-BFGS-B",
+              global_optimizer="genetic",
+              constraints=(),
+              dask_client=None):
 
         """
         This function finds the maximum of the log marginal likelihood and therefore trains the GP (synchronously).
@@ -1224,33 +1242,37 @@ class fvGPOptimizer(fvGP):
             Returned are the hyperparameters, however, the GP is automatically updated.
 
         """
-        if not self.user_kernel_provided: hyperparameter_bounds, init_hyperparameters = self.hyperparameter_bounds, self.hyperparameters
-        elif (hyperparameter_bounds is None and self.hyperparameter_bounds is None) or (init_hyperparameters is None and self.hyperparameters is None):
-            raise Exception("If a kernel is provided, init_hyperparameters and hyperparameter_bounds have to be provided in the traning or at initialization.")
+        if not self.user_kernel_provided:
+            hyperparameter_bounds, init_hyperparameters = self.hyperparameter_bounds, self.hyperparameters
+        elif (hyperparameter_bounds is None and self.hyperparameter_bounds is None) or (
+                init_hyperparameters is None and self.hyperparameters is None):
+            raise Exception(
+                "If a kernel is provided, init_hyperparameters and hyperparameter_bounds have to be provided in the traning or at initialization.")
 
         super().train(
-        hyperparameter_bounds = hyperparameter_bounds,
-        init_hyperparameters = init_hyperparameters,
-        method = method,
-        pop_size = pop_size,
-        tolerance = tolerance,
-        max_iter = max_iter,
-        local_optimizer = local_optimizer,
-        global_optimizer = global_optimizer,
-        constraints = constraints,
-        dask_client = dask_client)
+            hyperparameter_bounds=hyperparameter_bounds,
+            init_hyperparameters=init_hyperparameters,
+            method=method,
+            pop_size=pop_size,
+            tolerance=tolerance,
+            max_iter=max_iter,
+            local_optimizer=local_optimizer,
+            global_optimizer=global_optimizer,
+            constraints=constraints,
+            dask_client=dask_client)
 
         return self.hyperparameters
+
     ##############################################################
     def train_async(self,
-        hyperparameter_bounds = None,
-        init_hyperparameters = None,
-        max_iter = 10000,
-        local_optimizer = "L-BFGS-B",
-        global_optimizer = "genetic",
-        constraints = (),
-        dask_client = None
-        ):
+                    hyperparameter_bounds=None,
+                    init_hyperparameters=None,
+                    max_iter=10000,
+                    local_optimizer="L-BFGS-B",
+                    global_optimizer="genetic",
+                    constraints=(),
+                    dask_client=None
+                    ):
 
         """
         This function asynchronously finds the maximum of the log marginal likelihood and therefore trains the GP.
@@ -1287,19 +1309,21 @@ class fvGPOptimizer(fvGP):
             Optimization object that can be given to :py:meth:`gpcam.GPOptimizer.update_hyperparameters()` 
             to update the prior GP
         """
-        if not self.user_kernel_provided: hyperparameter_bounds, init_hyperparameters = self.hyperparameter_bounds, self.hyperparameters
-        elif (hyperparameter_bounds is None and self.hyperparameter_bounds is None) or (init_hyperparameters is None and self.hyperparameters is None):
-            raise Exception("If a kernel is provided, init_hyperparameters and hyperparameter_bounds have to be provided in the traning or at initialization.")
-
+        if not self.user_kernel_provided:
+            hyperparameter_bounds, init_hyperparameters = self.hyperparameter_bounds, self.hyperparameters
+        elif (hyperparameter_bounds is None and self.hyperparameter_bounds is None) or (
+                init_hyperparameters is None and self.hyperparameters is None):
+            raise Exception(
+                "If a kernel is provided, init_hyperparameters and hyperparameter_bounds have to be provided in the traning or at initialization.")
 
         opt_obj = super().train_async(
-        hyperparameter_bounds = hyperparameter_bounds ,
-        init_hyperparameters = init_hyperparameters,
-        max_iter = max_iter,
-        local_optimizer = local_optimizer,
-        global_optimizer = global_optimizer,
-        constraints = constraints,
-        dask_client = dask_client
+            hyperparameter_bounds=hyperparameter_bounds,
+            init_hyperparameters=init_hyperparameters,
+            max_iter=max_iter,
+            local_optimizer=local_optimizer,
+            global_optimizer=global_optimizer,
+            constraints=constraints,
+            dask_client=dask_client
         )
         return opt_obj
 
@@ -1345,22 +1369,21 @@ class fvGPOptimizer(fvGP):
         hps = super().update_hyperparameters(opt_obj)
         return hps
 
-
     def ask(self,
             bounds,
             x_out,
-            acquisition_function = 'variance',
-            position=None, 
+            acquisition_function='variance',
+            position=None,
             n=1,
             method="global",
             pop_size=20,
             max_iter=20,
             tol=1e-6,
-            constraints = (),
+            constraints=(),
             x0=None,
-            vectorized = True,
-            candidate_set = {},
-            info = False,
+            vectorized=True,
+            candidate_set={},
+            info=False,
             dask_client=None):
 
         """
@@ -1430,6 +1453,10 @@ class fvGPOptimizer(fvGP):
             this option makes the optimization faster if method = 'global'
             is used. The default is True but will be set to 
             False if method is not global.
+        info : bool, optional
+            Print optimization information. The default is False.
+        candidate_set : set, optional
+            Not implemented yet for fvgp.
         constraints : tuple of object instances, optional
             Either a tuple of hgdl.constraints.NonLinearConstraint 
             or scipy constraints instances, depending on the used optimizer.
@@ -1450,17 +1477,17 @@ class fvGPOptimizer(fvGP):
         logger.info("bounds:\n{}", bounds)
         logger.info("acq func: {}", acquisition_function)
 
-        if candidate_set: raise Exception("Non-Euclidean ask() not implemented yet.")
+        if candidate_set: raise Exception("Non-Euclidean fvgp.ask() not implemented yet.")
         if np.ndim(bounds) != 2: raise Exception("The bounds parameter has to be a 2d numpy array.")
         if n > 1 and method != "hgdl":
+            vectorized = False
             method = "global"
             new_optimization_bounds = np.row_stack([bounds for i in range(n)])
             bounds = new_optimization_bounds
             if acquisition_function != "total correlation" and acquisition_function != "relative information entropy":
                 acquisition_function = "total correlation"
-            vectorized = False
         if acquisition_function == "total correlation" or acquisition_function == "relative information entropy":
-               vectorized = False
+            vectorized = False
         if method != "global": vectorized = False
 
         maxima, func_evals, opt_obj = sm.find_acquisition_function_maxima(
@@ -1474,12 +1501,14 @@ class fvGPOptimizer(fvGP):
             cost_function=self.cost_function,
             cost_function_parameters=self.cost_function_parameters,
             optimization_x0=x0,
-            constraints = constraints,
-            candidate_set = candidate_set,
-            vectorized = vectorized,
-            x_out = x_out,
+            constraints=constraints,
+            candidate_set=candidate_set,
+            vectorized=vectorized,
+            x_out=x_out,
+            info=info,
             dask_client=dask_client)
-        if n > 1: return {'x': maxima.reshape(n,self.orig_input_space_dim), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
+        if n > 1: return {'x': maxima.reshape(n, self.orig_input_space_dim), "f(x)": np.array(func_evals),
+                          "opt_obj": opt_obj}
         return {'x': np.array(maxima), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
 
     ##############################################################
@@ -1498,7 +1527,10 @@ class fvGPOptimizer(fvGP):
             accordance with those definitions.
         """
 
-        if self.cost_function_parameters is None: warnings.warn("No cost_function_parameters specified. Cost update failed.")
-        if callable(self.cost_update_function): self.cost_function_parameters = self.cost_update_function(measurement_costs, self.cost_function_parameters)
-        else: warnings.warn("No cost_update_function available. Cost update failed.")
-
+        if self.cost_function_parameters is None: warnings.warn("No cost_function_parameters\
+         specified. Cost update failed.")
+        if callable(self.cost_update_function):
+            self.cost_function_parameters = self.cost_update_function(
+                measurement_costs, self.cost_function_parameters)
+        else:
+            warnings.warn("No cost_update_function available. Cost update failed.")

@@ -14,30 +14,30 @@ import warnings
 
 ##########################################################################
 def find_acquisition_function_maxima(gp, acquisition_function,
-                                     origin = None,
+                                     origin=None,
                                      number_of_maxima_sought = 1,
-                                     optimization_bounds = None,
-                                     acquisition_function_grad = None,
+                                     optimization_bounds=None,
+                                     acquisition_function_grad=None,
                                      optimization_method="global",
                                      optimization_pop_size=20,
                                      optimization_max_iter=10,
                                      optimization_tol=1e-6,
                                      optimization_x0=None,
-                                     constraints = (),
+                                     constraints=(),
                                      cost_function=None,
                                      cost_function_parameters=None,
-                                     vectorized = True,
-                                     candidate_set = {},
-                                     x_out = None,
+                                     vectorized=True,
+                                     candidate_set={},
+                                     x_out=None,
                                      dask_client=None,
-                                     info = False):
+                                     info=False):
     if not candidate_set and optimization_bounds is None:
         raise Exception("optimization bounds or a candidate set have to be provided")
     bounds = optimization_bounds
     opt_obj = None
 
-    func = partial(evaluate_acquisition_function, gp = gp, acquisition_function = acquisition_function, origin=origin, number_of_maxima_sought = number_of_maxima_sought,
-                                  cost_function = cost_function, cost_function_parameters = cost_function_parameters, x_out = x_out)
+    func = partial(evaluate_acquisition_function, gp=gp, acquisition_function=acquisition_function, origin=origin, number_of_maxima_sought = number_of_maxima_sought,
+                                  cost_function=cost_function, cost_function_parameters=cost_function_parameters, x_out=x_out)
     grad = partial(gradient,func = func)
 
     logger.info("====================================")
