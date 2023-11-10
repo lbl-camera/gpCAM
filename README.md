@@ -20,12 +20,14 @@ gpCAM is an API and software designed to make autonomous data acquisition and an
 The following demonstrates a simple usage of the gpCAM API (see [interactive demo](https://colab.research.google.com/drive/1FU4iKW626XiLqluDXQH-gzPYHyCf9N76?usp=sharing)). 
 
 ```python
+!pip install gpcam
+
 from gpcam.autonomous_experimenter import AutonomousExperimenterGP
 import numpy as np
 
 def instrument(data):
     for entry in data:
-        entry["value"] = np.sin(np.linalg.norm(entry["position"]))
+        entry["y_data"] = np.sin(np.linalg.norm(entry["x_data"]))
     return data
 
 ##set up your parameter space
@@ -38,8 +40,8 @@ hyperparameter_bounds =  np.array([[0.01,100],[0.01,100.0],[0.01,100]])
 
 ##let's initialize the autonomous experimenter ...
 my_ae = AutonomousExperimenterGP(parameters, init_hyperparameters,
-                                 hyperparameter_bounds,instrument_func = instrument,  
-                                 init_dataset_size=10)
+                                 hyperparameter_bounds,instrument_function = instrument,  
+                                 init_dataset_size=10, info=False)
 #...train...
 my_ae.train()
 
