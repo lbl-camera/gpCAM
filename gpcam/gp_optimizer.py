@@ -451,9 +451,9 @@ class GPOptimizer(GP):
             The default is a random draw from a uniform distribution within the bounds.
         method : str or Callable, optional
             The method used to train the hyperparameters.
-            The options are `'global'`, `'local'`, `'hgdl'`, `'mcmc'`, and a callable.
+            The options are `global`, `local`, `hgdl`, `mcmc`, and a callable.
             The callable gets a fvgp.GP instance and has to return a 1d np.ndarray of hyperparameters.
-            The default is `'global'` (scipy's differential evolution).
+            The default is `global` (scipy's differential evolution).
             If method = "mcmc",
             the attribute gpcam.GPOptimizer.mcmc_info is updated and contains convergence and distribution information.
         pop_size : int, optional
@@ -612,7 +612,7 @@ class GPOptimizer(GP):
             candidate_set=None,
             dask_client=None):
         """
-        Given that the acquisition device is at "position", this function `'ask()'`s for
+        Given that the acquisition device is at "position", this function `ask()`s for
         "n" new optimal points within certain "bounds" and using the optimization setup: "method",
         "acquisition_function_pop_size", "max_iter", "tol", "constraints", and "x0".
         This function can also choose the best candidate of a candidate set for Bayesian optimization
@@ -706,7 +706,7 @@ class GPOptimizer(GP):
         ------
         Solution : {'x': np.array(maxima), "f(x)" : np.array(func_evals), "opt_obj" : opt_obj}
             Found maxima of the acquisition function, the associated function values and optimization object
-            that, only in case of `method` = `'hgdl'` can be queried for solutions.
+            that, only in case of `method` = `hgdl` can be queried for solutions.
         """
 
         if candidate_set is None:
@@ -829,7 +829,7 @@ class fvGPOptimizer(fvGP):
     Parameters
     ----------
     x_data : np.ndarray
-        The input point positions. Shape (V x D), where D is the `'input_space_dim'`.
+        The input point positions. Shape (V x D), where D is the `input_space_dim`.
     y_data : np.ndarray
         The values of the data points. Shape (V,No).
     output_space_dimension : int
@@ -1213,9 +1213,9 @@ class fvGPOptimizer(fvGP):
             The default is a random draw from a uniform distribution within the bounds.
         method : str or Callable, optional
             The method used to train the hyperparameters.
-            The options are `'global'`, `'local'`, `'hgdl'`, `'mcmc'`, and a callable.
-            The callable gets a fvgp.GP instance and has to return a 1d np.ndarray of hyperparameters.
-            The default is `'global'` (scipy's differential evolution).
+            The options are `global`, `local`, `hgdl`, `mcmc`, and a callable.
+            The callable gets a `fvgp.GP` instance and has to return a 1d np.ndarray of hyperparameters.
+            The default is `global` (scipy's differential evolution).
             If method = "mcmc",
             the attribute gpcam.GPOptimizer.mcmc_info is updated and contains convergence and distribution information.
         pop_size : int, optional
@@ -1247,7 +1247,8 @@ class fvGPOptimizer(fvGP):
         elif (hyperparameter_bounds is None and self.hyperparameter_bounds is None) or (
                 init_hyperparameters is None and self.hyperparameters is None):
             raise Exception(
-                "If a kernel is provided, init_hyperparameters and hyperparameter_bounds have to be provided in the traning or at initialization.")
+                "If a kernel is provided, init_hyperparameters and hyperparameter_bounds\
+                 have to be provided in the traning or at initialization.")
 
         super().train(
             hyperparameter_bounds=hyperparameter_bounds,
@@ -1294,7 +1295,7 @@ class fvGPOptimizer(fvGP):
         max_iter : int, optional
             Maximum number of epochs for HGDL. Default = 10000.
         local_optimizer : str, optional
-            Defining the local optimizer. Default = "L-BFGS-B", most scipy.opimize.minimize functions are permissible.
+            Defining the local optimizer. Default = "L-BFGS-B", most `scipy.opimize.minimize` functions are permissible.
         global_optimizer : str, optional
             Defining the global optimizer. Only applicable to method = hgdl. Default = `genetic`
         constraints : tuple of hgdl.NonLinearConstraint instances, optional
@@ -1314,7 +1315,8 @@ class fvGPOptimizer(fvGP):
         elif (hyperparameter_bounds is None and self.hyperparameter_bounds is None) or (
                 init_hyperparameters is None and self.hyperparameters is None):
             raise Exception(
-                "If a kernel is provided, init_hyperparameters and hyperparameter_bounds have to be provided in the traning or at initialization.")
+                "If a kernel is provided, init_hyperparameters and hyperparameter_bounds \
+                have to be provided in the traning or at initialization.")
 
         opt_obj = super().train_async(
             hyperparameter_bounds=hyperparameter_bounds,
@@ -1382,7 +1384,7 @@ class fvGPOptimizer(fvGP):
             constraints=(),
             x0=None,
             vectorized=True,
-            candidate_set={},
+            candidate_set=None,
             info=False,
             dask_client=None):
 
@@ -1421,7 +1423,7 @@ class fvGPOptimizer(fvGP):
             In the multi-task case, it is highly recommended to
             deploy a user-defined acquisition function due to the intricate relationship
             of posterior distributions at different points in the output space.
-            If None, the default function `'variance'`, meaning
+            If None, the default function `variance`, meaning
             :py:meth:`fvgp.GP.posterior_covariance` with variance_only = True will be used.
             The acquisition function can be a callable of the form my_func(x,gpcam.GPOptimizer)
             which will be maximized (!!!), so make sure desirable new measurement points
@@ -1472,6 +1474,7 @@ class fvGPOptimizer(fvGP):
             that, only in case of `method` = `hgdl` can be queried for solutions.
         """
 
+        if candidate_set is None: candidate_set = set()
         logger.info("ask() initiated with hyperparameters: {}", self.hyperparameters)
         logger.info("optimization method: {}", method)
         logger.info("bounds:\n{}", bounds)

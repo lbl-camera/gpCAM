@@ -8,10 +8,13 @@ from gpcam.data import fvgpData, gpData
 from gpcam.gp_optimizer import GPOptimizer, fvGPOptimizer
 
 
-class AutonomousExperimenterGP():
+class AutonomousExperimenterGP:
     """
     Executes the autonomous loop for a single-task Gaussian process.
     Use class AutonomousExperimenterFvGP for multi-task experiments.
+    The AutonomousExperimenter is a convenience-driven functionality that does not allow
+    as much customization as using the GPOptimizer directly. But it is great option to
+    start with.
 
     Parameters
     ----------
@@ -50,11 +53,11 @@ class AutonomousExperimenterGP():
         of length V providing 'scores' for each position,
         such that the highest scored point will be measured next.
         Built-in functions can be used by one of the following keys:
-        `'ucb'`,`'lcb'`,`'maximum'`,
-        `'minimum'`, `'variance'`,`'expected_improvement'`,
-        `'relative information entropy'`,`'relative information entropy set'`,
-        `'probability of improvement'`, `'gradient'`,`'total correlation'`,`'target probability'`.
-        If None, the default function `'variance'`, meaning
+        `ucb`,`lcb`,`maximum`,
+        `minimum`, `variance`,`expected_improvement`,
+        `relative information entropy`,`relative information entropy set`,
+        `probability of improvement`, `gradient`,`total correlation`,`target probability`.
+        If None, the default function `variance`, meaning
         `fvgp.GP.posterior_covariance` with variance_only = True will be used.
         The acquisition function can be a callable of the form my_func(x,gpcam.GPOptimizer)
         which will be maximized (!!!), so make sure desirable new measurement points
@@ -170,8 +173,8 @@ class AutonomousExperimenterGP():
 
     def __init__(self,
                  input_space_bounds,
-                 hyperparameters = None,
-                 hyperparameter_bounds = None,
+                 hyperparameters=None,
+                 hyperparameter_bounds=None,
                  instrument_function=None,
                  init_dataset_size=None,
                  acquisition_function="variance",
@@ -188,11 +191,11 @@ class AutonomousExperimenterGP():
                  store_inv=False,
                  training_dask_client=None,
                  acq_func_opt_dask_client=None,
-                 sparse_mode = False,
-                 gp2Scale = False,
-                 gp2Scale_dask_client = None,
-                 gp2Scale_batch_size = 10000,
-                 normalize_y = False,
+                 sparse_mode=False,
+                 gp2Scale=False,
+                 gp2Scale_dask_client=None,
+                 gp2Scale_batch_size=10000,
+                 normalize_y=False,
                  ram_economy=True,
                  info=False,
                  args=None
@@ -205,7 +208,6 @@ class AutonomousExperimenterGP():
             logger.disable('gpcam')
             logger.disable('fvgp')
             logger.disable('hgdl')
-
 
         dim = len(input_space_bounds)
         self.input_space_bounds = input_space_bounds
@@ -247,30 +249,28 @@ class AutonomousExperimenterGP():
         ######################
         ######################
         self.gp_optimizer = GPOptimizer(self.x_data, self.y_data,
-            init_hyperparameters = hyperparameters,
-            hyperparameter_bounds = hyperparameter_bounds,
-            noise_variances = self.noise_variances,
-            compute_device = compute_device,
-            gp_kernel_function = kernel_function,
-            gp_kernel_function_grad = None,
-            gp_noise_function = noise_function,
-            gp_noise_function_grad = None,
-            gp_mean_function = prior_mean_function,
-            gp_mean_function_grad = None,
-            sparse_mode = sparse_mode,
-            gp2Scale = gp2Scale,
-            gp2Scale_dask_client = gp2Scale_dask_client,
-            gp2Scale_batch_size = gp2Scale_batch_size,
-            normalize_y = normalize_y,
-            store_inv = store_inv,
-            ram_economy = ram_economy,
-            args = args,
-            info = info,
-            cost_function = cost_function,
-            cost_function_parameters = cost_function_parameters,
-            cost_update_function = cost_update_function)
-
-
+                                        init_hyperparameters=hyperparameters,
+                                        hyperparameter_bounds=hyperparameter_bounds,
+                                        noise_variances=self.noise_variances,
+                                        compute_device=compute_device,
+                                        gp_kernel_function=kernel_function,
+                                        gp_kernel_function_grad=None,
+                                        gp_noise_function=noise_function,
+                                        gp_noise_function_grad=None,
+                                        gp_mean_function=prior_mean_function,
+                                        gp_mean_function_grad=None,
+                                        sparse_mode=sparse_mode,
+                                        gp2Scale=gp2Scale,
+                                        gp2Scale_dask_client=gp2Scale_dask_client,
+                                        gp2Scale_batch_size=gp2Scale_batch_size,
+                                        normalize_y=normalize_y,
+                                        store_inv=store_inv,
+                                        ram_economy=ram_economy,
+                                        args=args,
+                                        info=info,
+                                        cost_function=cost_function,
+                                        cost_function_parameters=cost_function_parameters,
+                                        cost_update_function=cost_update_function)
 
         # init costs
         logger.info(inspect.cleandoc("""#
@@ -280,7 +280,7 @@ class AutonomousExperimenterGP():
         ##################################################################################"""))
 
     ###################################################################################
-    def train(self, init_hyperparameters = None, pop_size=10, tol=0.0001, max_iter=20, method="global", constraints = ()):
+    def train(self, init_hyperparameters=None, pop_size=10, tol=0.0001, max_iter=20, method="global", constraints=()):
         """
         This function finds the maximum of the log marginal likelihood and therefore trains the GP (synchronously).
         The GP prior will automatically be updated with the new hyperparameters after the training.
@@ -297,7 +297,7 @@ class AutonomousExperimenterGP():
         max_iter : int, optional
             Maximum number of iterations for global and local optimizers. Default = 120.
         method : str, optional
-            Method to be used for the training. Default is `'global'` which means
+            Method to be used for the training. Default is `global` which means
             a differential evolution algorithm is run with the specified parameters.
             The options are `global` or `local`, or `mcmc`.
         constraints : tuple of object instances, optional
@@ -307,15 +307,16 @@ class AutonomousExperimenterGP():
         """
 
         self.gp_optimizer.train(
-            hyperparameter_bounds = self.hyperparameter_bounds,
-            init_hyperparameters = init_hyperparameters,
+            hyperparameter_bounds=self.hyperparameter_bounds,
+            init_hyperparameters=init_hyperparameters,
             method=method,
             pop_size=pop_size,
             tolerance=tol,
             max_iter=max_iter,
-            constraints = constraints)
+            constraints=constraints)
 
-    def train_async(self, init_hyperparameters = None, max_iter=10000, local_method="L-BFGS-B", global_method="genetic", constraints = ()):
+    def train_async(self, init_hyperparameters=None, max_iter=10000, local_method="L-BFGS-B", global_method="genetic",
+                    constraints=()):
         """
         Function to train the Gaussian Process asynchronously using the HGDL optimizer. 
         The use is entirely optional; this function will be called
@@ -335,27 +336,27 @@ class AutonomousExperimenterGP():
         local_method : str, optional
             Local method to be used inside HGDL. Many scipy.optimize.minimize methods
             can be used, or a user-defined callable. Please read the HGDL docs for more information.
-            Default = `'L-BFGS-B'`.
+            Default = `L-BFGS-B`.
         global_method : str, optional
             Local method to be used inside HGDL. Please read the HGDL docs for more information.
-            Default = `'genetic'`.
+            Default = `genetic`.
         constraints : tuple of object instances, optional
             Equality and inequality constraints for the optimization.
-            See `'hgdl.readthedocs.io'` for setting up constraints.
+            See `hgdl.readthedocs.io` for setting up constraints.
         """
 
         if self.training_dask_client is None: self.training_dask_client = dask.distributed.Client()
 
         logger.info("AutonomousExperimenter starts async training with dask client:")
         self.opt_obj = self.gp_optimizer.train_async(
-            hyperparameter_bounds = self.hyperparameter_bounds,
-            init_hyperparameters = init_hyperparameters,
+            hyperparameter_bounds=self.hyperparameter_bounds,
+            init_hyperparameters=init_hyperparameters,
             max_iter=max_iter,
             local_optimizer=local_method,
             global_optimizer=global_method,
-            constraints = constraints,
+            constraints=constraints,
             dask_client=self.training_dask_client
-            )
+        )
         logger.info("The Autonomous Experimenter started an instance of the asynchronous training.")
         self.async_train_in_progress = True
 
@@ -388,9 +389,10 @@ class AutonomousExperimenterGP():
         """
         if self.async_train_in_progress:
             self.gp_optimizer.update_hyperparameters(self.opt_obj)
-            logger.info("The Autonomus Experimenter updated the hyperparameters")
+            logger.info("The Autonomous Experimenter updated the hyperparameters")
         else:
-            logger.warning("The autonomous experimenter could not find an instance of asynchronous training. Therefore no update.")
+            logger.warning(
+                "The autonomous experimenter could not find an instance of asynchronous training. Therefore no update.")
         logger.info("hps: {}", self.gp_optimizer.hyperparameters)
 
     def _tell(self, x, y, v, vp=None):
@@ -399,23 +401,22 @@ class AutonomousExperimenterGP():
         else:
             self.gp_optimizer.tell(x, y, noise_variances=v, output_positions=vp)
 
-
     def _ask(self,
-            bounds=None,
-            position=None,
-            x_out = None,
-            n=1,
-            acquisition_function="variance",
-            method="global",
-            pop_size=20,
-            max_iter=20,
-            tol=1e-6,
-            constraints = (),
-            x0=None,
-            vectorized = True,
-            info = False,
-            candidate_set=None,
-            dask_client=None):
+             bounds=None,
+             position=None,
+             x_out=None,
+             n=1,
+             acquisition_function="variance",
+             method="global",
+             pop_size=20,
+             max_iter=20,
+             tol=1e-6,
+             constraints=(),
+             x0=None,
+             vectorized=True,
+             info=False,
+             candidate_set=None,
+             dask_client=None):
 
         if x_out is None:
             res = self.gp_optimizer.ask(
@@ -444,8 +445,6 @@ class AutonomousExperimenterGP():
                 dask_client=dask_client)
         return res
 
-
-
     def _extract_data(self):
         x, y, v, t, c = self.data.extract_data()
         return x, y, v, t, c, None
@@ -466,8 +465,8 @@ class AutonomousExperimenterGP():
            acq_func_opt_tol_adjust=0.1,
            number_of_suggested_measurements=1,
            checkpoint_filename=None,
-           constraints = (),
-           break_condition_callable = lambda n: False
+           constraints=(),
+           break_condition_callable=lambda n: False
            ):
         """
         Function to start the autonomous-data-acquisition loop.
@@ -491,7 +490,7 @@ class AutonomousExperimenterGP():
             Calls the `update_cost_function` at the given number of measurements.
             Default = ()
         acq_func_opt_setting : Callable, optional
-            A callable that accepts as input the iteration index and returns either `'local'`, `'global'`, `'hgdl'`.
+            A callable that accepts as input the iteration index and returns either `local`, `global`, `hgdl`.
             This switches between local gradient-based, global and hybrid optimization for the acquisition function.
             The default is `lambda number: "global" if number % 2 == 0 else "local"`.
         training_opt_max_iter : int, optional
@@ -530,19 +529,18 @@ class AutonomousExperimenterGP():
             Autonomous loop will stop when this function returns True. The function takes as
             input a gpcam.AutonomousExperimenterGP instance.
         """
-        #set up
+        # set up
         start_time = time.time()
         start_date_time = time.strftime("%Y-%m-%d_%H_%M_%S", time.localtime())
         logger.info("Starting the autonomous loop...")
         i = 0
         n_measurements = len(self.x_data)
-        #start the loop
+        # start the loop
         while n_measurements < N:
             logger.info("----------------------------")
             logger.info(f"iteration {i}")
             logger.info(f"Run Time: {time.time() - start_time} seconds")
             logger.info(f"Number of measurements {n_measurements}")
-
 
             # ask() for new suggestions
             current_position = self.x_data[-1]
@@ -550,14 +548,15 @@ class AutonomousExperimenterGP():
             current_method = acq_func_opt_setting(self)
             if number_of_suggested_measurements > 1 and current_method != "hgdl": current_method = "global"
             if current_method == "hgdl" and self.acq_func_opt_dask_client is None: self.acq_func_opt_dask_client = dask.distributed.Client()
-            try: x_out = self.data.dataset[-1]["output positions"]
-            except: x_out = None
-
+            try:
+                x_out = self.data.dataset[-1]["output positions"]
+            except:
+                x_out = None
 
             res = self._ask(
                 self.input_space_bounds,
                 position=current_position,
-                x_out = x_out,
+                x_out=x_out,
                 n=number_of_suggested_measurements,
                 acquisition_function=self.acquisition_function,
                 method=current_method,
@@ -573,13 +572,13 @@ class AutonomousExperimenterGP():
             if self.data.output_dim:
                 a = np.array(next_measurement_points)
                 b = np.array(self.vp[-1])
-                test_points = np.array([np.append(a[i],b[j]) for i in range(len(a)) for j in range(len(b))]) 
+                test_points = np.array([np.append(a[i], b[j]) for i in range(len(a)) for j in range(len(b))])
                 post_var = self.gp_optimizer.posterior_covariance(test_points)["v(x)"]
-            else: post_var = self.gp_optimizer.posterior_covariance(next_measurement_points)["v(x)"]
+            else:
+                post_var = self.gp_optimizer.posterior_covariance(next_measurement_points)["v(x)"]
             error = np.max(np.sqrt(post_var))
 
-
-            #adjust tolerances if necessary
+            # adjust tolerances if necessary
             if acq_func_opt_tol_adjust:
                 acq_func_opt_tol = abs(func_evals[0]) * acq_func_opt_tol_adjust
                 logger.info("acquisition function optimization tolerance changed to: {}", acq_func_opt_tol)
@@ -595,8 +594,7 @@ class AutonomousExperimenterGP():
             else:
                 self.data.dataset = self.data.dataset + self.instrument_function(new_data)
 
-
-            #receive new data
+            # receive new data
             logger.info("Data received")
             logger.info("Checking if data is clean ...")
             self.data.check_incoming_data()
@@ -606,21 +604,20 @@ class AutonomousExperimenterGP():
             logger.info("Communicating new data to the GP")
             self._tell(self.x_data, self.y_data, self.variances, vp)
 
-
             # retrain()
-            if any(n in retrain_async_at for n in range(n_measurements,len(self.x_data))) and n_measurements<N:
+            if any(n in retrain_async_at for n in range(n_measurements, len(self.x_data))) and n_measurements < N:
                 if self.training_dask_client is None: self.training_dask_client = dask.distributed.Client()
                 logger.info("    Starting a new asynchronous training after killing the current one.")
                 self.kill_training()
                 self.train_async(max_iter=10000)
-            elif any(n in retrain_globally_at for n in range(n_measurements,len(self.x_data))) and n_measurements<N:
+            elif any(n in retrain_globally_at for n in range(n_measurements, len(self.x_data))) and n_measurements < N:
                 self.kill_training()
                 logger.info("    Fresh optimization from scratch via global optimization")
                 self.train(pop_size=training_opt_pop_size,
                            tol=training_opt_tol,
                            max_iter=training_opt_max_iter,
                            method="global")
-            elif any(n in retrain_locally_at for n in range(n_measurements,len(self.x_data))) and n_measurements<N:
+            elif any(n in retrain_locally_at for n in range(n_measurements, len(self.x_data))) and n_measurements < N:
                 self.kill_training()
                 logger.info("    Fresh optimization from scratch via local optimization")
                 self.train(pop_size=training_opt_pop_size,
@@ -632,11 +629,10 @@ class AutonomousExperimenterGP():
                 self.update_hps()
             logger.info("    Training successfully concluded")
 
-            #run a user-defined callable
+            # run a user-defined callable
             if self.run_every_iteration is not None: self.run_every_iteration(self)
 
-
-            #save some data
+            # save some data
             if checkpoint_filename:
                 try:
                     np.save(checkpoint_filename, self.data.dataset)
@@ -646,16 +642,15 @@ class AutonomousExperimenterGP():
             # cost update
             if i in update_cost_func_at: self.gp_optimizer.update_cost_function(self.costs)
 
-
-            #break check
+            # break check
             if error < breaking_error: break
             if break_condition_callable(self): break
 
-            #update iteration numbers
+            # update iteration numbers
             i += 1
             n_measurements = len(self.x_data)
 
-        #clean up
+        # clean up
         logger.info("killing the client... and then we are done")
         self.kill_all_clients()
 
@@ -718,13 +713,13 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         of length V providing 'scores' for each position,
         such that the highest scored point will be measured next.
         Built-in functions can be used by one of the following keys:
-        `'variance'`, `'relative information entropy'`,
-        `'relative information entropy set'`, `'total correlation'`.
+        `variance`, `relative information entropy`,
+        `relative information entropy set`, `total correlation`.
         See GPOptimizer.ask() for a short explanation of these functions.
         In the multi-task case, it is highly recommended to
         deploy a user-defined acquisition function due to the intricate relationship
         of posterior distributions at different points in the output space.
-        If None, the default function `'variance'`, meaning
+        If None, the default function `variance`, meaning
         `fvgp.GP.posterior_covariance` with variance_only = True will be used.
         The acquisition function can be a callable of the form my_func(x,gpcam.GPOptimizer)
         which will be maximized (!!!), so make sure desirable new measurement points
@@ -819,18 +814,18 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
     def __init__(self,
                  input_space_bounds,
                  output_number,
-                 output_dim = 1,
-                 hyperparameters = None,
-                 hyperparameter_bounds = None,
+                 output_dim=1,
+                 hyperparameters=None,
+                 hyperparameter_bounds=None,
                  instrument_function=None,
                  init_dataset_size=None,
                  acquisition_function="variance",
                  cost_function=None,
                  cost_update_function=None,
-                 cost_function_parameters={},
+                 cost_function_parameters=None,
                  kernel_function=None,
                  prior_mean_function=None,
-                 noise_function = None,
+                 noise_function=None,
                  run_every_iteration=None,
                  x_data=None, y_data=None, noise_variances=None, vp=None, dataset=None,
                  communicate_full_dataset=False,
@@ -838,19 +833,21 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
                  store_inv=False,
                  training_dask_client=None,
                  acq_func_opt_dask_client=None,
-                 sparse_mode = False,
-                 gp2Scale = False,
-                 gp2Scale_dask_client = None,
-                 gp2Scale_batch_size = 10000,
-                 normalize_y = False,
+                 sparse_mode=False,
+                 gp2Scale=False,
+                 gp2Scale_dask_client=None,
+                 gp2Scale_batch_size=10000,
+                 normalize_y=False,
                  ram_economy=True,
                  info=False,
-                 args = None
+                 args=None
                  ):
 
         ################################
-        #getting the data ready#########
+        # getting the data ready#########
         ################################
+        if cost_function_parameters is None:
+            cost_function_parameters = {}
         dim = len(input_space_bounds)
         self.input_space_bounds = input_space_bounds
         self.instrument_function = instrument_function
@@ -891,30 +888,29 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         ######################
         self.gp_optimizer = fvGPOptimizer(
             self.x_data, self.y_data,
-            output_space_dimension = output_dim,
-            init_hyperparameters = hyperparameters,
-            hyperparameter_bounds = hyperparameter_bounds,
-            noise_variances = self.noise_variances,
-            compute_device = compute_device,
-            gp_kernel_function = kernel_function,
-            gp_kernel_function_grad = None,
-            gp_noise_function = noise_function,
-            gp_noise_function_grad = None,
-            gp_mean_function = prior_mean_function,
-            gp_mean_function_grad = None,
-            sparse_mode = sparse_mode,
-            gp2Scale = gp2Scale,
-            gp2Scale_dask_client = gp2Scale_dask_client,
-            gp2Scale_batch_size = gp2Scale_batch_size,
-            normalize_y = normalize_y,
-            store_inv = store_inv,
-            ram_economy = ram_economy,
-            args = args,
-            info = info,
-            cost_function = cost_function,
-            cost_function_parameters = cost_function_parameters,
-            cost_update_function = cost_update_function)
-
+            output_space_dimension=output_dim,
+            init_hyperparameters=hyperparameters,
+            hyperparameter_bounds=hyperparameter_bounds,
+            noise_variances=self.noise_variances,
+            compute_device=compute_device,
+            gp_kernel_function=kernel_function,
+            gp_kernel_function_grad=None,
+            gp_noise_function=noise_function,
+            gp_noise_function_grad=None,
+            gp_mean_function=prior_mean_function,
+            gp_mean_function_grad=None,
+            sparse_mode=sparse_mode,
+            gp2Scale=gp2Scale,
+            gp2Scale_dask_client=gp2Scale_dask_client,
+            gp2Scale_batch_size=gp2Scale_batch_size,
+            normalize_y=normalize_y,
+            store_inv=store_inv,
+            ram_economy=ram_economy,
+            args=args,
+            info=info,
+            cost_function=cost_function,
+            cost_function_parameters=cost_function_parameters,
+            cost_update_function=cost_update_function)
 
         logger.info(inspect.cleandoc("""#
         ##################################################################################
@@ -925,4 +921,3 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
     def _extract_data(self):
         x, y, v, t, c, vp = self.data.extract_data()
         return x, y, v, t, c, vp
-
