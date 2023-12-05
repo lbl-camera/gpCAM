@@ -28,7 +28,7 @@ def instrument2(data, instrument_dict=None):
     return data
 
 def mt_kernel(x1,x2,hps,obj):
-    d = obj._get_distance_matrix(x1,x2)
+    d = obj.get_distance_matrix(x1,x2)
     return np.exp(-d)
 
 
