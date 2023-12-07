@@ -143,8 +143,6 @@ docs/build/
 # PyCharm
 .idea/
 
-# data files
-*.npy
 
 # dask locks
 *.lock
