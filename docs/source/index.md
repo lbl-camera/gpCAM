@@ -31,7 +31,6 @@ examples/basic_test.ipynb
 examples/advanced_test.ipynb
 examples/1dSingleTaskAcqFuncTest.ipynb
 examples/GPOptimizer_SingleTaskTest.ipynb
-examples/gp2ScaleTest.ipynb 
 examples/GPONonEuclideanInputSpaces.ipynb
 examples/GPOptimizer_gp2ScaleTest.ipynb
 examples/GPOptimizer_MultiTaskTest.ipynb

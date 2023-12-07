@@ -312,7 +312,7 @@ class GPOptimizer(GP):
             self.input_dim = x_data.shape[1]
         else:
             self.input_dim = 1
-            warnings.warn("gpCAM on non-Euclidean inputs is still experimental. Use with cautions!")
+            warnings.warn("gpCAM on non-Euclidean inputs is still experimental. Use with caution!")
 
         super().__init__(
             self.input_dim,
