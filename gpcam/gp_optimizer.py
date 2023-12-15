@@ -8,8 +8,10 @@ from . import surrogate_model as sm
 import warnings
 
 
-# TODO
-#   check all docstrings for fvgp specific stuff (fvgp.GP...)
+# TODO (for fvgp and gpCAM)
+#   tell() should in default mode only update the covariance, this is especially important for online gp2Scale
+#   new MCMC (in development in fvgp)
+#   variational inference in fvgp
 
 class GPOptimizer(GP):
     """
@@ -28,7 +30,8 @@ class GPOptimizer(GP):
 
 
     All posterior evaluation functions are inherited from :py:class:`fvgp.GP` class.
-    Check there for a full list of capabilities.
+    Check there for a full list of capabilities. In addition, other methods
+    like kernel definitions and methods for validation are available.
     These include, but are not limited to:
 
     :py:meth:`fvgp.GP.posterior_mean`
@@ -63,7 +66,7 @@ class GPOptimizer(GP):
 
     :py:meth:`fvgp.GP.posterior_probability_grad`
 
-    Several kernel functions are also inherited:
+    Kernel functions:
 
     :py:meth:`fvgp.GP.squared_exponential_kernel`
 
@@ -94,6 +97,29 @@ class GPOptimizer(GP):
     :py:meth:`fvgp.GP.wendland_anisotropic`
 
     :py:meth:`fvgp.GP.non_stat_kernel`
+
+    :py:meth:`fvgp.GP.non_stat_kernel_gradient`
+
+    :py:meth:`fvgp.GP.get_distance_matrix`
+
+    Other methods:
+
+    :py:meth:`fvgp.GP.crps`
+
+    :py:meth:`fvgp.GP.rmse`
+
+    :py:meth:`fvgp.GP.make_2d_x_pred`
+
+    :py:meth:`fvgp.GP.make_1d_x_pred`
+
+    :py:meth:`fvgp.GP.log_likelihood`
+
+    :py:meth:`fvgp.GP.neg_log_likelihood`
+
+    :py:meth:`fvgp.GP.neg_log_likelihood_gradient`
+
+    :py:meth:`fvgp.GP.neg_log_likelihood_hessian`
+
 
     Parameters
     ----------
@@ -360,7 +386,7 @@ class GPOptimizer(GP):
             "cost function parameters": self.cost_function_parameters,
             "cost function": self.cost_function}
 
-    def evaluate_acquisition_function(self, x, acquisition_function="variance", origin=None, args=None):
+    def evaluate_acquisition_function(self, x, acquisition_function="variance", origin=None):
         """
         Function to evaluate the acquisition function.
 
@@ -374,8 +400,6 @@ class GPOptimizer(GP):
             The default is `variance`.
         origin : np.ndarray, optional
             If a cost function is provided this 1d numpy array of length D is used as the origin of motion.
-        args : any, optional
-            Arguments that will be communicated to your acquisition function.
 
         Return
         ------
@@ -418,6 +442,9 @@ class GPOptimizer(GP):
     ##############################################################
     def train(
             self,
+            objective_function=None,
+            objective_function_gradient=None,
+            objective_function_hessian=None,
             hyperparameter_bounds=None,
             init_hyperparameters=None,
             method="global",
@@ -437,6 +464,22 @@ class GPOptimizer(GP):
 
         Parameters
         ----------
+        objective_function : callable, optional
+            The function that will be MINIMIZED for training the GP. The form of the function is f(hyperparameters=hps)
+            and returns a scalar. This function can be used to train via non-standard user-defined objectives.
+            The default is the negative log marginal likelihood.
+        objective_function_gradient : callable, optional
+            The gradient of the function that will be MINIMIZED for training the GP.
+            The form of the function is f(hyperparameters=hps)
+            and returns a vector of len(hps). This function can be used to train
+            via non-standard user-defined objectives.
+            The default is the gradient of the negative log marginal likelihood.
+        objective_function_hessian : callable, optional
+            The hessian of the function that will be MINIMIZED for training the GP.
+            The form of the function is f(hyperparameters=hps)
+            and returns a matrix of shape(len(hps),len(hps)). This function can be used to train
+            via non-standard user-defined objectives.
+            The default is the hessian of the negative log marginal likelihood.
         hyperparameter_bounds : np.ndarray, optional
             A numpy array of shape (D x 2), defining the bounds for the optimization.
             The default is an array of bounds of the length of the initial hyperparameters
@@ -481,6 +524,9 @@ class GPOptimizer(GP):
         """
 
         super().train(
+            objective_function=objective_function,
+            objective_function_gradient=objective_function_gradient,
+            objective_function_hessian=objective_function_hessian,
             hyperparameter_bounds=hyperparameter_bounds,
             init_hyperparameters=init_hyperparameters,
             method=method,
@@ -497,6 +543,9 @@ class GPOptimizer(GP):
     ##############################################################
     def train_async(
             self,
+            objective_function=None,
+            objective_function_gradient=None,
+            objective_function_hessian=None,
             hyperparameter_bounds=None,
             init_hyperparameters=None,
             max_iter=10000,
@@ -515,6 +564,22 @@ class GPOptimizer(GP):
 
         Parameters
         ----------
+        objective_function : callable, optional
+            The function that will be MINIMIZED for training the GP. The form of the function is f(hyperparameters=hps)
+            and returns a scalar. This function can be used to train via non-standard user-defined objectives.
+            The default is the negative log marginal likelihood.
+        objective_function_gradient : callable, optional
+            The gradient of the function that will be MINIMIZED for training the GP.
+            The form of the function is f(hyperparameters=hps)
+            and returns a vector of len(hps). This function can be used to train
+            via non-standard user-defined objectives.
+            The default is the gradient of the negative log marginal likelihood.
+        objective_function_hessian : callable, optional
+            The hessian of the function that will be MINIMIZED for training the GP.
+            The form of the function is f(hyperparameters=hps)
+            and returns a matrix of shape(len(hps),len(hps)). This function can be used to train
+            via non-standard user-defined objectives.
+            The default is the hessian of the negative log marginal likelihood.
         hyperparameter_bounds : np.ndarray, optional
             A numpy array of shape (D x 2), defining the bounds for the optimization.
             The default is an array of bounds for the default kernel D = input_space_dim + 1
@@ -543,6 +608,9 @@ class GPOptimizer(GP):
         """
 
         opt_obj = super().train_async(
+            objective_function=objective_function,
+            objective_function_gradient=objective_function_gradient,
+            objective_function_hessian=objective_function_hessian,
             hyperparameter_bounds=hyperparameter_bounds,
             init_hyperparameters=init_hyperparameters,
             max_iter=max_iter,
@@ -598,6 +666,7 @@ class GPOptimizer(GP):
     ##############################################################
     def ask(self,
             bounds=None,
+            candidates=None,
             position=None,
             n=1,
             acquisition_function="variance",
@@ -609,7 +678,6 @@ class GPOptimizer(GP):
             x0=None,
             vectorized=True,
             info=False,
-            candidate_set=None,
             dask_client=None):
         """
         Given that the acquisition device is at "position", this function `ask()`s for
@@ -623,6 +691,13 @@ class GPOptimizer(GP):
         bounds : np.ndarray, optional
             A numpy array of floats of shape D x 2 describing the
             search range. While this is optional, bounds or a candidate set has to be provided.
+        candidates : list or np.ndarray, optional
+            If provided, ask will statistically choose the best candidate from the set.
+            This is usually desirable for non-Euclidean inputs but can be used either way. If candidates are
+            Euclidean, they should be provided as 2d numpy array. Bounds
+            or candidates have to be specified, not both. If N optimal solutions
+            are requested (n=N), then a maximum of 100*N candidates are being considered randomly.
+            If fewer candidates are provided, all will be considered.
         position : np.ndarray, optional
             Current position in the input space. If a cost function is 
             provided this position will be taken into account
@@ -694,9 +769,6 @@ class GPOptimizer(GP):
             Print optimization information. The default is False.
         constraints : tuple of object instances, optional
             scipy constraints instances, depending on the used optimizer.
-        candidate_set : set, optional
-            If provided, ask will statistically choose the best candidate from the set.
-            This is usually desirable for non-Euclidean inputs.
         dask_client : distributed.client.Client, optional
             A Dask Distributed Client instance for distributed
             `acquisition_function` optimization. If None is provided,
@@ -709,17 +781,21 @@ class GPOptimizer(GP):
             that, only in case of `method` = `hgdl` can be queried for solutions.
         """
 
-        if candidate_set is None:
-            candidate_set = {}
         logger.info("ask() initiated with hyperparameters: {}", self.hyperparameters)
         logger.info("optimization method: {}", method)
         logger.info("bounds:\n{}", bounds)
         logger.info("acq func: {}", acquisition_function)
 
-        if bounds is not None and candidate_set:
-            raise Exception("Bounds and candidate set provided. Only one would be given.")
+        #check for bounds or candidate set
+        if bounds is not None and candidates is not None:
+            raise Exception("Bounds and candidates provided. Only one should be given.")
+        #check that bounds, if they exist, are 2d
         if bounds is not None and np.ndim(bounds) != 2:
             raise Exception("The bounds parameter has to be a 2d np.ndarray.")
+        #for user-defined acquisition functions, use "hgdl" if n>1
+        if n > 1 and callable(acquisition_function):
+            method = "hgdl"
+        #make sure that if there are bounds and n>1, method has to be global, if not hgdl
         if bounds is not None and n > 1 and method != "hgdl":
             vectorized = False
             method = "global"
@@ -744,7 +820,7 @@ class GPOptimizer(GP):
             cost_function_parameters=self.cost_function_parameters,
             optimization_x0=x0,
             constraints=constraints,
-            candidate_set=candidate_set,
+            candidates=candidates,
             vectorized=vectorized,
             info=info,
             dask_client=dask_client)
@@ -790,7 +866,7 @@ class GPOptimizer(GP):
 class fvGPOptimizer(fvGP):
     """
     This class is an optimization wrapper around the :doc:`fvgp <fvgp:index>`
-    package for multi-task (scalar-valued) Gaussian Processes.
+    package for multitask (scalar-valued) Gaussian Processes.
     Gaussian Processes can be initialized, trained, and conditioned; also
     the posterior can be evaluated and used via acquisition functions,
     and plugged into optimizers to find its maxima. This class inherits many methods from
@@ -808,7 +884,7 @@ class fvGPOptimizer(fvGP):
     N ... arbitrary integers (N1, N2,...)
 
 
-    The main logic of :doc:`fvgp <fvgp:index>` is that any multi-task GP is just a single-task GP
+    The main logic of :doc:`fvgp <fvgp:index>` is that any multitask GP is just a single-task GP
     over a Cartesian product space of input and output space, as long as the kernel
     is flexible enough, so prepare to work on your kernel. This is the best
     way to give the user optimal control and power. At various instances, for instances
@@ -823,7 +899,7 @@ class fvGPOptimizer(fvGP):
 
     [0.2, 0.3,1],[0.9,0.6,1]]
     
-    This has to be understood and taken into account when customizing :doc:`fvgp <fvgp:index>` for multi-task
+    This has to be understood and taken into account when customizing :doc:`fvgp <fvgp:index>` for multitask
     use.
 
     Parameters
@@ -944,7 +1020,7 @@ class fvGPOptimizer(fvGP):
         The default is False.
     gp2Scale_dask_client : distributed.client.Client, optional
         A dask client for gp2Scale to distribute covariance computations over. Has to contain at least 3 workers.
-        On HPC architecture, this client is provided by the jobscript. Please have a look at the examples.
+        On HPC architecture, this client is provided by the job script. Please have a look at the examples.
         A local client is used as default.
     gp2Scale_batch_size : int, optional
         Matrix batch size for distributed computing in gp2Scale. The default is 10000.
@@ -1180,6 +1256,9 @@ class fvGPOptimizer(fvGP):
 
     ##############################################################
     def train(self,
+              objective_function=None,
+              objective_function_gradient=None,
+              objective_function_hessian=None,
               hyperparameter_bounds=None,
               init_hyperparameters=None,
               method="global",
@@ -1199,6 +1278,22 @@ class fvGPOptimizer(fvGP):
 
         Parameters
         ----------
+        objective_function : callable, optional
+            The function that will be MINIMIZED for training the GP. The form of the function is f(hyperparameters=hps)
+            and returns a scalar. This function can be used to train via non-standard user-defined objectives.
+            The default is the negative log marginal likelihood.
+        objective_function_gradient : callable, optional
+            The gradient of the function that will be MINIMIZED for training the GP.
+            The form of the function is f(hyperparameters=hps)
+            and returns a vector of len(hps). This function can be used to train
+            via non-standard user-defined objectives.
+            The default is the gradient of the negative log marginal likelihood.
+        objective_function_hessian : callable, optional
+            The hessian of the function that will be MINIMIZED for training the GP.
+            The form of the function is f(hyperparameters=hps)
+            and returns a matrix of shape(len(hps),len(hps)). This function can be used to train
+            via non-standard user-defined objectives.
+            The default is the hessian of the negative log marginal likelihood.
         hyperparameter_bounds : np.ndarray, optional
             A numpy array of shape (D x 2), defining the bounds for the optimization.
             The default is an array of bounds of the length of the initial hyperparameters
@@ -1248,9 +1343,12 @@ class fvGPOptimizer(fvGP):
                 init_hyperparameters is None and self.hyperparameters is None):
             raise Exception(
                 "If a kernel is provided, init_hyperparameters and hyperparameter_bounds\
-                 have to be provided in the traning or at initialization.")
+                 have to be provided in the training or at initialization.")
 
         super().train(
+            objective_function=objective_function,
+            objective_function_gradient=objective_function_gradient,
+            objective_function_hessian=objective_function_hessian,
             hyperparameter_bounds=hyperparameter_bounds,
             init_hyperparameters=init_hyperparameters,
             method=method,
@@ -1266,6 +1364,9 @@ class fvGPOptimizer(fvGP):
 
     ##############################################################
     def train_async(self,
+                    objective_function=None,
+                    objective_function_gradient=None,
+                    objective_function_hessian=None,
                     hyperparameter_bounds=None,
                     init_hyperparameters=None,
                     max_iter=10000,
@@ -1284,6 +1385,22 @@ class fvGPOptimizer(fvGP):
 
         Parameters
         ----------
+        objective_function : callable, optional
+            The function that will be MINIMIZED for training the GP. The form of the function is f(hyperparameters=hps)
+            and returns a scalar. This function can be used to train via non-standard user-defined objectives.
+            The default is the negative log marginal likelihood.
+        objective_function_gradient : callable, optional
+            The gradient of the function that will be MINIMIZED for training the GP.
+            The form of the function is f(hyperparameters=hps)
+            and returns a vector of len(hps). This function can be used to train
+            via non-standard user-defined objectives.
+            The default is the gradient of the negative log marginal likelihood.
+        objective_function_hessian : callable, optional
+            The hessian of the function that will be MINIMIZED for training the GP.
+            The form of the function is f(hyperparameters=hps)
+            and returns a matrix of shape(len(hps),len(hps)). This function can be used to train
+            via non-standard user-defined objectives.
+            The default is the hessian of the negative log marginal likelihood.
         hyperparameter_bounds : np.ndarray, optional
             A numpy array of shape (D x 2), defining the bounds for the optimization.
             The default is an array of bounds for the default kernel D = input_space_dim + 1
@@ -1295,7 +1412,7 @@ class fvGPOptimizer(fvGP):
         max_iter : int, optional
             Maximum number of epochs for HGDL. Default = 10000.
         local_optimizer : str, optional
-            Defining the local optimizer. Default = "L-BFGS-B", most `scipy.opimize.minimize` functions are permissible.
+            Defining the local optimizer. Default = `L-BFGS-B', most `scipy.optimize.minimize` functions are permissible.
         global_optimizer : str, optional
             Defining the global optimizer. Only applicable to method = hgdl. Default = `genetic`
         constraints : tuple of hgdl.NonLinearConstraint instances, optional
@@ -1316,9 +1433,12 @@ class fvGPOptimizer(fvGP):
                 init_hyperparameters is None and self.hyperparameters is None):
             raise Exception(
                 "If a kernel is provided, init_hyperparameters and hyperparameter_bounds \
-                have to be provided in the traning or at initialization.")
+                have to be provided in the training or at initialization.")
 
         opt_obj = super().train_async(
+            objective_function=objective_function,
+            objective_function_gradient=objective_function_gradient,
+            objective_function_hessian=objective_function_hessian,
             hyperparameter_bounds=hyperparameter_bounds,
             init_hyperparameters=init_hyperparameters,
             max_iter=max_iter,
@@ -1384,20 +1504,22 @@ class fvGPOptimizer(fvGP):
             constraints=(),
             x0=None,
             vectorized=True,
-            candidate_set=None,
+            candidates=None,
             info=False,
             dask_client=None):
 
         """
-        Given that the acquisition device is at "position", the function ask()s for
+        Given that the acquisition device is at `position`, the function ask()s for
         "n" new optimal points within certain "bounds" and using the optimization setup:
-        "acquisition_function_pop_size", "max_iter" and "tol".
+        "acquisition_function_pop_size", `max_iter` and `tol`.
 
         Parameters
         ----------
         bounds : np.ndarray
             A numpy array of floats of shape D x 2 describing the
             search range.
+        candidates : list, optional
+            Not implemented yet for multitask fvgp.
         x_out : np.ndarray
             The position indicating where in the output space the acquisition function should be evaluated.
             This array is of shape (No, Do).
@@ -1420,7 +1542,7 @@ class fvGPOptimizer(fvGP):
             `variance`, `relative information entropy`,
             `relative information entropy set`, `total correlation`.
             See GPOptimizer.ask() for a short explanation of these functions.
-            In the multi-task case, it is highly recommended to
+            In the multitask case, it is highly recommended to
             deploy a user-defined acquisition function due to the intricate relationship
             of posterior distributions at different points in the output space.
             If None, the default function `variance`, meaning
@@ -1457,8 +1579,6 @@ class fvGPOptimizer(fvGP):
             False if method is not global.
         info : bool, optional
             Print optimization information. The default is False.
-        candidate_set : set, optional
-            Not implemented yet for fvgp.
         constraints : tuple of object instances, optional
             Either a tuple of hgdl.constraints.NonLinearConstraint 
             or scipy constraints instances, depending on the used optimizer.
@@ -1469,19 +1589,21 @@ class fvGPOptimizer(fvGP):
 
         Return
         ------
-        dictionary : {'x': np.array(maxima), "f(x)" : np.array(func_evals), "opt_obj" : opt_obj}
+        dictionary : {'x': np.array(maxima), 'f(x)' : np.array(func_evals), 'opt_obj' : opt_obj}
             Found maxima of the acquisition function, the associated function values and optimization object
             that, only in case of `method` = `hgdl` can be queried for solutions.
         """
 
-        if candidate_set is None: candidate_set = set()
         logger.info("ask() initiated with hyperparameters: {}", self.hyperparameters)
         logger.info("optimization method: {}", method)
         logger.info("bounds:\n{}", bounds)
         logger.info("acq func: {}", acquisition_function)
 
-        if candidate_set: raise Exception("Non-Euclidean fvgp.ask() not implemented yet.")
+        if candidates: raise Exception("Non-Euclidean fvgp.ask() not implemented yet.")
         if np.ndim(bounds) != 2: raise Exception("The bounds parameter has to be a 2d numpy array.")
+        #for user-defined acquisition functions, use "hgdl" if n>1
+        if n > 1 and callable(acquisition_function):
+            method = "hgdl"
         if n > 1 and method != "hgdl":
             vectorized = False
             method = "global"
@@ -1505,7 +1627,7 @@ class fvGPOptimizer(fvGP):
             cost_function_parameters=self.cost_function_parameters,
             optimization_x0=x0,
             constraints=constraints,
-            candidate_set=candidate_set,
+            candidates=candidates,
             vectorized=vectorized,
             x_out=x_out,
             info=info,
