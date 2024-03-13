@@ -405,7 +405,7 @@ class GPOptimizer(GP):
             logger.error("Evaluating the acquisition function was not successful.")
             raise Exception("Evaluating the acquisition function was not successful.", ex)
 
-    def tell(self, x, y, noise_variances=None):
+    def tell(self, x, y, noise_variances=None, overwrite=True):
         """
         This function can tell() the gp_optimizer class
         the data that was collected. The data will instantly be used to update the gp data.
@@ -422,7 +422,7 @@ class GPOptimizer(GP):
             Point value variances (of shape U x 1 or U) to be communicated to the Gaussian Process.
             If not provided, the GP will 1% of the y values as variances.
         """
-        super().update_gp_data(x, y, noise_variances=noise_variances)
+        super().update_gp_data(x, y, noise_variances=noise_variances, overwrite=overwrite)
 
     ##############################################################
     def train(
