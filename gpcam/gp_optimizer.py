@@ -210,17 +210,6 @@ class GPOptimizer(GP):
         hyperparameters. If `gp_noise_function` is provided but no gradient function,
         a finite-difference approximation will be used.
         The same rules regarding ram economy as for the kernel definition apply here.
-    normalize_y : bool, optional
-        If True, the data values `y_data` will be normalized to max(y_data) = 1, min(y_data) = 0. 
-        The default is False.
-        Variances will be updated accordingly.
-    sparse_mode : bool, optional
-        When sparse_mode is enabled, the algorithm will use a user-defined kernel
-        function or, if that's not provided, an anisotropic Wendland kernel
-        and check for sparsity in the prior covariance. If sparsity is present,
-        sparse operations will be used to speed up computations.
-        Caution: the covariance is still stored at first in a dense format.
-        For more extreme scaling, check out the gp2Scale option.
     gp2Scale: bool, optional
         Turns on gp2Scale. This will distribute the covariance computations across multiple workers.
         This is an advanced feature for HPC GPs up to 10
@@ -320,11 +309,9 @@ class GPOptimizer(GP):
             gp_noise_function_grad=None,
             gp_mean_function=None,
             gp_mean_function_grad=None,
-            sparse_mode=False,
             gp2Scale=False,
             gp2Scale_dask_client=None,
             gp2Scale_batch_size=10000,
-            normalize_y=False,
             store_inv=True,
             ram_economy=False,
             args=None,
@@ -354,11 +341,9 @@ class GPOptimizer(GP):
             gp_noise_function_grad=gp_noise_function_grad,
             gp_mean_function=gp_mean_function,
             gp_mean_function_grad=gp_mean_function_grad,
-            sparse_mode=sparse_mode,
             gp2Scale=gp2Scale,
             gp2Scale_dask_client=gp2Scale_dask_client,
             gp2Scale_batch_size=gp2Scale_batch_size,
-            normalize_y=normalize_y,
             store_inv=store_inv,
             ram_economy=ram_economy,
             args=args,
