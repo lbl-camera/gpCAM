@@ -133,12 +133,12 @@ class GPOptimizer(GP):
         The default is a random draw from a uniform distribution
         within hyperparameter_bounds, with a shape appropriate
         for the default kernel (D + 1), which is an anisotropic Matern
-        kernel with automatic relevance determination (ARD). If sparse_node or gp2Scale is
+        kernel with automatic relevance determination (ARD). If gp2Scale is
         enabled, the default kernel changes to the anisotropic Wendland kernel.
     hyperparameter_bounds : np.ndarray, optional
         A 2d numpy array of shape (N x 2), where N is the number of needed hyperparameters.
         The default is None, in which case the hyperparameter_bounds are estimated from the domain size
-        and the initial y_data. If normalize_y is True or the data changes significantly,
+        and the initial y_data. If the data changes significantly,
         the hyperparameters and the bounds should be changed/retrained. Initial hyperparameters and bounds
         can also be set in the train calls. The default only works for the default kernels.
     noise_variances : np.ndarray, optional
@@ -210,17 +210,6 @@ class GPOptimizer(GP):
         hyperparameters. If `gp_noise_function` is provided but no gradient function,
         a finite-difference approximation will be used.
         The same rules regarding ram economy as for the kernel definition apply here.
-    normalize_y : bool, optional
-        If True, the data values `y_data` will be normalized to max(y_data) = 1, min(y_data) = 0. 
-        The default is False.
-        Variances will be updated accordingly.
-    sparse_mode : bool, optional
-        When sparse_mode is enabled, the algorithm will use a user-defined kernel
-        function or, if that's not provided, an anisotropic Wendland kernel
-        and check for sparsity in the prior covariance. If sparsity is present,
-        sparse operations will be used to speed up computations.
-        Caution: the covariance is still stored at first in a dense format.
-        For more extreme scaling, check out the gp2Scale option.
     gp2Scale: bool, optional
         Turns on gp2Scale. This will distribute the covariance computations across multiple workers.
         This is an advanced feature for HPC GPs up to 10
@@ -320,11 +309,9 @@ class GPOptimizer(GP):
             gp_noise_function_grad=None,
             gp_mean_function=None,
             gp_mean_function_grad=None,
-            sparse_mode=False,
             gp2Scale=False,
             gp2Scale_dask_client=None,
             gp2Scale_batch_size=10000,
-            normalize_y=False,
             store_inv=True,
             ram_economy=False,
             args=None,
@@ -354,11 +341,9 @@ class GPOptimizer(GP):
             gp_noise_function_grad=gp_noise_function_grad,
             gp_mean_function=gp_mean_function,
             gp_mean_function_grad=gp_mean_function_grad,
-            sparse_mode=sparse_mode,
             gp2Scale=gp2Scale,
             gp2Scale_dask_client=gp2Scale_dask_client,
             gp2Scale_batch_size=gp2Scale_batch_size,
-            normalize_y=normalize_y,
             store_inv=store_inv,
             ram_economy=ram_economy,
             args=args,
@@ -420,7 +405,7 @@ class GPOptimizer(GP):
             logger.error("Evaluating the acquisition function was not successful.")
             raise Exception("Evaluating the acquisition function was not successful.", ex)
 
-    def tell(self, x, y, noise_variances=None):
+    def tell(self, x, y, noise_variances=None, overwrite=True):
         """
         This function can tell() the gp_optimizer class
         the data that was collected. The data will instantly be used to update the gp data.
@@ -436,8 +421,10 @@ class GPOptimizer(GP):
         noise_variances : np.ndarray, optional
             Point value variances (of shape U x 1 or U) to be communicated to the Gaussian Process.
             If not provided, the GP will 1% of the y values as variances.
+        overwrite : bool, optional
+            The default is True. Indicates if all previous data should be overwritten.
         """
-        super().update_gp_data(x, y, noise_variances=noise_variances)
+        super().update_gp_data(x, y, noise_variances=noise_variances, overwrite=overwrite)
 
     ##############################################################
     def train(
@@ -786,6 +773,8 @@ class GPOptimizer(GP):
         logger.info("bounds:\n{}", bounds)
         logger.info("acq func: {}", acquisition_function)
 
+        assert isinstance(vectorized, bool)
+
         #check for bounds or candidate set
         if bounds is not None and candidates is not None:
             raise Exception("Bounds and candidates provided. Only one should be given.")
@@ -803,6 +792,8 @@ class GPOptimizer(GP):
             bounds = new_optimization_bounds
             if acquisition_function != "total correlation" and acquisition_function != "relative information entropy":
                 acquisition_function = "total correlation"
+                warnings.warn("You specified n>1 and method != 'hgdl' in ask(). The acquisition function \
+                               has therefore been changed to 'total correlation'")
 
         if acquisition_function == "total correlation" or acquisition_function == "relative information entropy":
             vectorized = False
@@ -997,17 +988,6 @@ class fvGPOptimizer(fvGP):
         If `gp_noise_function` is provided but no gradient function,
         a finite-difference approximation will be used. 
         The same rules regarding ram economy as for the kernel definition apply here.
-    normalize_y : bool, optional
-        If True, the data values `y_data` will be normalized to max(y_data) = 1, min(y_data) = 0. 
-        The default is False.
-        Variances will be updated accordingly.
-    sparse_mode : bool, optional
-        When sparse_mode is enabled, the algorithm will use a user-defined kernel function or,
-        if that's not provided, an anisotropic Wendland kernel
-        and check for sparsity in the prior covariance. If sparsity is present,
-        sparse operations will be used to speed up computations.
-        Caution: the covariance is still stored at first in a dense format. For more extreme scaling,
-        check out the gp2Scale option.
     gp2Scale: bool, optional
         Turns on gp2Scale. This will distribute the covariance computations across multiple workers.
         This is an advanced feature for HPC GPs up to 10
@@ -1033,7 +1013,7 @@ class fvGPOptimizer(fvGP):
         True. Note, the training will always use Cholesky or LU decomposition instead of the inverse
         for stability reasons. Storing the inverse is
         a good option when the dataset is not too large and the posterior covariance is heavily used.
-        If sparse_mode or gp2Scale is used, store_inv will be set to False.
+        If gp2Scale is used, store_inv will be set to False.
     ram_economy : bool, optional
         Only of interest if the gradient and/or Hessian of the marginal log_likelihood
         is/are used for the training.
@@ -1115,11 +1095,9 @@ class fvGPOptimizer(fvGP):
             gp_noise_function_grad=None,
             gp_mean_function=None,
             gp_mean_function_grad=None,
-            sparse_mode=False,
             gp2Scale=False,
             gp2Scale_dask_client=None,
             gp2Scale_batch_size=10000,
-            normalize_y=False,
             store_inv=True,
             ram_economy=False,
             args=None,
@@ -1159,11 +1137,9 @@ class fvGPOptimizer(fvGP):
             gp_noise_function_grad=gp_noise_function_grad,
             gp_mean_function=gp_mean_function,
             gp_mean_function_grad=gp_mean_function_grad,
-            sparse_mode=sparse_mode,
             gp2Scale=gp2Scale,
             gp2Scale_dask_client=gp2Scale_dask_client,
             gp2Scale_batch_size=gp2Scale_batch_size,
-            normalize_y=normalize_y,
             store_inv=store_inv,
             ram_economy=ram_economy,
             args=args,
@@ -1230,7 +1206,7 @@ class fvGPOptimizer(fvGP):
             raise Exception("Evaluating the acquisition function was not successful.", ex)
 
     ############################################################################
-    def tell(self, x, y, noise_variances=None, output_positions=None):
+    def tell(self, x, y, noise_variances=None, output_positions=None, overwrite=True):
         """
         This function can tell() the gp_optimizer class
         the data that was collected. The data will instantly be used to update the GP data.
@@ -1251,8 +1227,11 @@ class fvGPOptimizer(fvGP):
             are clearly defined by their positions in the output space.
             The default is np.array([[0],[1],[2],[3],...,[output_number - 1]]) for each
             point in the input space. The default is only permissible if output_dim is 1.
+        overwrite : bool, optional
+            The default is True. Indicates if all previous data should be overwritten.
         """
-        super().update_gp_data(x, y, noise_variances=noise_variances, output_positions=output_positions)
+        super().update_gp_data(x, y, noise_variances=noise_variances,
+                               output_positions=output_positions, overwrite=overwrite)
 
     ##############################################################
     def train(self,
@@ -1611,6 +1590,8 @@ class fvGPOptimizer(fvGP):
             bounds = new_optimization_bounds
             if acquisition_function != "total correlation" and acquisition_function != "relative information entropy":
                 acquisition_function = "total correlation"
+                warnings.warn("You specified n>1 and method != 'hgdl' in ask(). The acquisition function \
+                               has therefore been changed to 'total correlation'")
         if acquisition_function == "total correlation" or acquisition_function == "relative information entropy":
             vectorized = False
         if method != "global": vectorized = False

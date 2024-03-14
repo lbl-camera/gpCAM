@@ -26,12 +26,12 @@ class AutonomousExperimenterGP:
         The default is a random draw from a uniform distribution
         within hyperparameter_bounds, with a shape appropriate
         for the default kernel (D + 1), which is an anisotropic Matern
-        kernel with automatic relevance determination (ARD). If sparse_node or gp2Scale is
+        kernel with automatic relevance determination (ARD). If gp2Scale is
         enabled, the default kernel changes to the anisotropic Wendland kernel.
     hyperparameter_bounds : np.ndarray, optional
         A 2d numpy array of shape (N x 2), where N is the number of needed hyperparameters.
         The default is None, in which case the hyperparameter_bounds are estimated from the domain size
-        and the initial y_data. If normalize_y is True or the data changes significantly,
+        and the initial y_data. If the data changes significantly,
         the hyperparameters and the bounds should be changed/retrained. Initial hyperparameters and bounds
         can also be set in the train calls. The default only works for the default kernels.
     instrument_function : Callable, optional
@@ -191,11 +191,9 @@ class AutonomousExperimenterGP:
                  store_inv=False,
                  training_dask_client=None,
                  acq_func_opt_dask_client=None,
-                 sparse_mode=False,
                  gp2Scale=False,
                  gp2Scale_dask_client=None,
                  gp2Scale_batch_size=10000,
-                 normalize_y=False,
                  ram_economy=True,
                  info=False,
                  args=None
@@ -259,11 +257,9 @@ class AutonomousExperimenterGP:
                                         gp_noise_function_grad=None,
                                         gp_mean_function=prior_mean_function,
                                         gp_mean_function_grad=None,
-                                        sparse_mode=sparse_mode,
                                         gp2Scale=gp2Scale,
                                         gp2Scale_dask_client=gp2Scale_dask_client,
                                         gp2Scale_batch_size=gp2Scale_batch_size,
-                                        normalize_y=normalize_y,
                                         store_inv=store_inv,
                                         ram_economy=ram_economy,
                                         args=args,
@@ -686,12 +682,12 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         The default is a random draw from a uniform distribution
         within hyperparameter_bounds, with a shape appropriate
         for the default kernel (D + 1), which is an anisotropic Matern
-        kernel with automatic relevance determination (ARD). If sparse_node or gp2Scale is
+        kernel with automatic relevance determination (ARD). If gp2Scale is
         enabled, the default kernel changes to the anisotropic Wendland kernel.
     hyperparameter_bounds : np.ndarray, optional
         A 2d numpy array of shape (N x 2), where N is the number of needed hyperparameters.
         The default is None, in which case the hyperparameter_bounds are estimated from the domain size
-        and the initial y_data. If normalize_y is True or the data changes significantly,
+        and the initial y_data. If the data changes significantly,
         the hyperparameters and the bounds should be changed/retrained. Initial hyperparameters and bounds
         can also be set in the train calls. The default only works for the default kernels.
     instrument_function : Callable, optional
@@ -833,11 +829,9 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
                  store_inv=False,
                  training_dask_client=None,
                  acq_func_opt_dask_client=None,
-                 sparse_mode=False,
                  gp2Scale=False,
                  gp2Scale_dask_client=None,
                  gp2Scale_batch_size=10000,
-                 normalize_y=False,
                  ram_economy=True,
                  info=False,
                  args=None
@@ -899,11 +893,9 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
             gp_noise_function_grad=None,
             gp_mean_function=prior_mean_function,
             gp_mean_function_grad=None,
-            sparse_mode=sparse_mode,
             gp2Scale=gp2Scale,
             gp2Scale_dask_client=gp2Scale_dask_client,
             gp2Scale_batch_size=gp2Scale_batch_size,
-            normalize_y=normalize_y,
             store_inv=store_inv,
             ram_economy=ram_economy,
             args=args,

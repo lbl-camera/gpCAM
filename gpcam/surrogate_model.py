@@ -30,6 +30,7 @@ def find_acquisition_function_maxima(gp, acquisition_function,
                                      x_out=None,
                                      dask_client=None,
                                      info=False):
+
     if candidates is None and optimization_bounds is None:
         raise Exception("optimization bounds or candidates have to be provided")
     bounds = optimization_bounds
@@ -179,7 +180,7 @@ def evaluate_acquisition_function(x, gp=None, acquisition_function=None, origin=
     ##########################################################
     if isinstance(x, np.ndarray) and np.ndim(x) == 1: x = x.reshape(-1, gp.input_dim)
     if x_out is not None and np.ndim(x_out) != 2: raise Exception(
-        "x_out in evaluate_acquisition_function has to be a 2d umpy array.")
+        "x_out in evaluate_acquisition_function has to be a 2d numpy array.")
 
     if cost_function is not None and origin is not None:
         cost_eval = cost_function(origin, x, cost_function_parameters)
@@ -288,6 +289,7 @@ def differential_evolution(func,
                            constraints=(),
                            disp=False,
                            vectorized=True):
+
     res = devo(partial(acq_function_vectorization_wrapper, func=func, vectorized=vectorized), bounds, tol=tol, x0=x0,
                maxiter=max_iter, popsize=popsize, polish=False, disp=disp, constraints=constraints,
                vectorized=vectorized)

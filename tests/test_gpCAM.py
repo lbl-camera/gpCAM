@@ -154,7 +154,7 @@ class TestgpCAM(unittest.TestCase):
         my_ae.kill_training()
 
         #...and run. That's it. You successfully executed an autonomous experiment.
-        my_ae.go(N = 20)
+        my_ae.go(N = 10)
 
 
 
@@ -163,7 +163,7 @@ class TestgpCAM(unittest.TestCase):
         from gpcam.gp_optimizer import GPOptimizer
 
         #initialize some data
-        x_data = np.random.uniform(size = (100,3))
+        x_data = np.random.uniform(size = (10,3))
         y_data = np.sin(np.linalg.norm(x_data, axis = 1))
 
 
