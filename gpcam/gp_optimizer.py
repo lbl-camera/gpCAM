@@ -9,8 +9,6 @@ import warnings
 
 
 # TODO (for fvgp and gpCAM)
-#   tell() should in default mode only update the covariance, this is especially important for online gp2Scale
-#   new MCMC (in development in fvgp)
 #   variational inference in fvgp
 
 class GPOptimizer(GP):
