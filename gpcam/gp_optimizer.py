@@ -10,6 +10,9 @@ import warnings
 
 # TODO (for fvgp and gpCAM)
 #   variational inference in fvgp
+#   restructuring for fvgp (see gp.py)
+#   when mean, kernel or noise function is provided no default hps or hps bounds should be defined (in gp.py)
+#   should there be separate info= for the functions instead of at init
 
 class GPOptimizer(GP):
     """
@@ -1517,8 +1520,9 @@ class fvGPOptimizer(fvGP):
             such that the highest scored point will be measured next.
             Built-in functions can be used by one of the following keys: 
             `variance`, `relative information entropy`,
-            `relative information entropy set`, `total correlation`.
-            See GPOptimizer.ask() for a short explanation of these functions.
+            `relative information entropy set`, `total correlation`, `ucb`,
+            and `expected improvement`.
+            See `GPOptimizer.ask()` for a short explanation of these functions.
             In the multitask case, it is highly recommended to
             deploy a user-defined acquisition function due to the intricate relationship
             of posterior distributions at different points in the output space.

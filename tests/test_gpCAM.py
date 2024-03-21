@@ -94,7 +94,7 @@ class TestgpCAM(unittest.TestCase):
             gp.update_hyperparameters(opt_obj)
             time.sleep(1)
         gp.stop_training(opt_obj)
-        acquisition_functions = ["variance","relative information entropy","relative information entropy set","total correlation"]
+        acquisition_functions = ["variance","relative information entropy","relative information entropy set","total correlation", "ucb", "expected improvement"]
         for acq_func in acquisition_functions:
             gp.evaluate_acquisition_function(np.array([[0.0,0.6],[0.1,0.2]]), np.array([[0.],[1.]]), acquisition_function = acq_func)
         gp.ask(index_set_bounds,np.array([[0.],[1.]]), max_iter = 2)

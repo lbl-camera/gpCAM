@@ -54,9 +54,6 @@ def find_acquisition_function_maxima(gp, acquisition_function,
         if not callable(acquisition_function): warnings.warn("It is recommended to use a custom acquisition \
         function for solutions on candidate sets. Proceed with caution.")
         if isinstance(candidates, np.ndarray):
-            random_indices = random.sample(range(0, len(candidates)),
-                                           min(number_of_maxima_sought * 100, len(candidates)))
-            candidates = candidates[random_indices]
             res = func(candidates)
             sort_indices = np.argsort(res)
             res = res[sort_indices]
@@ -64,15 +61,16 @@ def find_acquisition_function_maxima(gp, acquisition_function,
             length = min(number_of_maxima_sought, len(res))
             opti, func_eval, opt_obj = candidates[0:length], res[0:length], None
         elif isinstance(candidates, list):
-            choices1 = random.sample(candidates, k=min(number_of_maxima_sought * 100, len(candidates)))
-            choices = [[choices1[i]] for i in range(len(choices1))]
-            res = np.asarray(list(map(func, choices))).reshape(len(choices))
+            #choices1 = random.sample(candidates, k=min(number_of_maxima_sought * 100, len(candidates)))
+            #choices = [[choices1[i]] for i in range(len(choices1))]
+            res = np.asarray(list(map(func, candidates))).reshape(len(candidates))
             sort_indices = np.argsort(res)
             res = res[sort_indices]
-            sorted_choices = [choices[sort_index] for sort_index in sort_indices]
-            choices = sorted_choices
-            length = min(number_of_maxima_sought, len(choices))
-            opti, func_eval, opt_obj = np.asarray(choices[0:length]), res[0:length], None
+            #sorted_choices = [choices[sort_index] for sort_index in sort_indices]
+            sorted_candidates = [candidates[sort_index] for sort_index in sort_indices]
+            candidates = sorted_candidates
+            length = min(number_of_maxima_sought, len(candidates))
+            opti, func_eval, opt_obj = np.asarray(candidates[0:length]), res[0:length], None
             print(opti)
         else:
             raise Exception("Candidates, if provided, have to be a list or a 2d np.ndarray.")
@@ -110,10 +108,6 @@ def find_acquisition_function_maxima(gp, acquisition_function,
         func_eval = np.asarray([entry["f(x)"] for entry in res])
 
     elif optimization_method == "hgdlAsync":
-        ###run differential evo first if hxdy only returns stationary points
-        ###then of hgdl is successful, stack results and return
-        if constraints: logger.warning(
-            "The HGDL won't adhere to constraints for the acquisition function. Use method 'local' or 'global'")
         opt_obj = HGDL(func,
                        grad,
                        bounds,
@@ -262,22 +256,39 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gp, number_of_maxi
             return result
         else:
             raise Exception("No valid acquisition function string provided.")
-        raise ValueError(f'The requested acquisition function "{acquisition_function}" does not exist.')
+
     else:
         if acquisition_function == "variance":
             res = gp.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"]
-            return np.sum(res.reshape(len(x), len(x_out)), axis=1)
+            return np.sum(res.reshape(len(x), len(x_out), order="F"), axis=1)
         elif acquisition_function == "relative information entropy":
             res = -gp.gp_relative_information_entropy(x, x_out=x_out)["RIE"]
             return np.array([res])
         elif acquisition_function == "relative information entropy set":
             res = -gp.gp_relative_information_entropy_set(x, x_out=x_out)["RIE"]
-            return np.sum(res.reshape(len(x), len(x_out)), axis=1)
+            return np.sum(res.reshape(len(x), len(x_out), order="F"), axis=1)
         elif acquisition_function == "total correlation":
             return -np.array([gp.gp_total_correlation(x, x_out=x_out)["total correlation"]])
+        elif acquisition_function == "ucb":
+            m = gp.posterior_mean(x, x_out=x_out)["f(x)"]
+            av_m = np.sum(m.reshape(len(x), len(x_out), order="F"), axis=1)
+            v = gp.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"]
+            av_v = np.sum(v.reshape(len(x), len(x_out), order="F"), axis=1)
+            return av_m + 3.0 * np.sqrt(av_v)
+        elif acquisition_function == "expected improvement":
+            m = gp.posterior_mean(x, x_out=x_out)["f(x)"]
+            m = np.sum(m.reshape(len(x), len(x_out), order="F"), axis=1)
+            std = np.sqrt(gp.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"])
+            std = np.sum(std.reshape(len(x), len(x_out), order="F"), axis=1)
+            last_best = np.max(gp.y_data)
+            a = (m - last_best)
+            a[a < 0.] = 0.
+            gamma = a / (std + 1e-9)
+            pdf = norm.pdf(gamma)
+            cdf = norm.cdf(gamma)
+            return std * (gamma * cdf + pdf)
         else:
             raise Exception("No valid acquisition function string provided.")
-        raise ValueError(f'The requested acquisition function "{acquisition_function}" does not exist.')
 
 
 def differential_evolution(func,
@@ -289,7 +300,6 @@ def differential_evolution(func,
                            constraints=(),
                            disp=False,
                            vectorized=True):
-
     res = devo(partial(acq_function_vectorization_wrapper, func=func, vectorized=vectorized), bounds, tol=tol, x0=x0,
                maxiter=max_iter, popsize=popsize, polish=False, disp=disp, constraints=constraints,
                vectorized=vectorized)
