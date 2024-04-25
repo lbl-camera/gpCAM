@@ -1231,6 +1231,18 @@ class fvGPOptimizer(fvGP):
         overwrite : bool, optional
             The default is True. Indicates if all previous data should be overwritten.
         """
+        if self.output_dim == 1 and isinstance(output_positions, np.ndarray) is False:
+            output_positions = self._compute_standard_output_positions(len(x))
+        elif self.output_dim > 1 and isinstance(output_positions, np.ndarray) is False:
+            raise ValueError(
+                "If the dimensionality of the output space is > 1, \
+                the value positions have to be given to the fvGP class. EXIT"
+            )
+        else:
+            output_positions = output_positions
+        if overwrite is False:
+            raise NotImplementedError("Data update for fvgp not implemented yet. Please provide full dataset")
+        self.x_data, self.y_data, noisde_variancess = self._transform_index_set(x, y, noise_variances, output_positions)
         super().update_gp_data(x, y, noise_variances=noise_variances,
                                output_positions=output_positions, overwrite=overwrite)
 
