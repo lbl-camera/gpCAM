@@ -25,6 +25,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          python -m ensurepip --upgrade
           pip install --upgrade setuptools
           pip install -e .[tests]
 
@@ -57,6 +58,7 @@ jobs:
 
       - name: Setup deploy
         run: |
+          python -m ensurepip --upgrade
           pip install --upgrade setuptools wheel twine hatch
           hatch build
 
