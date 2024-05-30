@@ -25,6 +25,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          pip install --upgrade setuptools
           pip install -e .[tests]
 
       - name: Run tests
