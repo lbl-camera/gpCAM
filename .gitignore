@@ -146,3 +146,6 @@ docs/build/
 
 # dask locks
 *.lock
+
+# ignore hatch versioning
+/gpcam/_version.py
