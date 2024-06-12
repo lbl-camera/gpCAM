@@ -8,17 +8,21 @@ from gpcam.data import fvgpData, gpData
 from gpcam.gp_optimizer import GPOptimizer, fvGPOptimizer
 
 
+#TODO
+#   check if tell can append/overwrite
+#   
+
 class AutonomousExperimenterGP:
     """
     Executes the autonomous loop for a single-task Gaussian process.
-    Use class AutonomousExperimenterFvGP for multi-task experiments.
+    Use class AutonomousExperimenterFvGP for multitask experiments.
     The AutonomousExperimenter is a convenience-driven functionality that does not allow
-    as much customization as using the GPOptimizer directly. But it is great option to
+    as much customization as using the GPOptimizer directly. But it is a great option to
     start with.
 
     Parameters
     ----------
-    input_space_bounds : np.ndarray
+    input_space : np.ndarray
         A numpy array of floats of shape D x 2 describing the input space.
     hyperparameters : np.ndarray, optional
         Vector of hyperparameters used by the GP initially.
@@ -93,6 +97,9 @@ class AutonomousExperimenterGP:
         object. The default is a no-op.
     cost_function_parameters : Any, optional
         An object that is communicated to the `cost_function` and `cost_update_function`. The default is `{}`.
+    online : bool, optional
+        The default is True. This will lead to calls to `gpOptimizer.tell(append=True)` which saves time in the
+        GP update. This, together with `calc_inv=True` leads to fast online performance.
     kernel_function : Callable, optional
         A symmetric positive semi-definite covariance function (a kernel)
         that calculates the covariance between
@@ -100,7 +107,7 @@ class AutonomousExperimenterGP:
         The input x1 is a N1 x D array of positions, x2 is a N2 x D
         array of positions, the hyperparameters argument
         is a 1d array of length D+1 for the default kernel and of a different
-        userdefined length for other kernels
+        user-defined length for other kernels
         obj is an `fvgp.GP` instance. The default is a stationary anisotropic kernel
         (`fvgp.GP.default_kernel`) which performs automatic relevance determination (ARD).
         The output is a covariance matrix, an N1 x N2 numpy array.
@@ -131,7 +138,7 @@ class AutonomousExperimenterGP:
         newly suggested data points will be communicated. The default is False.
     compute_device : str, optional
         One of "cpu" or "gpu", determines how linear system solves are run. The default is "cpu".
-    store_inv : bool, optional
+    calc_inv : bool, optional
         If True, the algorithm calculates and stores the inverse of the covariance
         matrix after each training or update of the dataset or hyperparameters,
         which makes computing the posterior covariance faster.
@@ -157,7 +164,7 @@ class AutonomousExperimenterGP:
         Data point positions
     y_data : np.ndarray
         Data point values
-    variances : np.ndarray
+    noise_variances : np.ndarray
         Data point observation variances
     data.dataset : list
         All data
@@ -167,12 +174,10 @@ class AutonomousExperimenterGP:
         the bounds for training.
     gp_optimizer : gpcam.GPOptimizer
         A GPOptimizer instance used for initializing a Gaussian process and performing optimization of the posterior.
-
-
     """
 
     def __init__(self,
-                 input_space_bounds,
+                 input_space,
                  hyperparameters=None,
                  hyperparameter_bounds=None,
                  instrument_function=None,
@@ -180,7 +185,8 @@ class AutonomousExperimenterGP:
                  acquisition_function="variance",
                  cost_function=None,
                  cost_update_function=None,
-                 cost_function_parameters={},
+                 cost_function_parameters=None,
+                 online=True,
                  kernel_function=None,
                  prior_mean_function=None,
                  noise_function=None,
@@ -188,7 +194,7 @@ class AutonomousExperimenterGP:
                  x_data=None, y_data=None, noise_variances=None, dataset=None,
                  communicate_full_dataset=False,
                  compute_device="cpu",
-                 store_inv=False,
+                 calc_inv=True,
                  training_dask_client=None,
                  acq_func_opt_dask_client=None,
                  gp2Scale=False,
@@ -207,8 +213,11 @@ class AutonomousExperimenterGP:
             logger.disable('fvgp')
             logger.disable('hgdl')
 
-        dim = len(input_space_bounds)
-        self.input_space_bounds = input_space_bounds
+        if cost_function_parameters is None:
+            cost_function_parameters = {}
+
+        dim = len(input_space)
+        self.input_space = input_space
         self.instrument_function = instrument_function
         self.hyperparameter_bounds = hyperparameter_bounds
         self.hyperparameters = hyperparameters
@@ -219,12 +228,17 @@ class AutonomousExperimenterGP:
         self.training_dask_client = training_dask_client
         self.acq_func_opt_dask_client = acq_func_opt_dask_client
         self.args = args
+        self.online = online
+        self.costs = None
+        self.acq_func_max_opt_obj = None
+        self.multi_task = False
+        self.vp = []
         ################################
         # getting the data ready#########
         ################################
         if init_dataset_size is None and x_data is None and dataset is None:
             raise Exception("Either provide length of initial data or an initial dataset")
-        self.data = gpData(dim, input_space_bounds)
+        self.data = gpData(dim, input_space)
         if x_data is None and dataset is None:
             self.data.create_random_dataset(init_dataset_size)
             if instrument_function is None: raise Exception("You need to provide an instrument function.")
@@ -242,13 +256,15 @@ class AutonomousExperimenterGP:
         self.data.check_incoming_data()
         if self.data.nan_in_dataset(): self.data.clean_data_NaN()
         self.x_data, self.y_data, self.noise_variances, self.times, self.cost = self.data.extract_data()
+
         self.init_dataset_size = len(self.x_data)
         ######################
         ######################
         ######################
-        self.gp_optimizer = GPOptimizer(self.x_data, self.y_data,
+        self.opt_obj = None
+        self.gp_optimizer = GPOptimizer(x_data=self.x_data,
+                                        y_data=self.y_data,
                                         init_hyperparameters=hyperparameters,
-                                        hyperparameter_bounds=hyperparameter_bounds,
                                         noise_variances=self.noise_variances,
                                         compute_device=compute_device,
                                         gp_kernel_function=kernel_function,
@@ -260,7 +276,7 @@ class AutonomousExperimenterGP:
                                         gp2Scale=gp2Scale,
                                         gp2Scale_dask_client=gp2Scale_dask_client,
                                         gp2Scale_batch_size=gp2Scale_batch_size,
-                                        store_inv=store_inv,
+                                        calc_inv=calc_inv,
                                         ram_economy=ram_economy,
                                         args=args,
                                         info=info,
@@ -374,6 +390,7 @@ class AutonomousExperimenterGP:
         try:
             self.training_dask_client.close()
             self.acq_func_opt_dask_client.close()
+            self.async_train_in_progress = False
         except Exception as ex:
             logger.error(str(ex))
             logger.error("Killing of the clients failed. Please do so manually before initializing a new one.")
@@ -392,10 +409,10 @@ class AutonomousExperimenterGP:
         logger.info("hps: {}", self.gp_optimizer.hyperparameters)
 
     def _tell(self, x, y, v, vp=None):
-        if vp is None:
-            self.gp_optimizer.tell(x, y, noise_variances=v)
-        else:
-            self.gp_optimizer.tell(x, y, noise_variances=v, output_positions=vp)
+        if self.online: append = True
+        else: append = False
+        if vp is None: self.gp_optimizer.tell(x, y, noise_variances=v, append=append)
+        else: self.gp_optimizer.tell(x, y, noise_variances=v, output_positions=vp, append=append)
 
     def _ask(self,
              bounds=None,
@@ -408,13 +425,9 @@ class AutonomousExperimenterGP:
              max_iter=20,
              tol=1e-6,
              constraints=(),
-             x0=None,
-             vectorized=True,
-             info=False,
-             candidate_set=None,
              dask_client=None):
 
-        if x_out is None:
+        if not self.multi_task:
             res = self.gp_optimizer.ask(
                 bounds,
                 position=position,
@@ -447,7 +460,7 @@ class AutonomousExperimenterGP:
 
     ###################################################################################
     def go(self, N=1e15, breaking_error=1e-50,
-           retrain_globally_at=(20, 50, 100, 400, 1000),
+           retrain_globally_at=(20, 50, 100, 400),
            retrain_locally_at=(20, 40, 60, 80, 100, 200, 400, 1000),
            retrain_async_at=(),
            update_cost_func_at=(),
@@ -537,20 +550,21 @@ class AutonomousExperimenterGP:
             logger.info(f"iteration {i}")
             logger.info(f"Run Time: {time.time() - start_time} seconds")
             logger.info(f"Number of measurements {n_measurements}")
-
-            # ask() for new suggestions
-            current_position = self.x_data[-1]
             logger.info("current hps: {}", self.gp_optimizer.hyperparameters)
+
+            ###################################################
+            # ask() for new suggestions########################
+            ###################################################
+            current_position = self.x_data[-1]
             current_method = acq_func_opt_setting(self)
             if number_of_suggested_measurements > 1 and current_method != "hgdl": current_method = "global"
-            if current_method == "hgdl" and self.acq_func_opt_dask_client is None: self.acq_func_opt_dask_client = dask.distributed.Client()
-            try:
-                x_out = self.data.dataset[-1]["output positions"]
-            except:
-                x_out = None
+            if current_method == "hgdl" and self.acq_func_opt_dask_client is None:
+                self.acq_func_opt_dask_client = dask.distributed.Client()
+            if self.multi_task: x_out = self.data.dataset[-1]["output positions"]
+            else: x_out = None
 
             res = self._ask(
-                self.input_space_bounds,
+                self.input_space,
                 position=current_position,
                 x_out=x_out,
                 n=number_of_suggested_measurements,
@@ -565,7 +579,11 @@ class AutonomousExperimenterGP:
             self.acq_func_max_opt_obj = res["opt_obj"]
             next_measurement_points = res["x"]
             func_evals = res["f(x)"]
-            if self.data.output_dim:
+
+            ###################################################
+            # assess performance###############################
+            ###################################################
+            if self.multi_task:
                 a = np.array(next_measurement_points)
                 b = np.array(self.vp[-1])
                 test_points = np.array([np.append(a[i], b[j]) for i in range(len(a)) for j in range(len(b))])
@@ -574,13 +592,18 @@ class AutonomousExperimenterGP:
                 post_var = self.gp_optimizer.posterior_covariance(next_measurement_points)["v(x)"]
             error = np.max(np.sqrt(post_var))
 
-            # adjust tolerances if necessary
+            ###################################################
+            # adjust tolerances if necessary###################
+            ###################################################
             if acq_func_opt_tol_adjust:
                 acq_func_opt_tol = abs(func_evals[0]) * acq_func_opt_tol_adjust
                 logger.info("acquisition function optimization tolerance changed to: {}", acq_func_opt_tol)
             logger.info("Next points to be requested: ")
             logger.info(next_measurement_points)
-            # update and tell() new data
+
+            ###################################################
+            # send suggestions to instrument and get results###
+            ###################################################
             info = [{"hyperparameters": self.gp_optimizer.hyperparameters,
                      "posterior std": np.sqrt(post_var[j])} for j in range(len(next_measurement_points))]
             new_data = self.data.inject_arrays(next_measurement_points, info=info)
@@ -589,18 +612,22 @@ class AutonomousExperimenterGP:
                 self.data.dataset = self.instrument_function(self.data.dataset + new_data)
             else:
                 self.data.dataset = self.data.dataset + self.instrument_function(new_data)
-
-            # receive new data
             logger.info("Data received")
             logger.info("Checking if data is clean ...")
             self.data.check_incoming_data()
             if self.data.nan_in_dataset(): self.data.clean_data_NaN()
             # update arrays and the gp_optimizer
-            self.x_data, self.y_data, self.variances, self.times, self.costs, vp = self._extract_data()
+            self.x_data, self.y_data, self.noise_variances, self.times, self.costs, vp = self._extract_data()
             logger.info("Communicating new data to the GP")
-            self._tell(self.x_data, self.y_data, self.variances, vp)
 
-            # retrain()
+            ###################################################
+            # tell() the GP about new data#####################
+            ###################################################
+            self._tell(self.x_data, self.y_data, self.noise_variances, vp)
+
+            ###################################################
+            # train() the GP###################################
+            ###################################################
             if any(n in retrain_async_at for n in range(n_measurements, len(self.x_data))) and n_measurements < N:
                 if self.training_dask_client is None: self.training_dask_client = dask.distributed.Client()
                 logger.info("    Starting a new asynchronous training after killing the current one.")
@@ -625,20 +652,28 @@ class AutonomousExperimenterGP:
                 self.update_hps()
             logger.info("    Training successfully concluded")
 
-            # run a user-defined callable
+            ###################################################
+            # run a user-defined callable######################
+            ###################################################
             if self.run_every_iteration is not None: self.run_every_iteration(self)
 
-            # save some data
+            ###################################################
+            # save some data###################################
+            ###################################################
             if checkpoint_filename:
                 try:
                     np.save(checkpoint_filename, self.data.dataset)
                 except Exception as e:
                     raise RuntimeError("Data not saved") from e
 
-            # cost update
+            ###################################################
+            # update costs#####################################
+            ###################################################
             if i in update_cost_func_at: self.gp_optimizer.update_cost_function(self.costs)
 
-            # break check
+            ###################################################
+            # break check######################################
+            ###################################################
             if error < breaking_error: break
             if break_condition_callable(self): break
 
@@ -664,18 +699,14 @@ class AutonomousExperimenterGP:
 ###################################################################################
 class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
     """
-    Executes the autonomous loop for a multi-task Gaussian process.
+    Executes the autonomous loop for a multitask Gaussian process.
 
     Parameters
     ----------
-    input_space_bounds : np.ndarray
+    input_space : np.ndarray
         A numpy array of floats of shape D x 2 describing the input space range
     output_number : int
         An integer defining how many outputs are created by each measurement.
-    output_dim : int
-        Integer specifying the number of dimensions of the output space. Most often 1.
-        This is not the number of outputs/tasks.
-        For instance, a spectrum as output at each input is itself a function over a 1d space but has many outputs.
     hyperparameters : np.ndarray, optional
         Vector of hyperparameters used by the GP initially.
         This class provides methods to train hyperparameters.
@@ -712,7 +743,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         `variance`, `relative information entropy`,
         `relative information entropy set`, `total correlation`.
         See GPOptimizer.ask() for a short explanation of these functions.
-        In the multi-task case, it is highly recommended to
+        In the multitask case, it is highly recommended to
         deploy a user-defined acquisition function due to the intricate relationship
         of posterior distributions at different points in the output space.
         If None, the default function `variance`, meaning
@@ -736,6 +767,9 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         object. The default is a no-op.
     cost_function_parameters : Any, optional
         An object that is communicated to the `cost_function` and `cost_update_function`. The default is `{}`.
+    online : bool, optional
+        The default is True. This will lead to calls to `gpOptimizer.tell(append=True)` which saves time in the
+        GP update. This, together with `calc_inv=True` leads to fast online performance.
     kernel_function : Callable, optional
         A symmetric positive semi-definite covariance function (a kernel)
         that calculates the covariance between
@@ -760,17 +794,17 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
     noise_variances : np.ndarray, optional
         Initial data point observation variances.
     vp : np.ndarray, optional
-        A 3d numpy array of shape (U x output_number x output_dim), so that for each measurement position, the outputs
+        A 2d numpy array of shape (U x output_number), so that for each measurement position, the outputs
         are clearly defined by their positions in the output space.
-        The default is np.array([[0],[1],[2],[3],...,[output_number - 1]]) for each
-        point in the input space. The default is only permissible if output_dim is 1.
+        The default is np.array([0,1,2,3,...,output_number - 1]) for each
+        point in the input space.
     communicate_full_dataset : bool, optional
         If True, the full dataset will be communicated to the `instrument_function`
         on each iteration. If False, only the
         newly suggested data points will be communicated. The default is False.
     compute_device : str, optional
         One of "cpu" or "gpu", determines how linear system solves are run. The default is "cpu".
-    store_inv : bool, optional
+    calc_inv : bool, optional
         If True, the algorithm calculates and stores the inverse of the covariance
         matrix after each training or update of the dataset,
         which makes computing the posterior covariance faster.
@@ -806,11 +840,9 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         A GPOptimizer instance used for initializing a Gaussian process and performing optimization of the posterior.
 
     """
-
     def __init__(self,
-                 input_space_bounds,
+                 input_space,
                  output_number,
-                 output_dim=1,
                  hyperparameters=None,
                  hyperparameter_bounds=None,
                  instrument_function=None,
@@ -819,6 +851,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
                  cost_function=None,
                  cost_update_function=None,
                  cost_function_parameters=None,
+                 online=True,
                  kernel_function=None,
                  prior_mean_function=None,
                  noise_function=None,
@@ -826,7 +859,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
                  x_data=None, y_data=None, noise_variances=None, vp=None, dataset=None,
                  communicate_full_dataset=False,
                  compute_device="cpu",
-                 store_inv=False,
+                 calc_inv=False,
                  training_dask_client=None,
                  acq_func_opt_dask_client=None,
                  gp2Scale=False,
@@ -836,14 +869,13 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
                  info=False,
                  args=None
                  ):
-
         ################################
         # getting the data ready#########
         ################################
         if cost_function_parameters is None:
             cost_function_parameters = {}
-        dim = len(input_space_bounds)
-        self.input_space_bounds = input_space_bounds
+        dim = len(input_space)
+        self.input_space = input_space
         self.instrument_function = instrument_function
         self.hyperparameter_bounds = hyperparameter_bounds
         self.hyperparameters = hyperparameters
@@ -854,11 +886,12 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         self.training_dask_client = training_dask_client
         self.acq_func_opt_dask_client = acq_func_opt_dask_client
         self.args = args
+        self.online = online
 
         if init_dataset_size is None and x_data is None and dataset is None:
             raise Exception("Either provide length of initial data or an initial dataset")
-        self.data = fvgpData(dim, input_space_bounds,
-                             output_number=output_number, output_dim=output_dim)
+        self.data = fvgpData(dim, input_space,
+                             output_number=output_number)
         if x_data is None and dataset is None:
             self.data.create_random_dataset(init_dataset_size)
             if instrument_function is None: raise Exception("You need to provide an instrument function.")
@@ -877,14 +910,13 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         if self.data.nan_in_dataset(): self.data.clean_data_NaN()
         self.x_data, self.y_data, self.noise_variances, self.times, self.costs, self.vp = self.data.extract_data()
         self.init_dataset_size = len(self.x_data)
+        self.multi_task = True
         ######################
         ######################
         ######################
         self.gp_optimizer = fvGPOptimizer(
             self.x_data, self.y_data,
-            output_space_dimension=output_dim,
             init_hyperparameters=hyperparameters,
-            hyperparameter_bounds=hyperparameter_bounds,
             noise_variances=self.noise_variances,
             compute_device=compute_device,
             gp_kernel_function=kernel_function,
@@ -896,7 +928,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
             gp2Scale=gp2Scale,
             gp2Scale_dask_client=gp2Scale_dask_client,
             gp2Scale_batch_size=gp2Scale_batch_size,
-            store_inv=store_inv,
+            calc_inv=calc_inv,
             ram_economy=ram_economy,
             args=args,
             info=info,

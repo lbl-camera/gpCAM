@@ -8,13 +8,26 @@ from . import surrogate_model as sm
 import warnings
 
 
-# TODO (for fvgp and gpCAM)
-#   variational inference in fvgp
-#   restructuring for fvgp (see gp.py)
-#   when mean, kernel or noise function is provided no default hps or hps bounds should be defined (in gp.py)
-#   should there be separate info= for the functions instead of at init
+# TODO (for gpCAM)
+#   for Ron's situation, make x_data, x_data optional and None by default, if not communicated,
+#                 the initialization of GP should be delayed
+#   make 'online' a gpCAM thing:
+#        online : bool, optional
+#        A new setting that allows optimization for online applications. Default=False. If True,
+#        the inverse (if calc_inv is True), or the Cholesky factors (if calc_inv is False) and the logdet()
+#        will only be computed
+#        once in the beginning and after that only updated. This leads to a significant speedup because
+#        the most costly aspects of a GP are entirely avoided. A good indicator whether `online` is a good choice is
+#        the `append` option in the gp update. You always append data, never overwrite, online should be True
+#        to save some time.
+#   should the gpoptimizer class have an "optimize" method?
+#   add a test that shows online mode up to 10000 points
+#   autonomous experiment class still has be adapted
+#   in AE, can we ask including candidates?
+#   how is append vs overwrite handled?
 
-class GPOptimizer(GP):
+
+class GPOptimizer:
     """
     This class is an optimization wrapper around the :doc:`fvgp <fvgp:index>` package
     for single-task (scalar-valued) Gaussian Processes.
@@ -30,9 +43,8 @@ class GPOptimizer(GP):
     N ... arbitrary integers (N1, N2,...)
 
 
-    All posterior evaluation functions are inherited from :py:class:`fvgp.GP` class.
-    Check there for a full list of capabilities. In addition, other methods
-    like kernel definitions and methods for validation are available.
+    All posterior evaluation functions are inherited from :py:class:`fvgp.GP`.
+    Check there for a full list of capabilities. Methods for validation are also  available.
     These include, but are not limited to:
 
     :py:meth:`fvgp.GP.posterior_mean`
@@ -67,42 +79,6 @@ class GPOptimizer(GP):
 
     :py:meth:`fvgp.GP.posterior_probability_grad`
 
-    Kernel functions:
-
-    :py:meth:`fvgp.GP.squared_exponential_kernel`
-
-    :py:meth:`fvgp.GP.squared_exponential_kernel_robust`
-
-    :py:meth:`fvgp.GP.exponential_kernel`
-
-    :py:meth:`fvgp.GP.exponential_kernel_robust`
-
-    :py:meth:`fvgp.GP.matern_kernel_diff1`
-
-    :py:meth:`fvgp.GP.matern_kernel_diff1_robust`
-
-    :py:meth:`fvgp.GP.matern_kernel_diff2`
-
-    :py:meth:`fvgp.GP.matern_kernel_diff2_robust`
-
-    :py:meth:`fvgp.GP.sparse_kernel`
-
-    :py:meth:`fvgp.GP.periodic_kernel`
-
-    :py:meth:`fvgp.GP.linear_kernel`
-
-    :py:meth:`fvgp.GP.dot_product_kernel`
-
-    :py:meth:`fvgp.GP.polynomial_kernel`
-
-    :py:meth:`fvgp.GP.wendland_anisotropic`
-
-    :py:meth:`fvgp.GP.non_stat_kernel`
-
-    :py:meth:`fvgp.GP.non_stat_kernel_gradient`
-
-    :py:meth:`fvgp.GP.get_distance_matrix`
-
     Other methods:
 
     :py:meth:`fvgp.GP.crps`
@@ -136,12 +112,6 @@ class GPOptimizer(GP):
         for the default kernel (D + 1), which is an anisotropic Matern
         kernel with automatic relevance determination (ARD). If gp2Scale is
         enabled, the default kernel changes to the anisotropic Wendland kernel.
-    hyperparameter_bounds : np.ndarray, optional
-        A 2d numpy array of shape (N x 2), where N is the number of needed hyperparameters.
-        The default is None, in which case the hyperparameter_bounds are estimated from the domain size
-        and the initial y_data. If the data changes significantly,
-        the hyperparameters and the bounds should be changed/retrained. Initial hyperparameters and bounds
-        can also be set in the train calls. The default only works for the default kernels.
     noise_variances : np.ndarray, optional
         An numpy array defining the uncertainties/noise in the data `y_data`
         in form of a point-wise variance. Shape (len(y_data), 1) or (len(y_data)).
@@ -216,7 +186,7 @@ class GPOptimizer(GP):
         This is an advanced feature for HPC GPs up to 10
         million data points. If gp2Scale is used, the default kernel is an anisotropic
         Wendland kernel which is compactly supported. The noise function will have
-        to return a scipy.sparse matrix instead of a numpy array. There are a few more
+        to return a `scipy.sparse` matrix instead of a numpy array. There are a few more
         things to consider (read on); this is an advanced option.
         If no kernel is provided, the compute_device option should be revisited.
         The kernel will use the specified device to compute covariances.
@@ -227,7 +197,7 @@ class GPOptimizer(GP):
         A local client is used as default.
     gp2Scale_batch_size : int, optional
         Matrix batch size for distributed computing in gp2Scale. The default is 10000.
-    store_inv : bool, optional
+    calc_inv : bool, optional
         If True, the algorithm calculates and stores the inverse of the covariance
         matrix after each training or update of the dataset or hyperparameters,
         which makes computing the posterior covariance faster.
@@ -271,8 +241,7 @@ class GPOptimizer(GP):
         If provided this function will be used when 
         :py:meth:`update_cost_function` is called.
         The function `cost_update_function` accepts as
-        input costs (a list of cost values usually determined by
-        `instrument_func`) and a parameter
+        input costs and a parameter
         object. The default is a no-op.
 
     Attributes
@@ -285,23 +254,13 @@ class GPOptimizer(GP):
         Datapoint observation (co)variances
     hyperparameters : np.ndarray
         Current hyperparameters in use.
-    K : np.ndarray
-        Current prior covariance matrix of the GP
-    KVinv : np.ndarray
-        If enabled, the inverse of the prior covariance + noise matrix V
-        inv(K+V)
-    KVlogdet : float
-        logdet(K+V)
-    V : np.ndarray
-        the noise covariance matrix
     """
 
     def __init__(
             self,
-            x_data,
-            y_data,
+            x_data=None,
+            y_data=None,
             init_hyperparameters=None,
-            hyperparameter_bounds=None,
             noise_variances=None,
             compute_device="cpu",
             gp_kernel_function=None,
@@ -313,7 +272,7 @@ class GPOptimizer(GP):
             gp2Scale=False,
             gp2Scale_dask_client=None,
             gp2Scale_batch_size=10000,
-            store_inv=True,
+            calc_inv=True,
             ram_economy=False,
             args=None,
             info=False,
@@ -321,19 +280,72 @@ class GPOptimizer(GP):
             cost_function_parameters=None,
             cost_update_function=None
     ):
-        if isinstance(x_data, np.ndarray):
-            if np.ndim(x_data) == 1: x_data = x_data.reshape(-1, 1)
-            self.input_dim = x_data.shape[1]
+        self.gp = None
+        if x_data is not None and y_data is not None:
+            self._initializeGP(
+                x_data,
+                y_data,
+                init_hyperparameters=init_hyperparameters,
+                noise_variances=noise_variances,
+                compute_device=compute_device,
+                gp_kernel_function=gp_kernel_function,
+                gp_kernel_function_grad=gp_kernel_function_grad,
+                gp_noise_function=gp_noise_function,
+                gp_noise_function_grad=gp_noise_function_grad,
+                gp_mean_function=gp_mean_function,
+                gp_mean_function_grad=gp_mean_function_grad,
+                gp2Scale=gp2Scale,
+                gp2Scale_dask_client=gp2Scale_dask_client,
+                gp2Scale_batch_size=gp2Scale_batch_size,
+                calc_inv=calc_inv,
+                ram_economy=ram_economy,
+                args=args,
+                info=info)
         else:
-            self.input_dim = 1
-            warnings.warn("gpCAM on non-Euclidean inputs is still experimental. Use with caution!")
+            warnings.warn("You have not provided data yet. You have to manually initialize the GP "
+                          "before any class method can be used!")
+        self.cost_function = cost_function
+        self.cost_function_parameters = cost_function_parameters
+        self.cost_update_function = cost_update_function
+        self.hyperparameters = init_hyperparameters
 
-        super().__init__(
-            self.input_dim,
+    def __getattr__(self, attr):
+        if not self.gp:
+            raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{attr}'. "
+                                 f"You may need to initialize the GP.")
+        elif self.gp and hasattr(self.gp, attr):
+            warnings.warn(f"Direct access to GP attributes from {self.__class__.__name__} is deprecated. "
+                          f"It is suggested to use: {self.__class__.__name__}.gp.{attr}", DeprecationWarning)
+        return getattr(self.gp, attr)
+
+    def _initializeGP(self,
+                      x_data,
+                      y_data,
+                      init_hyperparameters=None,
+                      noise_variances=None,
+                      compute_device="cpu",
+                      gp_kernel_function=None,
+                      gp_kernel_function_grad=None,
+                      gp_noise_function=None,
+                      gp_noise_function_grad=None,
+                      gp_mean_function=None,
+                      gp_mean_function_grad=None,
+                      gp2Scale=False,
+                      gp2Scale_dask_client=None,
+                      gp2Scale_batch_size=10000,
+                      calc_inv=True,
+                      ram_economy=False,
+                      args=None,
+                      info=False):
+        """
+        Function to initialize a GP object.
+        If data is prided at initialization this function is NOT needed.
+        It has the same parameters as the initialization of the class (except cost related).
+        """
+        self.gp = GP(
             x_data,
             y_data,
             init_hyperparameters=init_hyperparameters,
-            hyperparameter_bounds=hyperparameter_bounds,
             noise_variances=noise_variances,
             compute_device=compute_device,
             gp_kernel_function=gp_kernel_function,
@@ -345,14 +357,13 @@ class GPOptimizer(GP):
             gp2Scale=gp2Scale,
             gp2Scale_dask_client=gp2Scale_dask_client,
             gp2Scale_batch_size=gp2Scale_batch_size,
-            store_inv=store_inv,
+            calc_inv=calc_inv,
             ram_economy=ram_economy,
             args=args,
             info=info,
         )
-        self.cost_function = cost_function
-        self.cost_function_parameters = cost_function_parameters
-        self.cost_update_function = cost_update_function
+        self.index_set_dim = self.gp.index_set_dim
+        self.input_space_dim = self.gp.index_set_dim
 
     def get_data(self):
         """
@@ -364,10 +375,10 @@ class GPOptimizer(GP):
         """
 
         return {
-            "input dim": self.input_space_dim,
+            "input dim": self.prior.index_set_dim,
             "x data": self.x_data,
             "y data": self.y_data,
-            "measurement variances": self.V,
+            "measurement variances": self.likelihood.V,
             "hyperparameters": self.hyperparameters,
             "cost function parameters": self.cost_function_parameters,
             "cost function": self.cost_function}
@@ -398,7 +409,7 @@ class GPOptimizer(GP):
             warnings.warn("Warning: An origin is given but no cost function is defined. Cost function ignored")
         try:
             res = sm.evaluate_acquisition_function(
-                x, self, acquisition_function, origin=origin, number_of_maxima_sought=1,
+                x, self.gp, acquisition_function, origin=origin,
                 cost_function=self.cost_function, cost_function_parameters=self.cost_function_parameters)
             return -res
         except Exception as ex:
@@ -406,7 +417,7 @@ class GPOptimizer(GP):
             logger.error("Evaluating the acquisition function was not successful.")
             raise Exception("Evaluating the acquisition function was not successful.", ex)
 
-    def tell(self, x, y, noise_variances=None, overwrite=True):
+    def tell(self, x, y, noise_variances=None, append=False):
         """
         This function can tell() the gp_optimizer class
         the data that was collected. The data will instantly be used to update the gp data.
@@ -422,10 +433,10 @@ class GPOptimizer(GP):
         noise_variances : np.ndarray, optional
             Point value variances (of shape U x 1 or U) to be communicated to the Gaussian Process.
             If not provided, the GP will 1% of the y values as variances.
-        overwrite : bool, optional
-            The default is True. Indicates if all previous data should be overwritten.
+        append : bool, optional
+            The default is True. Indicates if existent data should be appended by or overwritten with the new data.
         """
-        super().update_gp_data(x, y, noise_variances=noise_variances, overwrite=overwrite)
+        self.update_gp_data(x, y, noise_variances_new=noise_variances, append=append)
 
     ##############################################################
     def train(
@@ -494,7 +505,7 @@ class GPOptimizer(GP):
         max_iter : int, optional
             Maximum number of iterations for global and local optimizers. Default = 120.
         local_optimizer : str, optional
-            Defining the local optimizer. Default = "L-BFGS-B", most scipy.opimize.minimize functions are permissible.
+            Defining the local optimizer. Default = "L-BFGS-B", most `scipy.optimize.minimize` functions are permissible.
         global_optimizer : str, optional
             Defining the global optimizer. Only applicable to method = hgdl. Default = `genetic`
         constraints : tuple of object instances, optional
@@ -510,8 +521,7 @@ class GPOptimizer(GP):
         hyperparameters : np.ndarray
             Returned are the hyperparameters, however, the GP is automatically updated.
         """
-
-        super().train(
+        self.hyperparameters = self.gp.train(
             objective_function=objective_function,
             objective_function_gradient=objective_function_gradient,
             objective_function_hessian=objective_function_hessian,
@@ -525,7 +535,6 @@ class GPOptimizer(GP):
             global_optimizer=global_optimizer,
             constraints=constraints,
             dask_client=dask_client)
-
         return self.hyperparameters
 
     ##############################################################
@@ -579,7 +588,7 @@ class GPOptimizer(GP):
         max_iter : int, optional
             Maximum number of epochs for HGDL. Default = 10000.
         local_optimizer : str, optional
-            Defining the local optimizer. Default = "L-BFGS-B", most scipy.opimize.minimize functions are permissible.
+            Defining the local optimizer. Default = "L-BFGS-B", most `scipy.optimize.minimize` functions are permissible.
         global_optimizer : str, optional
             Defining the global optimizer. Only applicable to method = 'hgdl'. Default = `genetic`
         constraints : tuple of hgdl.NonLinearConstraint instances, optional
@@ -595,7 +604,7 @@ class GPOptimizer(GP):
             to update the prior GP.
         """
 
-        opt_obj = super().train_async(
+        opt_obj = self.gp.train_async(
             objective_function=objective_function,
             objective_function_gradient=objective_function_gradient,
             objective_function_hessian=objective_function_hessian,
@@ -620,7 +629,7 @@ class GPOptimizer(GP):
             Object created by :py:meth:`train_async()`.
 
         """
-        super().stop_training(opt_obj)
+        self.gp.stop_training(opt_obj)
 
     def kill_training(self, opt_obj):
         """
@@ -631,7 +640,7 @@ class GPOptimizer(GP):
         opt_obj : object instance
             Object created by :py:meth:`train_async()`.
         """
-        super().kill_training(opt_obj)
+        self.gp.kill_training(opt_obj)
 
     ##############################################################
     def update_hyperparameters(self, opt_obj):
@@ -648,13 +657,13 @@ class GPOptimizer(GP):
             hyperparameters : np.ndarray
         """
 
-        hps = super().update_hyperparameters(opt_obj)
+        hps = self.gp.update_hyperparameters(opt_obj)
+        self.hyperparameters = hps
         return hps
 
     ##############################################################
     def ask(self,
-            bounds=None,
-            candidates=None,
+            input_set,
             position=None,
             n=1,
             acquisition_function="variance",
@@ -676,16 +685,13 @@ class GPOptimizer(GP):
 
         Parameters
         ----------
-        bounds : np.ndarray, optional
-            A numpy array of floats of shape D x 2 describing the
-            search range. While this is optional, bounds or a candidate set has to be provided.
-        candidates : list or np.ndarray, optional
-            If provided, ask will statistically choose the best candidate from the set.
+        input_set : np.ndarray or list, optional
+            Either a numpy array of floats of shape D x 2 describing the
+            search range or a set of candidates in the form of a list. If a candidate list
+            is provided, ask will evaluate the acquisition function on each
+            element and return a sorted array of length `n`.
             This is usually desirable for non-Euclidean inputs but can be used either way. If candidates are
-            Euclidean, they should be provided as 2d numpy array. Bounds
-            or candidates have to be specified, not both. If N optimal solutions
-            are requested (n=N), then a maximum of 100*N candidates are being considered randomly.
-            If fewer candidates are provided, all will be considered.
+            Euclidean, they should be provided as a list of 1-d `np.ndarray`s.
         position : np.ndarray, optional
             Current position in the input space. If a cost function is 
             provided this position will be taken into account
@@ -708,7 +714,7 @@ class GPOptimizer(GP):
             `probability of improvement`, `gradient`,`total correlation`,`target probability`.
             If None, the default function `variance`, meaning
             :py:meth:`fvgp.GP.posterior_covariance` with variance_only = True will be used.
-            The acquisition function can be a callable of the form my_func(x,gpcam.GPOptimizer)
+            The acquisition function can be callable and of the form my_func(x,gpcam.GPOptimizer)
             which will be maximized (!!!), so make sure desirable new measurement points
             will be located at maxima.
             Explanations of the acquisition functions:
@@ -771,39 +777,37 @@ class GPOptimizer(GP):
 
         logger.info("ask() initiated with hyperparameters: {}", self.hyperparameters)
         logger.info("optimization method: {}", method)
-        logger.info("bounds:\n{}", bounds)
+        logger.info("input set:\n{}", input_set)
         logger.info("acq func: {}", acquisition_function)
 
         assert isinstance(vectorized, bool)
 
         #check for bounds or candidate set
-        if bounds is not None and candidates is not None:
-            raise Exception("Bounds and candidates provided. Only one should be given.")
         #check that bounds, if they exist, are 2d
-        if bounds is not None and np.ndim(bounds) != 2:
-            raise Exception("The bounds parameter has to be a 2d np.ndarray.")
+        if isinstance(input_set, np.ndarray) and np.ndim(input_set) != 2:
+            raise Exception("The input_set parameter has to be a 2d np.ndarray or a list.")
         #for user-defined acquisition functions, use "hgdl" if n>1
         if n > 1 and callable(acquisition_function):
             method = "hgdl"
         #make sure that if there are bounds and n>1, method has to be global, if not hgdl
-        if bounds is not None and n > 1 and method != "hgdl":
+        if isinstance(input_set, np.ndarray) and n > 1 and method != "hgdl":
             vectorized = False
             method = "global"
-            new_optimization_bounds = np.row_stack([bounds for i in range(n)])
-            bounds = new_optimization_bounds
+            new_optimization_bounds = np.row_stack([input_set for i in range(n)])
+            input_set = new_optimization_bounds
             if acquisition_function != "total correlation" and acquisition_function != "relative information entropy":
                 acquisition_function = "total correlation"
-                warnings.warn("You specified n>1 and method != 'hgdl' in ask(). The acquisition function \
-                               has therefore been changed to 'total correlation'")
+                warnings.warn("You specified n>1 and method != 'hgdl' in ask(). The acquisition function "
+                              "has therefore been changed to 'total correlation'")
 
         if acquisition_function == "total correlation" or acquisition_function == "relative information entropy":
             vectorized = False
         if method != "global": vectorized = False
 
         maxima, func_evals, opt_obj = sm.find_acquisition_function_maxima(
-            self,
+            self.gp,
             acquisition_function,
-            position, n, bounds,
+            position, n, input_set,
             optimization_method=method,
             optimization_pop_size=pop_size,
             optimization_max_iter=max_iter,
@@ -812,7 +816,6 @@ class GPOptimizer(GP):
             cost_function_parameters=self.cost_function_parameters,
             optimization_x0=x0,
             constraints=constraints,
-            candidates=candidates,
             vectorized=vectorized,
             info=info,
             dask_client=dask_client)
@@ -855,7 +858,7 @@ class GPOptimizer(GP):
 ######################################################################################
 ######################################################################################
 ######################################################################################
-class fvGPOptimizer(fvGP):
+class fvGPOptimizer:
     """
     This class is an optimization wrapper around the :doc:`fvgp <fvgp:index>`
     package for multitask (scalar-valued) Gaussian Processes.
@@ -900,10 +903,6 @@ class fvGPOptimizer(fvGP):
         The input point positions. Shape (V x D), where D is the `input_space_dim`.
     y_data : np.ndarray
         The values of the data points. Shape (V,No).
-    output_space_dimension : int
-        Integer specifying the number of dimensions of the output space. Most often 1.
-        This is not the number of outputs/tasks.
-        For instance, a spectrum as output at each input is itself a function over a 1d space but has many outputs.
     init_hyperparameters : np.ndarray, optional
         Vector of hyperparameters used by the GP initially.
         This class provides methods to train hyperparameters.
@@ -913,10 +912,6 @@ class fvGPOptimizer(fvGP):
         :py:attr:`fvgp.fvGP.gp_deep_kernel_layer_width`. If you specify
         another kernel, please provide
         init_hyperparameters.
-    hyperparameter_bounds : np.ndarray, optional
-        A 2d numpy array of shape (N x 2), where N is the number of needed hyperparameters.
-        The default is None, in that case hyperparameter_bounds have to be specified
-        in the train calls or default bounds are used. Those only work for the default kernel.
     output_positions : np.ndarray, optional
         A 3d numpy array of shape (U x output_number x output_dim), so that 
         for each measurement position, the outputs
@@ -946,9 +941,6 @@ class fvGPOptimizer(fvGP):
         is a 1d array of length N depending on how many hyperparameters are initialized, and
         obj is an :py:class:`fvgp.GP` instance. The default is a deep kernel with 2 hidden layers and
         a width of :py:attr:`fvgp.fvGP.gp_deep_kernel_layer_width`.
-    gp_deep_kernel_layer_width : int, optional
-        If no kernel is provided, fvGP will use a deep kernel of depth 2 and width gp_deep_kernel_layer_width.
-        If a user defined kernel is provided this parameter is irrelevant. The default is 5.
     gp_kernel_function_grad : Callable, optional
         A function that calculates the derivative of the `gp_kernel_function` with respect to the hyperparameters.
         If provided, it will be used for local training (optimization) and can speed up the calculations.
@@ -994,7 +986,7 @@ class fvGPOptimizer(fvGP):
         This is an advanced feature for HPC GPs up to 10
         million datapoints. If gp2Scale is used, the default kernel is an anisotropic Wendland
         kernel which is compactly supported. The noise function will have
-        to return a scipy.sparse matrix instead of a numpy array. There are a few more things
+        to return a `scipy.sparse` matrix instead of a numpy array. There are a few more things
         to consider (read on); this is an advanced option.
         If no kernel is provided, the compute_device option should be revisited. The kernel will
         use the specified device to compute covariances.
@@ -1005,7 +997,7 @@ class fvGPOptimizer(fvGP):
         A local client is used as default.
     gp2Scale_batch_size : int, optional
         Matrix batch size for distributed computing in gp2Scale. The default is 10000.
-    store_inv : bool, optional
+    calc_inv : bool, optional
         If True, the algorithm calculates and stores the inverse of the covariance matrix
         after each training or update of the dataset or hyperparameters,
         which makes computing the posterior covariance faster.
@@ -1014,7 +1006,7 @@ class fvGPOptimizer(fvGP):
         True. Note, the training will always use Cholesky or LU decomposition instead of the inverse
         for stability reasons. Storing the inverse is
         a good option when the dataset is not too large and the posterior covariance is heavily used.
-        If gp2Scale is used, store_inv will be set to False.
+        If gp2Scale is used, calc_inv will be set to False.
     ram_economy : bool, optional
         Only of interest if the gradient and/or Hessian of the marginal log_likelihood
         is/are used for the training.
@@ -1051,8 +1043,7 @@ class fvGPOptimizer(fvGP):
         If provided this function will be used when 
         :py:meth:`update_cost_function` is called.
         The function `cost_update_function` accepts as 
-        input costs (a list of cost values usually determined by
-        `instrument_func`) and a parameter
+        input costs and a parameter
         object. The default is a no-op.
 
 
@@ -1070,27 +1061,71 @@ class fvGPOptimizer(fvGP):
         Datapoint observation (co)variances.
     hyperparameters : np.ndarray
         Current hyperparameters in use.
-    K : np.ndarray
-        Current prior covariance matrix of the GP
-    KVinv : np.ndarray
-        If enabled, the inverse of the prior covariance + noise matrix V.
-        inv(K+V)
-    KVlogdet : float
-        logdet(K+V)
+
+    All posterior evaluation functions are inherited from :py:class:`fvgp.GP`.
+    Check there for a full list of capabilities. Methods for validation are also  available.
+    These include, but are not limited to:
+
+    :py:meth:`fvgp.GP.posterior_mean`
+
+    :py:meth:`fvgp.GP.posterior_covariance`
+
+    :py:meth:`fvgp.GP.posterior_mean_grad`
+
+    :py:meth:`fvgp.GP.posterior_covariance_grad`
+
+    :py:meth:`fvgp.GP.joint_gp_prior`
+
+    :py:meth:`fvgp.GP.joint_gp_prior_grad`
+
+    :py:meth:`fvgp.GP.gp_entropy`
+
+    :py:meth:`fvgp.GP.gp_entropy_grad`
+
+    :py:meth:`fvgp.GP.gp_kl_div`
+
+    :py:meth:`fvgp.GP.gp_kl_div_grad`
+
+    :py:meth:`fvgp.GP.gp_mutual_information`
+
+    :py:meth:`fvgp.GP.gp_total_correlation`
+
+    :py:meth:`fvgp.GP.gp_relative_information_entropy`
+
+    :py:meth:`fvgp.GP.gp_relative_information_entropy_set`
+
+    :py:meth:`fvgp.GP.posterior_probability`
+
+    :py:meth:`fvgp.GP.posterior_probability_grad`
+
+    Other methods:
+
+    :py:meth:`fvgp.GP.crps`
+
+    :py:meth:`fvgp.GP.rmse`
+
+    :py:meth:`fvgp.GP.make_2d_x_pred`
+
+    :py:meth:`fvgp.GP.make_1d_x_pred`
+
+    :py:meth:`fvgp.GP.log_likelihood`
+
+    :py:meth:`fvgp.GP.neg_log_likelihood`
+
+    :py:meth:`fvgp.GP.neg_log_likelihood_gradient`
+
+    :py:meth:`fvgp.GP.neg_log_likelihood_hessian`
     """
 
     def __init__(
             self,
-            x_data,
-            y_data,
-            output_space_dimension=1,
+            x_data=None,
+            y_data=None,
             init_hyperparameters=None,
-            hyperparameter_bounds=None,
             output_positions=None,
             noise_variances=None,
             compute_device="cpu",
             gp_kernel_function=None,
-            gp_deep_kernel_layer_width=5,
             gp_kernel_function_grad=None,
             gp_noise_function=None,
             gp_noise_function_grad=None,
@@ -1099,7 +1134,7 @@ class fvGPOptimizer(fvGP):
             gp2Scale=False,
             gp2Scale_dask_client=None,
             gp2Scale_batch_size=10000,
-            store_inv=True,
+            calc_inv=True,
             ram_economy=False,
             args=None,
             info=False,
@@ -1107,32 +1142,79 @@ class fvGPOptimizer(fvGP):
             cost_function_parameters=None,
             cost_update_function=None,
     ):
-        if isinstance(x_data, np.ndarray):
-            if np.ndim(x_data) == 1: x_data = x_data.reshape(-1, 1)
-            self.input_dim = x_data.shape[1]
+        self.fvgp = None
+        if x_data is not None and y_data is not None:
+            self._initializefvGP(
+                x_data,
+                y_data,
+                init_hyperparameters=init_hyperparameters,
+                output_positions=output_positions,
+                noise_variances=noise_variances,
+                compute_device=compute_device,
+                gp_kernel_function=gp_kernel_function,
+                gp_kernel_function_grad=gp_kernel_function_grad,
+                gp_noise_function=gp_noise_function,
+                gp_noise_function_grad=gp_noise_function_grad,
+                gp_mean_function=gp_mean_function,
+                gp_mean_function_grad=gp_mean_function_grad,
+                gp2Scale=gp2Scale,
+                gp2Scale_dask_client=gp2Scale_dask_client,
+                gp2Scale_batch_size=gp2Scale_batch_size,
+                calc_inv=calc_inv,
+                ram_economy=ram_economy,
+                args=args,
+                info=info)
         else:
-            self.input_dim = 1
-        if np.ndim(y_data) != 2: raise Exception("Your y_data is not a 2d numpy array.")
-        output_number = y_data.shape[1]
+            warnings.warn("You have not provided data yet. You have to manually initialize the GP "
+                          "before any class method can be used!")
 
-        if gp_kernel_function is None:
-            self.user_kernel_provided = False
-        else:
-            self.user_kernel_provided = True
+        self.cost_function = cost_function
+        self.cost_function_parameters = cost_function_parameters
+        self.cost_update_function = cost_update_function
+        self.hyperparameters = init_hyperparameters
 
-        super().__init__(
-            self.input_dim,
-            output_space_dimension,
-            output_number,
+    def __getattr__(self, attr):
+        if not self.fvgp:
+            raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{attr}'. "
+                                 f"You may need to initialize the GP.")
+        elif self.fvgp and hasattr(self.fvgp, attr):
+            warnings.warn(f"Direct access to GP attributes from {self.__class__.__name__} is deprecated. "
+                          f"It is suggested to use: {self.__class__.__name__}.fvgp.{attr}", DeprecationWarning)
+        return getattr(self.fvgp, attr)
+
+    def _initializefvGP(self,
+                        x_data,
+                        y_data,
+                        init_hyperparameters=None,
+                        output_positions=None,
+                        noise_variances=None,
+                        compute_device="cpu",
+                        gp_kernel_function=None,
+                        gp_kernel_function_grad=None,
+                        gp_noise_function=None,
+                        gp_noise_function_grad=None,
+                        gp_mean_function=None,
+                        gp_mean_function_grad=None,
+                        gp2Scale=False,
+                        gp2Scale_dask_client=None,
+                        gp2Scale_batch_size=10000,
+                        calc_inv=True,
+                        ram_economy=False,
+                        args=None,
+                        info=False):
+        """
+        Function to initialize a GP object.
+        If data is prided at initialization this function is NOT needed.
+        It has the same parameters as the initialization of the class.
+        """
+        self.fvgp = fvGP(
             x_data,
             y_data,
             init_hyperparameters=init_hyperparameters,
-            hyperparameter_bounds=hyperparameter_bounds,
             output_positions=output_positions,
             noise_variances=noise_variances,
             compute_device=compute_device,
             gp_kernel_function=gp_kernel_function,
-            gp_deep_kernel_layer_width=gp_deep_kernel_layer_width,
             gp_kernel_function_grad=gp_kernel_function_grad,
             gp_noise_function=gp_noise_function,
             gp_noise_function_grad=gp_noise_function_grad,
@@ -1141,14 +1223,13 @@ class fvGPOptimizer(fvGP):
             gp2Scale=gp2Scale,
             gp2Scale_dask_client=gp2Scale_dask_client,
             gp2Scale_batch_size=gp2Scale_batch_size,
-            store_inv=store_inv,
+            calc_inv=calc_inv,
             ram_economy=ram_economy,
             args=args,
-            info=info)
-
-        self.cost_function = cost_function
-        self.cost_function_parameters = cost_function_parameters
-        self.cost_update_function = cost_update_function
+            info=info,
+        )
+        self.index_set_dim = self.fvgp.prior.index_set_dim
+        self.input_space_dim = self.fvgp.input_space_dim
 
     ############################################################################
     def get_data(self):
@@ -1164,7 +1245,7 @@ class fvGPOptimizer(fvGP):
             "input dim": self.input_space_dim,
             "x data": self.x_data,
             "y data": self.y_data,
-            "measurement variances": self.V,
+            "measurement variances": self.likelihood.V,
             "hyperparameters": self.hyperparameters,
             "cost function parameters": self.cost_function_parameters,
             "cost function": self.cost_function}
@@ -1197,7 +1278,7 @@ class fvGPOptimizer(fvGP):
         cost_function = self.cost_function
         try:
             res = sm.evaluate_acquisition_function(
-                x, self, acquisition_function, origin=origin, number_of_maxima_sought=1,
+                x, self.fvgp, acquisition_function,
                 cost_function=cost_function, cost_function_parameters=self.cost_function_parameters,
                 x_out=x_out)
             return -res
@@ -1207,7 +1288,7 @@ class fvGPOptimizer(fvGP):
             raise Exception("Evaluating the acquisition function was not successful.", ex)
 
     ############################################################################
-    def tell(self, x, y, noise_variances=None, output_positions=None, overwrite=True):
+    def tell(self, x, y, noise_variances=None, output_positions=None, append=False):
         """
         This function can tell() the gp_optimizer class
         the data that was collected. The data will instantly be used to update the GP data.
@@ -1228,23 +1309,11 @@ class fvGPOptimizer(fvGP):
             are clearly defined by their positions in the output space.
             The default is np.array([[0],[1],[2],[3],...,[output_number - 1]]) for each
             point in the input space. The default is only permissible if output_dim is 1.
-        overwrite : bool, optional
-            The default is True. Indicates if all previous data should be overwritten.
+        append : bool, optional
+            The default is True. Indicates if existent data should be appended by or overwritten with the new data.
         """
-        if self.output_dim == 1 and isinstance(output_positions, np.ndarray) is False:
-            output_positions = self._compute_standard_output_positions(len(x))
-        elif self.output_dim > 1 and isinstance(output_positions, np.ndarray) is False:
-            raise ValueError(
-                "If the dimensionality of the output space is > 1, \
-                the value positions have to be given to the fvGP class. EXIT"
-            )
-        else:
-            output_positions = output_positions
-        if overwrite is False:
-            raise NotImplementedError("Data update for fvgp not implemented yet. Please provide full dataset")
-        self.x_data, self.y_data, noisde_variancess = self._transform_index_set(x, y, noise_variances, output_positions)
-        super().update_gp_data(x, y, noise_variances=noise_variances,
-                               output_positions=output_positions, overwrite=overwrite)
+        self.update_gp_data(x, y, noise_variances_new=noise_variances,
+                            output_positions_new=output_positions, append=append)
 
     ##############################################################
     def train(self,
@@ -1312,7 +1381,7 @@ class fvGPOptimizer(fvGP):
         max_iter : int, optional
             Maximum number of iterations for global and local optimizers. Default = 120.
         local_optimizer : str, optional
-            Defining the local optimizer. Default = "L-BFGS-B", most scipy.opimize.minimize functions are permissible.
+            Defining the local optimizer. Default = "L-BFGS-B", most scipy.optimize.minimize functions are permissible.
         global_optimizer : str, optional
             Defining the global optimizer. Only applicable to method = hgdl. Default = `genetic`
         constraints : tuple of object instances, optional
@@ -1329,15 +1398,7 @@ class fvGPOptimizer(fvGP):
             Returned are the hyperparameters, however, the GP is automatically updated.
 
         """
-        if not self.user_kernel_provided:
-            hyperparameter_bounds, init_hyperparameters = self.hyperparameter_bounds, self.hyperparameters
-        elif (hyperparameter_bounds is None and self.hyperparameter_bounds is None) or (
-                init_hyperparameters is None and self.hyperparameters is None):
-            raise Exception(
-                "If a kernel is provided, init_hyperparameters and hyperparameter_bounds\
-                 have to be provided in the training or at initialization.")
-
-        super().train(
+        self.hyperparameters = self.fvgp.train(
             objective_function=objective_function,
             objective_function_gradient=objective_function_gradient,
             objective_function_hessian=objective_function_hessian,
@@ -1351,7 +1412,6 @@ class fvGPOptimizer(fvGP):
             global_optimizer=global_optimizer,
             constraints=constraints,
             dask_client=dask_client)
-
         return self.hyperparameters
 
     ##############################################################
@@ -1419,15 +1479,8 @@ class fvGPOptimizer(fvGP):
             Optimization object that can be given to :py:meth:`gpcam.GPOptimizer.update_hyperparameters()` 
             to update the prior GP
         """
-        if not self.user_kernel_provided:
-            hyperparameter_bounds, init_hyperparameters = self.hyperparameter_bounds, self.hyperparameters
-        elif (hyperparameter_bounds is None and self.hyperparameter_bounds is None) or (
-                init_hyperparameters is None and self.hyperparameters is None):
-            raise Exception(
-                "If a kernel is provided, init_hyperparameters and hyperparameter_bounds \
-                have to be provided in the training or at initialization.")
 
-        opt_obj = super().train_async(
+        opt_obj = self.fvgp.train_async(
             objective_function=objective_function,
             objective_function_gradient=objective_function_gradient,
             objective_function_hessian=objective_function_hessian,
@@ -1451,7 +1504,7 @@ class fvGPOptimizer(fvGP):
         opt_obj : object instance
             Object created by :py:meth:`train_async()`.
         """
-        super().stop_training(opt_obj)
+        self.fvgp.stop_training(opt_obj)
 
     def kill_training(self, opt_obj):
         """
@@ -1462,7 +1515,7 @@ class fvGPOptimizer(fvGP):
         opt_obj : object instance
             Object created by :py:meth:`train_async()`.
         """
-        super().kill_training(opt_obj)
+        self.fvgp.kill_training(opt_obj)
 
     ##############################################################
     def update_hyperparameters(self, opt_obj):
@@ -1480,11 +1533,12 @@ class fvGPOptimizer(fvGP):
             Hyperparameter are returned but are also automatically used to update the GP.
         """
 
-        hps = super().update_hyperparameters(opt_obj)
+        hps = self.fvgp.update_hyperparameters(opt_obj)
+        self.hyperparameters = hps
         return hps
 
     def ask(self,
-            bounds,
+            input_set,
             x_out,
             acquisition_function='variance',
             position=None,
@@ -1496,7 +1550,6 @@ class fvGPOptimizer(fvGP):
             constraints=(),
             x0=None,
             vectorized=True,
-            candidates=None,
             info=False,
             dask_client=None):
 
@@ -1507,11 +1560,13 @@ class fvGPOptimizer(fvGP):
 
         Parameters
         ----------
-        bounds : np.ndarray
-            A numpy array of floats of shape D x 2 describing the
-            search range.
-        candidates : list, optional
-            Not implemented yet for multitask fvgp.
+        input_set : np.ndarray or list, optional
+            Either a numpy array of floats of shape D x 2 describing the
+            search range or a set of candidates in the form of a list. If a candidate list
+            is provided, ask will evaluate the acquisition function on each
+            element and return a sorted array of length `n`.
+            This is usually desirable for non-Euclidean inputs but can be used either way. If candidates are
+            Euclidean, they should be provided as a list of 1-d `np.ndarray`s.
         x_out : np.ndarray
             The position indicating where in the output space the acquisition function should be evaluated.
             This array is of shape (No, Do).
@@ -1540,7 +1595,7 @@ class fvGPOptimizer(fvGP):
             of posterior distributions at different points in the output space.
             If None, the default function `variance`, meaning
             :py:meth:`fvgp.GP.posterior_covariance` with variance_only = True will be used.
-            The acquisition function can be a callable of the form my_func(x,gpcam.GPOptimizer)
+            The acquisition function can be a callable function of the form my_func(x,gpcam.GPOptimizer)
             which will be maximized (!!!), so make sure desirable new measurement points
             will be located at maxima.
         method : str, optional
@@ -1589,31 +1644,32 @@ class fvGPOptimizer(fvGP):
 
         logger.info("ask() initiated with hyperparameters: {}", self.hyperparameters)
         logger.info("optimization method: {}", method)
-        logger.info("bounds:\n{}", bounds)
+        logger.info("bounds:\n{}", input_set)
         logger.info("acq func: {}", acquisition_function)
 
-        if candidates: raise Exception("Non-Euclidean fvgp.ask() not implemented yet.")
-        if np.ndim(bounds) != 2: raise Exception("The bounds parameter has to be a 2d numpy array.")
+        assert isinstance(vectorized, bool)
+        if isinstance(input_set, np.ndarray) and np.ndim(input_set) != 2:
+            raise Exception("The input_set parameter has to be a 2d np.ndarray or a list.")
         #for user-defined acquisition functions, use "hgdl" if n>1
         if n > 1 and callable(acquisition_function):
             method = "hgdl"
-        if n > 1 and method != "hgdl":
+        if isinstance(input_set, np.ndarray) and n > 1 and method != "hgdl":
             vectorized = False
             method = "global"
-            new_optimization_bounds = np.row_stack([bounds for i in range(n)])
-            bounds = new_optimization_bounds
+            new_optimization_bounds = np.row_stack([input_set for i in range(n)])
+            input_set = new_optimization_bounds
             if acquisition_function != "total correlation" and acquisition_function != "relative information entropy":
                 acquisition_function = "total correlation"
-                warnings.warn("You specified n>1 and method != 'hgdl' in ask(). The acquisition function \
-                               has therefore been changed to 'total correlation'")
+                warnings.warn("You specified n>1 and method != 'hgdl' in ask(). The acquisition function "
+                              "has therefore been changed to 'total correlation'.")
         if acquisition_function == "total correlation" or acquisition_function == "relative information entropy":
             vectorized = False
         if method != "global": vectorized = False
 
         maxima, func_evals, opt_obj = sm.find_acquisition_function_maxima(
-            self,
+            self.fvgp,
             acquisition_function,
-            position, n, bounds,
+            position, n, input_set,
             optimization_method=method,
             optimization_pop_size=pop_size,
             optimization_max_iter=max_iter,
@@ -1622,12 +1678,11 @@ class fvGPOptimizer(fvGP):
             cost_function_parameters=self.cost_function_parameters,
             optimization_x0=x0,
             constraints=constraints,
-            candidates=candidates,
             vectorized=vectorized,
             x_out=x_out,
             info=info,
             dask_client=dask_client)
-        if n > 1: return {'x': maxima.reshape(n, self.orig_input_space_dim), "f(x)": np.array(func_evals),
+        if n > 1: return {'x': maxima.reshape(n, self.fvgp.input_space_dim), "f(x)": np.array(func_evals),
                           "opt_obj": opt_obj}
         return {'x': np.array(maxima), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
 
@@ -1647,8 +1702,8 @@ class fvGPOptimizer(fvGP):
             accordance with those definitions.
         """
 
-        if self.cost_function_parameters is None: warnings.warn("No cost_function_parameters\
-         specified. Cost update failed.")
+        if self.cost_function_parameters is None: warnings.warn("No cost_function_parameters "
+                                                                "specified. Cost update failed.")
         if callable(self.cost_update_function):
             self.cost_function_parameters = self.cost_update_function(
                 measurement_costs, self.cost_function_parameters)

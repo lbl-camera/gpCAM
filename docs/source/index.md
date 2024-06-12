@@ -28,11 +28,11 @@ hidden: true
 maxdepth: 2
 caption: Examples
 ---
-examples/basic_test.ipynb
-examples/advanced_test.ipynb
-examples/1dSingleTaskAcqFuncTest.ipynb
+examples/autonomous_experimenter_basic.ipynb
+examples/autonomous_experimenter_advanced.ipynb
+examples/1dSingleTaskAcqFunc.ipynb
 examples/GPOptimizer_SingleTaskTest.ipynb
-examples/GPONonEuclideanInputSpaces.ipynb
+examples/GPOptimizer_NonEuclideanInputSpaces.ipynb
 examples/GPOptimizer_gp2ScaleTest.ipynb
 examples/GPOptimizer_MultiTaskTest.ipynb
 ```
