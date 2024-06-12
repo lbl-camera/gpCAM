@@ -1,11 +1,11 @@
 wheel
-numpy == 1.23.5
+numpy == 1.24.1
 scipy == 1.12.0
 matplotlib
 ophyd
 dask == 2024.1.0
 distributed == 2024.1.0
-fvgp == 4.1.3
+fvgp == 4.2.9
 plotly
 notebook
 loguru

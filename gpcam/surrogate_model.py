@@ -16,7 +16,7 @@ import warnings
 def find_acquisition_function_maxima(gp, acquisition_function,
                                      origin=None,
                                      number_of_maxima_sought=1,
-                                     optimization_bounds=None,
+                                     optimization_set=None,
                                      optimization_method="global",
                                      optimization_pop_size=20,
                                      optimization_max_iter=10,
@@ -26,19 +26,23 @@ def find_acquisition_function_maxima(gp, acquisition_function,
                                      cost_function=None,
                                      cost_function_parameters=None,
                                      vectorized=True,
-                                     candidates=None,
                                      x_out=None,
                                      dask_client=None,
                                      info=False):
-
-    if candidates is None and optimization_bounds is None:
-        raise Exception("optimization bounds or candidates have to be provided")
-    bounds = optimization_bounds
+    bounds = None
+    candidates = None
+    if optimization_set is None:
+        raise Exception("optimization set has to be provided")
+    if isinstance(optimization_set, np.ndarray): bounds = optimization_set
+    elif isinstance(optimization_set, list): candidates = optimization_set
+    else: raise Exception("optimization_set not given in an allowed format")
     opt_obj = None
 
-    func = partial(evaluate_acquisition_function, gp=gp, acquisition_function=acquisition_function,
-                   origin=origin, number_of_maxima_sought=number_of_maxima_sought,
-                   cost_function=cost_function, cost_function_parameters=cost_function_parameters, x_out=x_out)
+    func = partial(evaluate_acquisition_function, gp=gp,
+                   acquisition_function=acquisition_function,
+                   origin=origin,
+                   cost_function=cost_function,
+                   cost_function_parameters=cost_function_parameters, x_out=x_out)
     grad = partial(gradient, func=func)
 
     logger.info("====================================")
@@ -51,34 +55,18 @@ def find_acquisition_function_maxima(gp, acquisition_function,
     logger.info("cost function parameters: {}", cost_function_parameters)
     logger.info("====================================")
     if candidates is not None:
-        if not callable(acquisition_function): warnings.warn("It is recommended to use a custom acquisition \
-        function for solutions on candidate sets. Proceed with caution.")
-        if isinstance(candidates, np.ndarray):
-            res = func(candidates)
-            sort_indices = np.argsort(res)
-            res = res[sort_indices]
-            candidates = candidates[sort_indices]
-            length = min(number_of_maxima_sought, len(res))
-            opti, func_eval, opt_obj = candidates[0:length], res[0:length], None
-        elif isinstance(candidates, list):
-            #choices1 = random.sample(candidates, k=min(number_of_maxima_sought * 100, len(candidates)))
-            #choices = [[choices1[i]] for i in range(len(choices1))]
-            res = np.asarray(list(map(func, candidates))).reshape(len(candidates))
-            sort_indices = np.argsort(res)
-            res = res[sort_indices]
-            #sorted_choices = [choices[sort_index] for sort_index in sort_indices]
-            sorted_candidates = [candidates[sort_index] for sort_index in sort_indices]
-            candidates = sorted_candidates
-            length = min(number_of_maxima_sought, len(candidates))
-            opti, func_eval, opt_obj = np.asarray(candidates[0:length]), res[0:length], None
-            print(opti)
-        else:
-            raise Exception("Candidates, if provided, have to be a list or a 2d np.ndarray.")
+        res = func(candidates)
+        sort_indices = np.argsort(res)
+        res = res[sort_indices]
+        sorted_candidates = [candidates[sort_index] for sort_index in sort_indices]
+        candidates = sorted_candidates
+        length = min(number_of_maxima_sought, len(candidates))
+        opti, func_eval, opt_obj = np.asarray(candidates[0:length]), res[0:length], None
 
     elif optimization_method == "global":
         opti, func_eval = differential_evolution(
             func,
-            optimization_bounds,
+            optimization_set,
             tol=optimization_tol,
             x0=optimization_x0,
             popsize=optimization_pop_size,
@@ -118,7 +106,7 @@ def find_acquisition_function_maxima(gp, acquisition_function,
         ###optimization_max_iter, tolerance here
         if optimization_x0: optimization_x0 = optimization_x0.reshape(1, -1)
         opt_obj.optimize(dask_client=dask_client, x0=optimization_x0, tolerance=optimization_tol)
-        opti = np.zeros((1, gp.input_dim))
+        opti = np.zeros((1, gp.index_set_dim))
         func_eval = np.zeros((1))
 
     elif optimization_method == "local":
@@ -154,7 +142,7 @@ def find_acquisition_function_maxima(gp, acquisition_function,
 
     else:
         raise ValueError("Invalid acquisition function optimization method given.")
-    if np.ndim(func_eval) != 1 or np.ndim(opti) != 2:
+    if np.ndim(func_eval) != 1:
         logger.error("f(x): ", func_eval)
         logger.error("x: ", opti)
         raise Exception(
@@ -167,14 +155,14 @@ def find_acquisition_function_maxima(gp, acquisition_function,
 ############################################################
 ############################################################
 ############################################################
-def evaluate_acquisition_function(x, gp=None, acquisition_function=None, origin=None, number_of_maxima_sought=1,
+def evaluate_acquisition_function(x, gp=None, acquisition_function=None, origin=None,
                                   cost_function=None, cost_function_parameters=None, x_out=None):
     ##########################################################
     ####this function evaluates a default or a user-defined acquisition function
     ##########################################################
-    if isinstance(x, np.ndarray) and np.ndim(x) == 1: x = x.reshape(-1, gp.input_dim)
-    if x_out is not None and np.ndim(x_out) != 2: raise Exception(
-        "x_out in evaluate_acquisition_function has to be a 2d numpy array.")
+    if isinstance(x, np.ndarray) and np.ndim(x) == 1: x = x.reshape(-1, gp.index_set_dim)
+    if x_out is not None and np.ndim(x_out) != 1: raise Exception(
+        "x_out in evaluate_acquisition_function has to be a 1d numpy array.")
 
     if cost_function is not None and origin is not None:
         cost_eval = cost_function(origin, x, cost_function_parameters)
@@ -184,17 +172,17 @@ def evaluate_acquisition_function(x, gp=None, acquisition_function=None, origin=
     if callable(acquisition_function):
         return -acquisition_function(x, gp) / cost_eval
     else:
-        obj_eval = evaluate_gp_acquisition_function(x, acquisition_function, gp, number_of_maxima_sought, x_out=x_out)
+        obj_eval = evaluate_gp_acquisition_function(x, acquisition_function, gp, x_out=x_out)
         obj_eval = -obj_eval / cost_eval
         return obj_eval
 
 
-def evaluate_gp_acquisition_function(x, acquisition_function, gp, number_of_maxima_sought, x_out):
+def evaluate_gp_acquisition_function(x, acquisition_function, gp, x_out):
     ##this function will always spit out a 1d numpy array
     ##for certain functions, this array will only have one entry
     ##for the other the length == len(x)
     if isinstance(x, np.ndarray) and np.ndim(x) == 1: raise Exception(
-        "1d array given in evaluate_gp_acquisition_function.")
+        "1d array given in evaluate_gp_acquisition_function. It has to be 2d")
     if x_out is None:
         if acquisition_function == "variance":
             res = gp.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"]

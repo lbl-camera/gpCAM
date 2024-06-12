@@ -15,12 +15,13 @@ class gpData:
     data arrays are numpy arrays
     """
 
-    def __init__(self, dim, parameter_bounds, output_number=None, output_dim=None):
+    def __init__(self, dim, parameter_bounds, output_number=None):
         self.dim = dim
         self.parameter_bounds = parameter_bounds
         self.dataset = []
         self.output_number = output_number
-        self.output_dim = output_dim
+        self.point_number = None
+        self.x = None
 
     ###############################################################
     # either create random data or communicate a data set (use translate2data for numpy arrays)
@@ -35,7 +36,7 @@ class gpData:
     def inject_dataset(self, dataset):
         """
         initializes a previously-collected dataset
-        !!!for intitiation only!!! just use the "+" operator to update the existing dataset
+        !!!for initialization only!!! just use the "+" operator to update the existing dataset
         """
         self.point_number = len(self.dataset)
         self.dataset = dataset
@@ -195,11 +196,11 @@ class gpData:
 ######################################################################
 ######################################################################
 class fvgpData(gpData):
-    def __init__(self, dim, parameter_bounds, output_number, output_dim):
-        if output_number is None or output_dim is None:
-            raise Exception("When initializing the data class for a multi-output GP, \
-                    please provide output_number AND output_dim parameters.")
-        super(fvgpData, self).__init__(dim, parameter_bounds, output_number, output_dim)
+    def __init__(self, dim, parameter_bounds, output_number):
+        if output_number is None:
+            raise Exception("When initializing the data class for a multi-output GP, "
+                            "please provide the output_number.")
+        super(fvgpData, self).__init__(dim, parameter_bounds, output_number)
 
     def create_random_dataset(self, length):
         self.x = self._create_random_points(length)
@@ -271,9 +272,9 @@ class fvgpData(gpData):
 
     def extract_output_positions_from_data(self):
         self.point_number = len(self.dataset)
-        VP = np.zeros((self.point_number, self.output_number, self.output_dim))
+        VP = np.zeros((self.point_number, self.output_number))
         for idx_data in range(self.point_number):
-            if ("output positions" in self.dataset[idx_data]):
+            if "output positions" in self.dataset[idx_data]:
                 VP[idx_data] = self.dataset[idx_data]["output positions"]
             else:
                 VP[idx_data] = self.dataset[idx_data - 1]["output positions"]
@@ -305,4 +306,5 @@ class fvgpData(gpData):
                     raise Exception("Entry with no specified output positions in communicated list of data dictionaries")
         except Exception as e:
             raise Exception(
-                    "Checking the incoming data could not be accomplished. This normally means that wrong formats were communicated: ", e)
+                    "Checking the incoming data could not be accomplished. "
+                    "This normally means that wrong formats were communicated: ", e)
