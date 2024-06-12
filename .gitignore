@@ -148,4 +148,4 @@ docs/build/
 *.lock
 
 # ignore hatch versioning
-/gpcam/_version.py
+gpcam/_version.py
