@@ -9,19 +9,8 @@ import warnings
 
 
 # TODO (for gpCAM)
-#   for Ron's situation, make x_data, x_data optional and None by default, if not communicated,
-#                 the initialization of GP should be delayed
-#   make 'online' a gpCAM thing:
-#        online : bool, optional
-#        A new setting that allows optimization for online applications. Default=False. If True,
-#        the inverse (if calc_inv is True), or the Cholesky factors (if calc_inv is False) and the logdet()
-#        will only be computed
-#        once in the beginning and after that only updated. This leads to a significant speedup because
-#        the most costly aspects of a GP are entirely avoided. A good indicator whether `online` is a good choice is
-#        the `append` option in the gp update. You always append data, never overwrite, online should be True
-#        to save some time.
 #   should the gpoptimizer class have an "optimize" method?
-#   add a test that shows online mode up to 10000 points
+#   add a test that shows online mode up to 10000 points, for this the inv_update rounding error can't destroy us.
 #   autonomous experiment class still has be adapted
 #   in AE, can we ask including candidates?
 #   how is append vs overwrite handled?
