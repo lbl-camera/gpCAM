@@ -431,7 +431,12 @@ class GPOptimizer:
         append : bool, optional
             The default is True. Indicates if existent data should be appended by or overwritten with the new data.
         """
+        #print(self.gp.marginal_density.KVlinalg.KV)
+        #print(np.sum(abs(np.linalg.inv(self.gp.marginal_density.KVlinalg.KV)-self.gp.marginal_density.KVlinalg.KVinv)))
+        #print("-------------")
         self.update_gp_data(x, y, noise_variances_new=noise_variances, append=append)
+        #print(np.sum(abs(np.linalg.inv(self.gp.marginal_density.KVlinalg.KV)-self.gp.marginal_density.KVlinalg.KVinv)))
+
 
     ##############################################################
     def train(
@@ -489,7 +494,7 @@ class GPOptimizer:
         method : str or Callable, optional
             The method used to train the hyperparameters.
             The options are `global`, `local`, `hgdl`, `mcmc`, and a callable.
-            The callable gets a fvgp.GP instance and has to return a 1d np.ndarray of hyperparameters.
+            The callable gets a `fvgp.GP` instance and has to return a 1d np.ndarray of hyperparameters.
             The default is `global` (scipy's differential evolution).
             If method = "mcmc",
             the attribute gpcam.GPOptimizer.mcmc_info is updated and contains convergence and distribution information.

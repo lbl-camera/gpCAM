@@ -21,11 +21,13 @@ def ac_func1(x, obj):
 def instrument(data, instrument_dict=None):
     for entry in data:
         entry["y_data"] = np.sin(np.linalg.norm(entry["x_data"]))
+        entry["noise variance"] = 0.01
     return data
 def instrument2(data, instrument_dict=None):
     for entry in data:
         entry["y_data"] = np.array([np.sin(np.linalg.norm(entry["x_data"])), 10. * np.sin(np.linalg.norm(entry["x_data"]))])
         entry["output positions"] = np.array([0,1])
+        entry["noise variances"] = np.array([0.01,0.01])
     return data
 
 def mt_kernel(x1,x2,hps,obj):
@@ -115,7 +117,9 @@ class TestgpCAM(unittest.TestCase):
                                         init_dataset_size=10)
         #...train...
         my_ae.data.inject_dataset(my_ae.data.dataset)
-        my_ae.data.inject_arrays(np.array([[0.,0.1],[1.,1.]]), y = np.array([3.,4.]), v = np.array([.1,.2]), info = [{"f": 2.}, {'d':3.}])
+        my_ae.data.arrays2data(np.array([[0.,0.1],[1.,1.]]), 
+                                 y = np.array([3.,4.]), 
+                                 v = np.array([.1,.2]), info = [{"f": 2.}, {'d':3.}])
         my_ae = AutonomousExperimenterGP(input_space, hyperparameters=init_hyperparameters,
                                         hyperparameter_bounds=hps_bounds,instrument_function = instrument,
                                         init_dataset_size=4)
@@ -144,7 +148,7 @@ class TestgpCAM(unittest.TestCase):
                                         init_dataset_size=10)
         #...train...
         my_ae.data.inject_dataset(my_ae.data.dataset)
-        my_ae.data.inject_arrays(np.array([[0.,0.1],[1.,1.]]), y = np.array([[3.,4.],[5.,9.]]), v = np.array([[.1,.2],[0.01,0.03]]), vp = np.array([[[2.0,3.0]],[[1.,2.]]]),info = [{"f": 2.}, {'d':3.}])
+        my_ae.data.arrays2data(np.array([[0.,0.1],[1.,1.]]), y = np.array([[3.,4.],[5.,9.]]), v = np.array([[.1,.2],[0.01,0.03]]), vp = np.array([[2.0,3.0],[1.,2.]]),info = [{"f": 2.}, {'d':3.}])
         my_ae = AutonomousExperimenterFvGP(input_space,2, hyperparameters=init_hyperparameters, kernel_function = mt_kernel,
                                         hyperparameter_bounds=hps_bounds,instrument_function = instrument2,
                                         init_dataset_size=4)

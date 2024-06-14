@@ -1,15 +1,11 @@
 #!/usr/bin/env python
-import itertools
-from functools import partial
 import math
 import numpy as np
 from loguru import logger
-import random
 from hgdl.hgdl import HGDL
 from scipy.optimize import differential_evolution as devo, minimize
 from scipy.stats import norm
 from functools import partial
-import warnings
 
 
 ##########################################################################
@@ -288,9 +284,11 @@ def differential_evolution(func,
                            constraints=(),
                            disp=False,
                            vectorized=True):
+    if vectorized: updating = 'deferred'
+    else: updating = 'immediate'
     res = devo(partial(acq_function_vectorization_wrapper, func=func, vectorized=vectorized), bounds, tol=tol, x0=x0,
                maxiter=max_iter, popsize=popsize, polish=False, disp=disp, constraints=constraints,
-               vectorized=vectorized)
+               vectorized=vectorized, updating=updating)
     return [list(res["x"])], list([res["fun"]])
 
 

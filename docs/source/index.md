@@ -18,7 +18,7 @@ api/autonomous-experimenter.md
 api/autonomous-experimenterfvgp.md
 api/gpOptimizer.md
 api/fvgpOptimizer.md
-api.logging.md
+api/logging.md
 ```
 
 
