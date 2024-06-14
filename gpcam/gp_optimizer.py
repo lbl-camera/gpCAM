@@ -310,7 +310,12 @@ class GPOptimizer:
         self.hyperparameters = init_hyperparameters
 
     def __getattr__(self, attr):
-        if self.gp is None: raise Exception("gp not yet initialized")
+        if not self.gp:
+            raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{attr}'. "
+                                 f"You may need to initialize the GP.")
+        elif self.gp and hasattr(self.gp, attr):
+            warnings.warn(f"Direct access to GP attributes from {self.__class__.__name__} is deprecated. "
+                          f"It is suggested to use: {self.__class__.__name__}.gp.{attr}", DeprecationWarning)
         return getattr(self.gp, attr)
 
     def _initializeGP(self,
@@ -1174,7 +1179,12 @@ class fvGPOptimizer:
         self.hyperparameters = init_hyperparameters
 
     def __getattr__(self, attr):
-        if self.fvgp is None: raise Exception("gp not yet initialized")
+        if not self.fvgp:
+            raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{attr}'. "
+                                 f"You may need to initialize the GP.")
+        elif self.fvgp and hasattr(self.fvgp, attr):
+            warnings.warn(f"Direct access to GP attributes from {self.__class__.__name__} is deprecated. "
+                          f"It is suggested to use: {self.__class__.__name__}.fvgp.{attr}", DeprecationWarning)
         return getattr(self.fvgp, attr)
 
     def _initializefvGP(self,
