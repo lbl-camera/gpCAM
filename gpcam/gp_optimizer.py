@@ -799,7 +799,7 @@ class GPOptimizer:
         if method != "global": vectorized = False
 
         maxima, func_evals, opt_obj = sm.find_acquisition_function_maxima(
-            self.gp,
+            self,
             acquisition_function,
             position, n, input_set,
             optimization_method=method,
@@ -1136,7 +1136,7 @@ class fvGPOptimizer:
             cost_function_parameters=None,
             cost_update_function=None,
     ):
-        self.fvgp = None
+        self.gp = None
         if x_data is not None and y_data is not None:
             self._initializefvGP(
                 x_data,
@@ -1168,13 +1168,13 @@ class fvGPOptimizer:
         self.hyperparameters = init_hyperparameters
 
     def __getattr__(self, attr):
-        if not self.fvgp:
+        if not self.gp:
             raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{attr}'. "
                                  f"You may need to initialize the GP.")
-        elif self.fvgp and hasattr(self.fvgp, attr):
+        elif self.gp and hasattr(self.gp, attr):
             warnings.warn(f"Direct access to GP attributes from {self.__class__.__name__} is deprecated. "
                           f"It is suggested to use: {self.__class__.__name__}.fvgp.{attr}", DeprecationWarning)
-        return getattr(self.fvgp, attr)
+        return getattr(self.gp, attr)
 
     def _initializefvGP(self,
                         x_data,
@@ -1201,7 +1201,7 @@ class fvGPOptimizer:
         If data is prided at initialization this function is NOT needed.
         It has the same parameters as the initialization of the class.
         """
-        self.fvgp = fvGP(
+        self.gp = fvGP(
             x_data,
             y_data,
             init_hyperparameters=init_hyperparameters,
@@ -1222,8 +1222,8 @@ class fvGPOptimizer:
             args=args,
             info=info,
         )
-        self.index_set_dim = self.fvgp.prior.index_set_dim
-        self.input_space_dim = self.fvgp.input_space_dim
+        self.index_set_dim = self.gp.index_set_dim
+        self.input_space_dim = self.gp.input_space_dim
 
     ############################################################################
     def get_data(self):
@@ -1272,7 +1272,7 @@ class fvGPOptimizer:
         cost_function = self.cost_function
         try:
             res = sm.evaluate_acquisition_function(
-                x, self.fvgp, acquisition_function,
+                x, self, acquisition_function,
                 cost_function=cost_function, cost_function_parameters=self.cost_function_parameters,
                 x_out=x_out)
             return -res
@@ -1392,7 +1392,7 @@ class fvGPOptimizer:
             Returned are the hyperparameters, however, the GP is automatically updated.
 
         """
-        self.hyperparameters = self.fvgp.train(
+        self.hyperparameters = self.gp.train(
             objective_function=objective_function,
             objective_function_gradient=objective_function_gradient,
             objective_function_hessian=objective_function_hessian,
@@ -1474,7 +1474,7 @@ class fvGPOptimizer:
             to update the prior GP
         """
 
-        opt_obj = self.fvgp.train_async(
+        opt_obj = self.gp.train_async(
             objective_function=objective_function,
             objective_function_gradient=objective_function_gradient,
             objective_function_hessian=objective_function_hessian,
@@ -1498,7 +1498,7 @@ class fvGPOptimizer:
         opt_obj : object instance
             Object created by :py:meth:`train_async()`.
         """
-        self.fvgp.stop_training(opt_obj)
+        self.gp.stop_training(opt_obj)
 
     def kill_training(self, opt_obj):
         """
@@ -1509,7 +1509,7 @@ class fvGPOptimizer:
         opt_obj : object instance
             Object created by :py:meth:`train_async()`.
         """
-        self.fvgp.kill_training(opt_obj)
+        self.gp.kill_training(opt_obj)
 
     ##############################################################
     def update_hyperparameters(self, opt_obj):
@@ -1527,7 +1527,7 @@ class fvGPOptimizer:
             Hyperparameter are returned but are also automatically used to update the GP.
         """
 
-        hps = self.fvgp.update_hyperparameters(opt_obj)
+        hps = self.gp.update_hyperparameters(opt_obj)
         self.hyperparameters = hps
         return hps
 
@@ -1549,8 +1549,8 @@ class fvGPOptimizer:
 
         """
         Given that the acquisition device is at `position`, the function ask()s for
-        "n" new optimal points within certain "bounds" and using the optimization setup:
-        "acquisition_function_pop_size", `max_iter` and `tol`.
+        `n` new optimal points within certain "bounds" and using the optimization setup:
+        `acquisition_function_pop_size`, `max_iter` and `tol`.
 
         Parameters
         ----------
@@ -1661,7 +1661,7 @@ class fvGPOptimizer:
         if method != "global": vectorized = False
 
         maxima, func_evals, opt_obj = sm.find_acquisition_function_maxima(
-            self.fvgp,
+            self,
             acquisition_function,
             position, n, input_set,
             optimization_method=method,
@@ -1676,7 +1676,7 @@ class fvGPOptimizer:
             x_out=x_out,
             info=info,
             dask_client=dask_client)
-        if n > 1: return {'x': maxima.reshape(n, self.fvgp.input_space_dim), "f(x)": np.array(func_evals),
+        if n > 1: return {'x': maxima.reshape(n, self.gp.input_space_dim), "f(x)": np.array(func_evals),
                           "opt_obj": opt_obj}
         return {'x': np.array(maxima), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
 

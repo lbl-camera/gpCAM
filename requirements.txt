@@ -5,7 +5,7 @@ matplotlib
 ophyd
 dask == 2024.1.0
 distributed == 2024.1.0
-fvgp == 4.2.10
+fvgp == 4.2.13
 plotly
 notebook
 loguru
