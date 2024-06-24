@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [ '3.9', '3.10' ]
+        python-version: [ '3.9', '3.10', '3.11', '3.12' ]
 
     steps:
       - uses: actions/checkout@v2
@@ -25,14 +25,15 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
+          python -m ensurepip --upgrade
+          python -m pip install --upgrade setuptools
           pip install -e .[tests]
 
       - name: Run tests
         run: pytest tests --cov=./ --cov-report=xml
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v2
+        uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           directory: ./coverage/reports/
@@ -40,7 +41,6 @@ jobs:
           fail_ci_if_error: true
           files: ./coverage.xml
           name: codecov-umbrella
-          path_to_write_report: ./coverage/codecov_report.txt
           verbose: true
 
   deploy:
@@ -57,8 +57,10 @@ jobs:
 
       - name: Setup deploy
         run: |
-          pip install --upgrade setuptools wheel twine
-          python setup.py sdist bdist_wheel
+          python -m ensurepip --upgrade
+          python -m pip install --upgrade setuptools
+          pip install --upgrade wheel twine hatch
+          hatch build
 
       - name: Publish package
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -71,5 +73,5 @@ jobs:
         uses: fnkr/github-action-ghr@v1
         env:
           GHR_COMPRESS: xz
-          GHR_PATH: build/
+          GHR_PATH: dist/
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

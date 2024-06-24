@@ -1,0 +1,89 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gpcam"
+dependencies = [
+    "wheel",
+    "numpy ~= 1.26.4",
+    "scipy ~= 1.13.0",
+    "dask ~= 2024.1.0",
+    "distributed ~= 2024.1.0",
+    "fvgp ~= 4.2.13",
+    "loguru",
+]
+requires-python = ">=3.9"
+authors = [
+    { name = "Marcus Michael Noack", email = "MarcusNoack@lbl.gov" },
+    { name = "Ronald J. Pandolfi", email = "ronpandolfi@lbl.gov" },
+]
+maintainers = [
+    { name = "Marcus Michael Noack", email = "MarcusNoack@lbl.gov" },
+    { name = "Ronald J. Pandolfi", email = "ronpandolfi@lbl.gov" },
+]
+description = "Autonomous data acquisition"
+readme = "README.md"
+license = { file = "LICENSE" }
+keywords = ["autonomous", "self driving", "adaptive", "gui", "qt"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    'Intended Audience :: Developers',
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python :: 3",
+    'Programming Language :: Python :: 3.9',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
+    "Natural Language :: English",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+docs = ['sphinx', 'sphinx-rtd-theme', 'myst-parser', 'myst-nb', 'sphinx-panels', 'autodocs', 'sphinx-hoverxref']
+tests = ['pytest', 'codecov', 'pytest-cov']
+plotting = ['matplotlib', 'plotly', 'notebook']
+
+[project.urls]
+Homepage = "https://gpcam.lbl.gov"
+Documentation = "https://gpcam.readthedocs.io/"
+Repository = "https://github.com/lbl-camera/gpcam.git"
+"Bug Tracker" = "https://github.com/lbl-camera/gpcam/issues"
+Changelog = "https://github.com/lbl-camera/gpcam/commits/master/"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "gpcam/_version.py"
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "/.github",
+  "/docs",
+  "/examples",
+  "/tests",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["gpcam"]
+
+[tool.black]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+
+  # The following are specific to Black, you probably don't want those.
+  | blib2to3
+  | tests/data
+)/
+'''
