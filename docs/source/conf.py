@@ -1,4 +1,4 @@
-from gpcam import _version
+from gpcam import __version__
 
 # Configuration file for the Sphinx documentation builder.
 #
@@ -12,7 +12,9 @@ project = 'gpCAM'
 
 copyright = '2021, Marcus Michael Noack'
 author = 'Marcus Michael Noack'
-version = _version.get_versions()['version']
+version = __version__
+# The full version, including alpha/beta/rc tags
+release = __version__
 
 
 # -- General configuration ---------------------------------------------------
