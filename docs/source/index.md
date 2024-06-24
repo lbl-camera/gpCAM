@@ -30,7 +30,7 @@ caption: Examples
 ---
 examples/autonomous_experimenter_basic.ipynb
 examples/autonomous_experimenter_advanced.ipynb
-examples/1dSingleTaskAcqFunc.ipynb
+examples/1dSingleTaskAcqFuncTest.ipynb
 examples/GPOptimizer_SingleTaskTest.ipynb
 examples/GPOptimizer_NonEuclideanInputSpaces.ipynb
 examples/GPOptimizer_gp2ScaleTest.ipynb
