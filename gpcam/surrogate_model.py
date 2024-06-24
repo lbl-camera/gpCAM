@@ -9,10 +9,11 @@ from functools import partial
 
 
 ##########################################################################
-def find_acquisition_function_maxima(gpo, acquisition_function,
+def find_acquisition_function_maxima(gpo, acquisition_function, *,
                                      origin=None,
                                      number_of_maxima_sought=1,
-                                     optimization_set=None,
+                                     input_set=None,
+                                     input_set_dim=None,
                                      optimization_method="global",
                                      optimization_pop_size=20,
                                      optimization_max_iter=10,
@@ -27,16 +28,19 @@ def find_acquisition_function_maxima(gpo, acquisition_function,
                                      info=False):
     bounds = None
     candidates = None
-    if optimization_set is None:
+    if input_set is None:
         raise Exception("optimization set has to be provided")
-    if isinstance(optimization_set, np.ndarray): bounds = optimization_set
-    elif isinstance(optimization_set, list): candidates = optimization_set
-    else: raise Exception("optimization_set not given in an allowed format")
+    if isinstance(input_set, np.ndarray):
+        bounds = input_set
+    elif isinstance(input_set, list):
+        candidates = input_set
+    else:
+        raise Exception("input_set not given in an allowed format")
     opt_obj = None
 
     func = partial(evaluate_acquisition_function, gpo=gpo,
                    acquisition_function=acquisition_function,
-                   origin=origin,
+                   origin=origin, dim=input_set_dim,
                    cost_function=cost_function,
                    cost_function_parameters=cost_function_parameters, x_out=x_out)
     grad = partial(gradient, func=func)
@@ -62,7 +66,7 @@ def find_acquisition_function_maxima(gpo, acquisition_function,
     elif optimization_method == "global":
         opti, func_eval = differential_evolution(
             func,
-            optimization_set,
+            input_set,
             tol=optimization_tol,
             x0=optimization_x0,
             popsize=optimization_pop_size,
@@ -102,7 +106,7 @@ def find_acquisition_function_maxima(gpo, acquisition_function,
         ###optimization_max_iter, tolerance here
         if optimization_x0: optimization_x0 = optimization_x0.reshape(1, -1)
         opt_obj.optimize(dask_client=dask_client, x0=optimization_x0, tolerance=optimization_tol)
-        opti = np.zeros((1, gpo.gp.index_set_dim))
+        opti = np.zeros((1, input_set_dim))
         func_eval = np.zeros((1))
 
     elif optimization_method == "local":
@@ -131,9 +135,9 @@ def find_acquisition_function_maxima(gpo, acquisition_function,
                 "local acquisition function optimization not successful, solution replaced with random point.")
             opti = np.array(x0)
             if opti.ndim != 2: opti = np.array([opti])
-            func_eval = evaluate_acquisition_function(x0,
-                                                      gpo, acquisition_function, origin,
-                                                      cost_function, cost_function_parameters)
+            func_eval = evaluate_acquisition_function(x0, gpo=gpo, acquisition_function=acquisition_function,
+                                                      origin=origin, dim=input_set_dim, cost_function=cost_function,
+                                                      cost_function_parameters=cost_function_parameters, x_out=x_out)
             if np.ndim(func_eval) != 1: func_eval = np.array([func_eval])
 
     else:
@@ -151,16 +155,20 @@ def find_acquisition_function_maxima(gpo, acquisition_function,
 ############################################################
 ############################################################
 ############################################################
-def evaluate_acquisition_function(x, gpo=None, acquisition_function=None, origin=None,
+def evaluate_acquisition_function(x, *, gpo=None, acquisition_function=None, origin=None, dim=None,
                                   cost_function=None, cost_function_parameters=None, x_out=None):
     ##########################################################
     ####this function evaluates a default or a user-defined acquisition function
     ##########################################################
     if isinstance(x, np.ndarray):
-        if np.ndim(x) == 1: x = x.reshape(-1, gpo.input_space_dim)
-        elif np.ndim(x) > 2: raise Exception("Wrong input dim in `x`.")
-    elif isinstance(x, list): x = x
-    else: x = [x]
+        if np.ndim(x) == 1:
+            x = x.reshape(-1, dim)
+        elif np.ndim(x) > 2:
+            raise Exception("Wrong input dim in `x`.")
+    elif isinstance(x, list):
+        x = x
+    else:
+        x = [x]
 
     if x_out is not None and np.ndim(x_out) != 1: raise Exception(
         "x_out in evaluate_acquisition_function has to be a 1d numpy array.")
@@ -171,7 +179,7 @@ def evaluate_acquisition_function(x, gpo=None, acquisition_function=None, origin
         cost_eval = 1.0
     # for user defined acquisition function
     if callable(acquisition_function):
-        return -acquisition_function(x, gpo.gp) / cost_eval
+        return -acquisition_function(x, gpo) / cost_eval
     else:
         obj_eval = evaluate_gp_acquisition_function(x, acquisition_function, gpo, x_out=x_out)
         obj_eval = -obj_eval / cost_eval
@@ -186,44 +194,44 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gpo, x_out):
         "1d array given in evaluate_gp_acquisition_function. It has to be 2d")
     if x_out is None:
         if acquisition_function == "variance":
-            res = gpo.gp.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"]
+            res = gpo.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"]
             return res
         elif acquisition_function == "relative information entropy":
-            res = -gpo.gp.gp_relative_information_entropy(x, x_out=x_out)["RIE"]
+            res = -gpo.gp_relative_information_entropy(x, x_out=x_out)["RIE"]
             return np.array([res])
         elif acquisition_function == "relative information entropy set":
-            res = -gpo.gp.gp_relative_information_entropy_set(x, x_out=x_out)["RIE"]
+            res = -gpo.gp_relative_information_entropy_set(x, x_out=x_out)["RIE"]
             return res
         elif acquisition_function == "ucb":
-            m = gpo.gp.posterior_mean(x, x_out=x_out)["f(x)"]
-            v = gpo.gp.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"]
+            m = gpo.posterior_mean(x, x_out=x_out)["f(x)"]
+            v = gpo.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"]
             return m + 3.0 * np.sqrt(v)
         elif acquisition_function == "lcb":
-            m = gpo.gp.posterior_mean(x, x_out=x_out)["f(x)"]
-            v = gpo.gp.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"]
+            m = gpo.posterior_mean(x, x_out=x_out)["f(x)"]
+            v = gpo.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"]
             return -(m - 3.0 * np.sqrt(v))
         elif acquisition_function == "maximum":
-            res = gpo.gp.posterior_mean(x, x_out=x_out)["f(x)"]
+            res = gpo.posterior_mean(x, x_out=x_out)["f(x)"]
             return res
         elif acquisition_function == "gradient":
-            mean_grad = gpo.gp.posterior_mean_grad(x, x_out=x_out)["df/dx"]
-            std = np.sqrt(gpo.gp.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"])
+            mean_grad = gpo.posterior_mean_grad(x, x_out=x_out)["df/dx"]
+            std = np.sqrt(gpo.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"])
             res = np.linalg.norm(mean_grad, axis=1) * std
             return res
         elif acquisition_function == "minimum":
-            res = gpo.gp.posterior_mean(x, x_out=x_out)["f(x)"]
+            res = gpo.posterior_mean(x, x_out=x_out)["f(x)"]
             return -res
         elif acquisition_function == "probability of improvement":
-            m = gpo.gp.posterior_mean(x, x_out=x_out)["f(x)"]
-            std = np.sqrt(gpo.gp.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"])
-            last_best = np.max(gpo.gp.y_data)
+            m = gpo.posterior_mean(x, x_out=x_out)["f(x)"]
+            std = np.sqrt(gpo.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"])
+            last_best = np.max(gpo.y_data)
             return norm.cdf((m - last_best) / (std + 1e-9))
         elif acquisition_function == "total correlation":
-            return -np.array([gpo.gp.gp_total_correlation(x, x_out=x_out)["total correlation"]])
+            return -np.array([gpo.gp_total_correlation(x, x_out=x_out)["total correlation"]])
         elif acquisition_function == "expected improvement":
-            m = gpo.gp.posterior_mean(x, x_out=x_out)["f(x)"]
-            std = np.sqrt(gpo.gp.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"])
-            last_best = np.max(gpo.gp.y_data)
+            m = gpo.posterior_mean(x, x_out=x_out)["f(x)"]
+            std = np.sqrt(gpo.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"])
+            last_best = np.max(gpo.y_data)
             a = (m - last_best)
             a[a < 0.] = 0.
             gamma = a / (std + 1e-9)
@@ -232,44 +240,44 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gpo, x_out):
             return std * (gamma * cdf + pdf)
         elif acquisition_function == "target probability":
             try:
-                a = gpo.gp.args["a"]
-                b = gpo.gp.args["b"]
+                a = gpo.args["a"]
+                b = gpo.args["b"]
             except:
                 raise Exception("Reading the arguments for acq func `target probability` failed.")
-            mean = gpo.gp.posterior_mean(x, x_out=x_out)["f(x)"]
-            cov = gpo.gp.posterior_covariance(x, x_out=x_out)["v(x)"] + 1e-9
+            mean = gpo.posterior_mean(x, x_out=x_out)["f(x)"]
+            cov = gpo.posterior_covariance(x, x_out=x_out)["v(x)"] + 1e-9
             result = np.zeros((len(x)))
             for i in range(len(x)):
                 result[i] = 0.5 * (math.erf((b - mean[i]) / np.sqrt(2. * cov[i]))) - math.erf(
-                (a - mean[i]) / np.sqrt(2. * cov[i]))
+                    (a - mean[i]) / np.sqrt(2. * cov[i]))
             return result
         else:
             raise Exception("No valid acquisition function string provided.")
 
     else:
         if acquisition_function == "variance":
-            res = gpo.gp.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"]
+            res = gpo.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"]
             return np.sum(res.reshape(len(x), len(x_out), order="F"), axis=1)
         elif acquisition_function == "relative information entropy":
-            res = -gpo.gp.gp_relative_information_entropy(x, x_out=x_out)["RIE"]
+            res = -gpo.gp_relative_information_entropy(x, x_out=x_out)["RIE"]
             return np.array([res])
         elif acquisition_function == "relative information entropy set":
-            res = -gpo.gp.gp_relative_information_entropy_set(x, x_out=x_out)["RIE"]
+            res = -gpo.gp_relative_information_entropy_set(x, x_out=x_out)["RIE"]
             return np.sum(res.reshape(len(x), len(x_out), order="F"), axis=1)
         elif acquisition_function == "total correlation":
-            return -np.array([gpo.gp.gp_total_correlation(x, x_out=x_out)["total correlation"]])
+            return -np.array([gpo.gp_total_correlation(x, x_out=x_out)["total correlation"]])
         elif acquisition_function == "ucb":
-            m = gpo.gp.posterior_mean(x, x_out=x_out)["f(x)"]
+            m = gpo.posterior_mean(x, x_out=x_out)["f(x)"]
             av_m = np.sum(m.reshape(len(x), len(x_out), order="F"), axis=1)
-            v = gpo.gp.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"]
+            v = gpo.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"]
             av_v = np.sum(v.reshape(len(x), len(x_out), order="F"), axis=1)
             return av_m + 3.0 * np.sqrt(av_v)
         elif acquisition_function == "expected improvement":
-            m = gpo.gp.posterior_mean(x, x_out=x_out)["f(x)"]
+            m = gpo.posterior_mean(x, x_out=x_out)["f(x)"]
             m = np.sum(m.reshape(len(x), len(x_out), order="F"), axis=1)
-            std = np.sqrt(gpo.gp.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"])
+            std = np.sqrt(gpo.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"])
             std = np.sum(std.reshape(len(x), len(x_out), order="F"), axis=1)
-            last_best = np.max(gpo.gp.y_data)
+            last_best = np.max(gpo.y_data)
             a = (m - last_best)
             a[a < 0.] = 0.
             gamma = a / (std + 1e-9)
@@ -289,8 +297,10 @@ def differential_evolution(func,
                            constraints=(),
                            disp=False,
                            vectorized=True):
-    if vectorized: updating = 'deferred'
-    else: updating = 'immediate'
+    if vectorized:
+        updating = 'deferred'
+    else:
+        updating = 'immediate'
     res = devo(partial(acq_function_vectorization_wrapper, func=func, vectorized=vectorized), bounds, tol=tol, x0=x0,
                maxiter=max_iter, popsize=popsize, polish=False, disp=disp, constraints=constraints,
                vectorized=vectorized, updating=updating)

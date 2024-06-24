@@ -6,6 +6,7 @@ from fvgp import fvGP
 from fvgp import GP
 from . import surrogate_model as sm
 import warnings
+import sys
 
 
 # TODO (for gpCAM)
@@ -297,15 +298,26 @@ class GPOptimizer:
         self.cost_function_parameters = cost_function_parameters
         self.cost_update_function = cost_update_function
         self.hyperparameters = init_hyperparameters
+        if info:
+            logger.enable('gpcam')
+            logger.add(sys.stdout, filter="gpcam", level="INFO")
+            logger.enable('fvgp')
+            logger.add(sys.stdout, filter="fvgp", level="INFO")
+            logger.enable('hgdl')
+            logger.add(sys.stdout, filter="hgdl", level="INFO")
+        else:
+            logger.disable('gpcam')
+            logger.disable('fvgp')
+            logger.disable('hgdl')
 
     def __getattr__(self, attr):
         if not self.gp:
             raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{attr}'. "
                                  f"You may need to initialize the GP.")
         elif self.gp and hasattr(self.gp, attr):
-            warnings.warn(f"Direct access to GP attributes from {self.__class__.__name__} is deprecated. "
-                          f"It is suggested to use: {self.__class__.__name__}.gp.{attr}", DeprecationWarning)
-        return getattr(self.gp, attr)
+            return getattr(self.gp, attr)
+        else:
+            raise Exception(f"Attribute '{attr}' not available.")
 
     def _initializeGP(self,
                       x_data,
@@ -398,8 +410,9 @@ class GPOptimizer:
             warnings.warn("Warning: An origin is given but no cost function is defined. Cost function ignored")
         try:
             res = sm.evaluate_acquisition_function(
-                x, self.gp, acquisition_function, origin=origin,
+                x, gpo=self.gp, acquisition_function=acquisition_function, origin=origin, dim=self.input_space_dim,
                 cost_function=self.cost_function, cost_function_parameters=self.cost_function_parameters)
+
             return -res
         except Exception as ex:
             logger.error(ex)
@@ -430,7 +443,6 @@ class GPOptimizer:
         #print("-------------")
         self.update_gp_data(x, y, noise_variances_new=noise_variances, append=append)
         #print(np.sum(abs(np.linalg.inv(self.gp.marginal_density.KVlinalg.KV)-self.gp.marginal_density.KVlinalg.KVinv)))
-
 
     ##############################################################
     def train(
@@ -799,9 +811,12 @@ class GPOptimizer:
         if method != "global": vectorized = False
 
         maxima, func_evals, opt_obj = sm.find_acquisition_function_maxima(
-            self,
+            self.gp,
             acquisition_function,
-            position, n, input_set,
+            origin=position,
+            number_of_maxima_sought=n,
+            input_set=input_set,
+            input_set_dim=self.input_space_dim,
             optimization_method=method,
             optimization_pop_size=pop_size,
             optimization_max_iter=max_iter,
@@ -1167,14 +1182,26 @@ class fvGPOptimizer:
         self.cost_update_function = cost_update_function
         self.hyperparameters = init_hyperparameters
 
+        if info:
+            logger.enable('gpcam')
+            logger.add(sys.stdout, filter="gpcam", level="INFO")
+            logger.enable('fvgp')
+            logger.add(sys.stdout, filter="fvgp", level="INFO")
+            logger.enable('hgdl')
+            logger.add(sys.stdout, filter="hgdl", level="INFO")
+        else:
+            logger.disable('gpcam')
+            logger.disable('fvgp')
+            logger.disable('hgdl')
+
     def __getattr__(self, attr):
         if not self.gp:
             raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{attr}'. "
                                  f"You may need to initialize the GP.")
         elif self.gp and hasattr(self.gp, attr):
-            warnings.warn(f"Direct access to GP attributes from {self.__class__.__name__} is deprecated. "
-                          f"It is suggested to use: {self.__class__.__name__}.fvgp.{attr}", DeprecationWarning)
-        return getattr(self.gp, attr)
+            return getattr(self.gp, attr)
+        else:
+            raise Exception(f"Attribute '{attr}' not available.")
 
     def _initializefvGP(self,
                         x_data,
@@ -1272,8 +1299,8 @@ class fvGPOptimizer:
         cost_function = self.cost_function
         try:
             res = sm.evaluate_acquisition_function(
-                x, self, acquisition_function,
-                cost_function=cost_function, cost_function_parameters=self.cost_function_parameters,
+                x, gpo=self.gp, acquisition_function=acquisition_function, origin=origin, dim=self.input_space_dim,
+                cost_function=self.cost_function, cost_function_parameters=self.cost_function_parameters,
                 x_out=x_out)
             return -res
         except Exception as ex:
@@ -1661,9 +1688,11 @@ class fvGPOptimizer:
         if method != "global": vectorized = False
 
         maxima, func_evals, opt_obj = sm.find_acquisition_function_maxima(
-            self,
+            self.gp,
             acquisition_function,
-            position, n, input_set,
+            origin=position, number_of_maxima_sought=n,
+            input_set=input_set,
+            input_set_dim=self.input_space_dim,
             optimization_method=method,
             optimization_pop_size=pop_size,
             optimization_max_iter=max_iter,
