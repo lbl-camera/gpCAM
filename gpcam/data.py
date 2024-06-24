@@ -15,14 +15,20 @@ class gpData:
     data arrays are numpy arrays
     """
 
-    def __init__(self, dim, parameter_bounds, output_number=None, output_dim=None):
+    def __init__(self, dim, parameter_bounds, output_number=None):
         self.dim = dim
         self.parameter_bounds = parameter_bounds
         self.dataset = []
         self.output_number = output_number
-        self.output_dim = output_dim
+        self.point_number = None
+        self.x = None
 
     ###############################################################
+
+    def update_dataset(self, dataset):
+        self.dataset = dataset
+        self.point_number = len(dataset)
+
     # either create random data or communicate a data set (use translate2data for numpy arrays)
     def create_random_dataset(self, length):
         """
@@ -30,23 +36,23 @@ class gpData:
         """
         self.x = self._create_random_points(length)
         self.point_number = len(self.x)
-        self.dataset = self.inject_arrays(self.x)
+        self.dataset = self.arrays2data(self.x)
 
     def inject_dataset(self, dataset):
         """
         initializes a previously-collected dataset
-        !!!for intitiation only!!! just use the "+" operator to update the existing dataset
+        !!!for initialization only!!! just use the "+" operator to update the existing dataset
         """
         self.point_number = len(self.dataset)
         self.dataset = dataset
 
-    def inject_arrays(self, x, y=None, v=None, info=None):
+    def arrays2data(self, x, y=None, v=None, info=None):
         """
         translates numpy arrays to the data format
         """
-        if np.ndim(x) != 2: raise Exception("'inject_arrays' called with dim(x) != 2")
-        if np.ndim(y) == 2: y = y[:, 0]
-        if np.ndim(v) == 2: v = v[:, 0]
+        assert np.ndim(x) == 2
+        if y is not None: assert np.ndim(y) == 1
+        if v is not None: assert np.ndim(v) == 1
         data = []
         for i in range(len(x)):
             val = None
@@ -64,15 +70,9 @@ class gpData:
         -----------
             x ... 1d numpy array
         """
-        d = {}
-        d["x_data"] = x
-        d["y_data"] = y
-        d["noise variance"] = v
-        d["cost"] = None
-        d["id"] = str(uuid.uuid4())
-        d["time stamp"] = time.time()
-        d["date time"] = datetime.datetime.now().strftime("%d/%m/%Y_%H:%M:%S")
-        d["measured"] = False
+        d = {"x_data": x, "y_data": y, "noise variance": v, "cost": None, "id": str(uuid.uuid4()),
+             "time stamp": time.time(), "date time": datetime.datetime.now().strftime("%d/%m/%Y_%H:%M:%S"),
+             "measured": False}
         # d["posterior variance"] = None #post_var
         # d["hyperparameters"] = None #hps
         return d
@@ -89,37 +89,32 @@ class gpData:
         return x, y, v, t, c
 
     def extract_points_from_data(self):
-        self.point_number = len(self.dataset)
         P = np.zeros((self.point_number, self.dim))
         for idx_data in range(self.point_number):
             P[idx_data] = self.dataset[idx_data]["x_data"]
         return P
 
     def extract_y_data_from_data(self):
-        self.point_number = len(self.dataset)
-        M = np.zeros((self.point_number))
+        M = np.zeros(self.point_number)
         for idx_data in range(self.point_number):
             M[idx_data] = self.dataset[idx_data]["y_data"]
         return M
 
     def extract_variances_from_data(self):
-        self.point_number = len(self.dataset)
-        Variance = np.zeros((self.point_number))
+        Variance = np.zeros(self.point_number)
         for idx_data in range(self.point_number):
             if self.dataset[idx_data]["noise variance"] is None: return None
             Variance[idx_data] = self.dataset[idx_data]["noise variance"]
         return Variance
 
     def extract_costs_from_data(self):
-        self.point_number = len(self.dataset)
         Costs = []
         for idx in range(self.point_number):
             Costs.append(self.dataset[idx]["cost"])
         return Costs
 
     def extract_times_from_data(self):
-        self.point_number = len(self.dataset)
-        times = np.zeros((self.point_number))
+        times = np.zeros(self.point_number)
         for idx_data in range(self.point_number):
             times[idx_data] = self.dataset[idx_data]["time stamp"]
         return times
@@ -148,6 +143,8 @@ class gpData:
                     raise Exception("Entry with no specified y_data in communicated list of data dictionaries")
                 if entry["x_data"] is None:
                     raise Exception("Entry with no specified x_data in communicated list of data dictionaries")
+                if entry["noise variance"] is None:
+                    raise Exception("Entry with no specified noise variance in communicated list of data dictionaries")
         except:
             raise Exception(
                 "Checking the incoming data could not be accomplished. This normally means that wrong formats were "
@@ -158,7 +155,7 @@ class gpData:
             if self._nan_in_dict(entry):
                 warnings.warn("CAUTION, NaN detected in data")
                 self.dataset.remove(entry)
-        self.point_number = len(self.data_set)
+        self.point_number = len(self.dataset)
 
     def nan_in_dataset(self):
         for entry in self.dataset:
@@ -195,33 +192,33 @@ class gpData:
 ######################################################################
 ######################################################################
 class fvgpData(gpData):
-    def __init__(self, dim, parameter_bounds, output_number, output_dim):
-        if output_number is None or output_dim is None:
-            raise Exception("When initializing the data class for a multi-output GP, \
-                    please provide output_number AND output_dim parameters.")
-        super(fvgpData, self).__init__(dim, parameter_bounds, output_number, output_dim)
+    def __init__(self, dim, parameter_bounds, output_number):
+        if output_number is None:
+            raise Exception("When initializing the data class for a multi-output GP, "
+                            "please provide the output_number.")
+        super(fvgpData, self).__init__(dim, parameter_bounds, output_number)
 
     def create_random_dataset(self, length):
         self.x = self._create_random_points(length)
         self.point_number = len(self.x)
-        self.dataset = self.inject_arrays(self.x)
+        self.dataset = self.arrays2data(self.x)
 
     def inject_dataset(self, dataset):
         """
         initializes a previously-collected dataset
-        !!!for intitiation only!!! just use the "+" operator to update the existing dataset
+        !!!for initiation only!!! just use the "+" operator to update the existing dataset
         """
         self.point_number = len(self.dataset)
         self.dataset = dataset
 
-    def inject_arrays(self, x, y=None, v=None, vp=None, info=None):
+    def arrays2data(self, x, y=None, v=None, vp=None, info=None):
         """
         translates numpy arrays to the data format
         """
-        if np.ndim(x) != 2: raise Exception("'inject_arrays' called with dim(x) != 2")
-        if np.ndim(y) != 2 and y is not None: raise Exception("'inject_arrays' called with dim(y) != 2")
-        if np.ndim(v) != 2 and v is not None: raise Exception("'inject_arrays' called with dim(v) != 2")
-        if np.ndim(vp) != 3 and vp is not None: raise Exception("'inject_arrays' called with dim(vp)!= 3")
+        if np.ndim(x) != 2: raise Exception("'arrays2data' called with dim(x) != 2")
+        if np.ndim(y) != 2 and y is not None: raise Exception("'arrays2data' called with dim(y) != 2")
+        if np.ndim(v) != 2 and v is not None: raise Exception("'arrays2data' called with dim(v) != 2")
+        if np.ndim(vp) != 2 and vp is not None: raise Exception("'arrays2data' called with dim(vp)!= 2")
 
         data = []
         for i in range(len(x)):
@@ -243,16 +240,9 @@ class fvgpData(gpData):
         -----------
         x ... 1d numpy array
         """
-        d = {}
-        d["x_data"] = x
-        d["y_data"] = y
-        d["noise variances"] = v
-        d["output positions"] = vp
-        d["cost"] = None
-        d["id"] = str(uuid.uuid4())
-        d["time stamp"] = time.time()
-        d["date time"] = datetime.datetime.now().strftime("%d/%m/%Y_%H:%M:%S")
-        d["measured"] = False
+        d = {"x_data": x, "y_data": y, "noise variances": v, "output positions": vp, "cost": None,
+             "id": str(uuid.uuid4()), "time stamp": time.time(),
+             "date time": datetime.datetime.now().strftime("%d/%m/%Y_%H:%M:%S"), "measured": False}
         # d["posterior variances"] = None
         # d["hyperparameters"] = None
         return d
@@ -270,24 +260,21 @@ class fvgpData(gpData):
         return x, y, v, t, c, vp
 
     def extract_output_positions_from_data(self):
-        self.point_number = len(self.dataset)
-        VP = np.zeros((self.point_number, self.output_number, self.output_dim))
+        VP = np.zeros((self.point_number, self.output_number))
         for idx_data in range(self.point_number):
-            if ("output positions" in self.dataset[idx_data]):
+            if "output positions" in self.dataset[idx_data]:
                 VP[idx_data] = self.dataset[idx_data]["output positions"]
             else:
                 VP[idx_data] = self.dataset[idx_data - 1]["output positions"]
         return VP
 
     def extract_y_data_from_data(self):
-        self.point_number = len(self.dataset)
         M = np.zeros((self.point_number, self.output_number))
         for idx_data in range(self.point_number):
             M[idx_data] = self.dataset[idx_data]["y_data"]
         return M
 
     def extract_variances_from_data(self):
-        self.point_number = len(self.dataset)
         Variance = np.zeros((self.point_number, self.output_number))
         for idx_data in range(self.point_number):
             if self.dataset[idx_data]["noise variances"] is None: return None
@@ -302,7 +289,11 @@ class fvgpData(gpData):
                 if entry["x_data"] is None:
                     raise Exception("Entry with no specified x_data in communicated list of data dictionaries")
                 if entry["output positions"] is None:
-                    raise Exception("Entry with no specified output positions in communicated list of data dictionaries")
+                    raise Exception(
+                        "Entry with no specified output positions in communicated list of data dictionaries")
+                if entry["noise variances"] is None:
+                    raise Exception("Entry with no specified noise variances in communicated list of data dictionaries")
         except Exception as e:
             raise Exception(
-                    "Checking the incoming data could not be accomplished. This normally means that wrong formats were communicated: ", e)
+                "Checking the incoming data could not be accomplished. "
+                "This normally means that wrong formats were communicated: ", e)

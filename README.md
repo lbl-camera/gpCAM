@@ -28,6 +28,7 @@ import numpy as np
 def instrument(data):
     for entry in data:
         entry["y_data"] = np.sin(np.linalg.norm(entry["x_data"]))
+        entry["noise variance"] = 0.01
     return data
 
 ##set up your parameter space
