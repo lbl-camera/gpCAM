@@ -107,7 +107,7 @@ def find_acquisition_function_maxima(gpo, acquisition_function, *,
         if optimization_x0: optimization_x0 = optimization_x0.reshape(1, -1)
         opt_obj.optimize(dask_client=dask_client, x0=optimization_x0, tolerance=optimization_tol)
         opti = np.zeros((1, input_set_dim))
-        func_eval = np.zeros((1))
+        func_eval = np.zeros(1)
 
     elif optimization_method == "local":
         if optimization_x0 is not None and np.ndim(optimization_x0) == 1:
