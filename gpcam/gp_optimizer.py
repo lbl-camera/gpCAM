@@ -828,7 +828,7 @@ class GPOptimizer:
             vectorized=vectorized,
             info=info,
             dask_client=dask_client)
-        if n > 1: return {'x': maxima.reshape(-1, self.input_space_dim), "f(x)": np.array(func_evals),
+        if n > 1: return {'x': maxima.reshape(-1, self.input_space_dim), "f(x)": func_evals,
                           "opt_obj": opt_obj}
         return {'x': np.array(maxima), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
 
@@ -1705,7 +1705,7 @@ class fvGPOptimizer:
             x_out=x_out,
             info=info,
             dask_client=dask_client)
-        if n > 1: return {'x': maxima.reshape(n, self.gp.input_space_dim), "f(x)": np.array(func_evals),
+        if n > 1: return {'x': maxima.reshape(-1, self.gp.input_space_dim), "f(x)": func_evals,
                           "opt_obj": opt_obj}
         return {'x': np.array(maxima), "f(x)": np.array(func_evals), "opt_obj": opt_obj}
 
