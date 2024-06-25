@@ -10,7 +10,7 @@ dependencies = [
     "scipy ~= 1.13.0",
     "dask ~= 2024.1.0",
     "distributed ~= 2024.1.0",
-    "fvgp ~= 4.2.13",
+    "fvgp ~= 4.2.14",
     "loguru",
 ]
 requires-python = ">=3.9"
