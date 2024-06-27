@@ -5,8 +5,8 @@ import dask
 import sys
 import numpy as np
 from loguru import logger
-from gpcam.data import fvgpData, gpData
-from gpcam.gp_optimizer import GPOptimizer, fvGPOptimizer
+from .data import fvgpData, gpData
+from .gp_optimizer import GPOptimizer, fvGPOptimizer
 
 
 #TODO
@@ -15,16 +15,18 @@ from gpcam.gp_optimizer import GPOptimizer, fvGPOptimizer
 
 class AutonomousExperimenterGP:
     """
-    Executes the autonomous loop for a single-task Gaussian process.
-    Use class AutonomousExperimenterFvGP for multitask experiments.
+    This class executes the autonomous loop for a single-task Gaussian process.
+    Use class :py:class:`gpcam.AutonomousExperimenterFvGP` for multi-task experiments.
     The AutonomousExperimenter is a convenience-driven functionality that does not allow
-    as much customization as using the GPOptimizer directly. But it is a great option to
-    start with.
+    as much customization as using the :py:class:`gpcam.GPOptimizer` directly. But it is a great option to
+    get started.
 
     Parameters
     ----------
     input_space : np.ndarray
         A numpy array of floats of shape D x 2 describing the input space (bounds).
+        The autonomous experimenter is only able to handle Euclidean spaces.
+        Please use the :py:class:`gpcam.GPOptimizer` to deal with non-Euclidean cases.
     hyperparameters : np.ndarray, optional
         Vector of hyperparameters used by the GP initially.
         This class provides methods to train hyperparameters.
@@ -103,26 +105,27 @@ class AutonomousExperimenterGP:
         potentially saves a lot of time in the GP update.
         This, together with `calc_inv=True` leads to fast online performance.
     kernel_function : Callable, optional
-        A symmetric positive semi-definite covariance function (a kernel)
+        A symmetric positive definite covariance function (a kernel)
         that calculates the covariance between
-        data points. It is a function of the form k(x1,x2,hyperparameters, obj).
-        The input x1 is a N1 x D array of positions, x2 is a N2 x D
+        data points. It is a function of the form k(x1,x2,hyperparameters).
+        The input `x1` is a N1 x D array of positions, `x2` is a N2 x D
         array of positions, the hyperparameters argument
         is a 1d array of length D+1 for the default kernel and of a different
-        user-defined length for other kernels
-        obj is an `fvgp.GP` instance. The default is a stationary anisotropic kernel
+        length for user-defined kernels.
+        The default is a stationary anisotropic kernel
         (`fvgp.GP.default_kernel`) which performs automatic relevance determination (ARD).
-        The output is a covariance matrix, an N1 x N2 numpy array.
+        The output is a matrix, an N1 x N2 numpy array.
     prior_mean_function : Callable, optional
         A function that evaluates the prior mean at a set of input position. It accepts as input
-        an array of positions (of shape N1 x D), hyperparameters (a 1d array of length D+1 for the default kernel)
-        and a `fvgp.GP` instance. The return value is a 1d array of length N1. If None is provided,
-        `fvgp.GP._default_mean_function` is used.
+        an array of positions (of shape N1 x D) and hyperparameters (a 1d array of length D+1 for the default kernel).
+        The return value is a 1d array of length N1. If None is provided,
+        `fvgp.GP._default_mean_function` is used, which is the average of the `y_data`.
     noise_function : Callable optional
-        The noise function is a callable function f(x,hyperparameters,obj) that returns a
+        The noise function is a callable f(x,hyperparameters) that returns a
         positive symmetric definite matrix of shape(len(x),len(x)).
-        The input x is a numpy array of shape (N x D). The hyperparameter array is the same
-        that is communicated to mean and kernel functions. The obj is a fvgp.GP instance.
+        The input `x` is a numpy array of shape (N x D). The hyperparameter array is the same
+        that is communicated to mean and kernel functions.
+        Only provide a noise function OR a noise variance vector, not both.
     run_every_iteration : Callable, optional
         A function that is run at every iteration. It accepts as input a
         `gpcam.AutonomousExperimenterGP` instance. The default is a no-op.
@@ -139,20 +142,20 @@ class AutonomousExperimenterGP:
         on each iteration. If False, only the
         newly suggested data points will be communicated. The default is False.
     compute_device : str, optional
-        One of "cpu" or "gpu", determines how linear system solves are run. The default is "cpu".
+        One of `cpu` or `gpu`, determines how linear system solves are run. The default is `cpu`.
     calc_inv : bool, optional
         If True, the algorithm calculates and stores the inverse of the covariance
         matrix after each training or update of the dataset or hyperparameters,
         which makes computing the posterior covariance faster. Together with `online=True`
-        and `communicate_full_dataset=False` this leads to very fast online execution.
-        The default is True. Note, the training will always use Cholesky or LU decomposition instead of the
+        and `communicate_full_dataset=False` this leads to fast online execution.
+        The default is True. Note, the training will always use Cholesky decomposition instead of the
         inverse for stability reasons.
     training_dask_client : distributed.client.Client, optional
         A Dask Distributed Client instance for distributed training. If None is provided, a new
         `dask.distributed.Client` instance is constructed.
     acq_func_opt_dask_client : distributed.client.Client, optional
         A Dask Distributed Client instance for distributed `acquisition_function`
-        computation. If None is provided, a new
+        optimization. If None is provided, a new
         `dask.distributed.Client` instance is constructed.
     info : bool, optional
         Specifies if info should be displayed. Default = False.
@@ -299,6 +302,7 @@ class AutonomousExperimenterGP:
     def train(self, init_hyperparameters=None, pop_size=10, tol=0.0001, max_iter=20, method="global", constraints=()):
         """
         This function finds the maximum of the log marginal likelihood and therefore trains the GP (synchronously).
+        The `go()` command will use this function if so instructed.
         The GP prior will automatically be updated with the new hyperparameters after the training.
 
         Parameters
@@ -378,7 +382,7 @@ class AutonomousExperimenterGP:
 
     def kill_training(self):
         """
-        Function to stop an asynchronous training. This leaves the dask.distributed.Client alive.
+        Function to stop an asynchronous training. This leaves the `dask.distributed.Client` alive.
         """
         if self.async_train_in_progress:
             self.gp_optimizer.stop_training(self.opt_obj)
@@ -388,7 +392,7 @@ class AutonomousExperimenterGP:
 
     def kill_all_clients(self):
         """
-        Function to kill both dask.distributed.Client instances.
+        Function to kill both `dask.distributed.Client` instances.
         Will be called automatically at the end of go().
         """
         try:
@@ -538,7 +542,7 @@ class AutonomousExperimenterGP:
             the structure your chosen optimizer requires.
         break_condition_callable : Callable, optional
             Autonomous loop will stop when this function returns True. The function takes as
-            input a gpcam.AutonomousExperimenterGP instance.
+            input a `gpcam.AutonomousExperimenterGP` instance.
         """
         # set up
         start_time = time.time()
@@ -719,12 +723,14 @@ class AutonomousExperimenterGP:
 ###################################################################################
 class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
     """
-    Executes the autonomous loop for a multitask Gaussian process.
+    Executes the autonomous loop for a multi-task Gaussian process.
 
     Parameters
     ----------
     input_space : np.ndarray
         A numpy array of floats of shape D x 2 describing the input space (bounds).
+        The autonomous experimenter is only able to handle Euclidean spaces.
+        Please use the gpOptimizer to deal with non-Euclidean cases.
     output_number : int
         An integer defining how many outputs are created by each measurement.
     hyperparameters : np.ndarray, optional
@@ -763,7 +769,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         `variance`, `relative information entropy`,
         `relative information entropy set`, `total correlation`.
         See GPOptimizer.ask() for a short explanation of these functions.
-        In the multitask case, it is highly recommended to
+        In the multi-task case, it is highly recommended to
         deploy a user-defined acquisition function due to the intricate relationship
         of posterior distributions at different points in the output space.
         If None, the default function `variance`, meaning
@@ -792,19 +798,22 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         potentially saves a lot of time in the GP update.
         This, together with `calc_inv=True` leads to fast online performance.
     kernel_function : Callable, optional
-        A symmetric positive semi-definite covariance function (a kernel)
+        A symmetric positive definite covariance function (a kernel)
         that calculates the covariance between
-        data points. It is a function of the form k(x1,x2,hyperparameters, obj).
-        The input x1 is a N1 x Di+Do array of positions, x2 is a N2 x Di+Do
+        data points. It is a function of the form k(x1,x2,hyperparameters).
+        The input `x1` a N1 x Di+1 array of positions, `x2` is a N2 x Di+1
         array of positions, the hyperparameters argument
-        is a 1d array of length N depending on how many hyperparameters are initialized, and
-        obj is an `fvgp.GP` instance. The default is a deep kernel with 2 hidden layers and
-        a width of fvgp.fvGP.gp_deep_kernel_layer_width.
+        is a 1d array of length N depending on how many hyperparameters are initialized.
+        The default is a stationary anisotropic kernel
+        (`fvgp.GP.default_kernel`) which performs automatic relevance determination (ARD). The task
+        direction is simply considered an additional dimension. This kernel should only be used for tests and in the
+        simplest of cases.
     prior_mean_function : Callable, optional
         A function that evaluates the prior mean at a set of input position. It accepts as input
-        an array of positions (of shape N1 x Di+Do), hyperparameters
-        and a `fvgp.GP` instance. The return value is a 1d array of length N1. If None is provided,
-        `fvgp.GP._default_mean_function` is used.
+        an array of positions (of shape N1 x Di+1) and
+         hyperparameters (a 1d array of length Di+2 for the default kernel).
+        The return value is a 1d array of length N1. If None is provided,
+        `fvgp.GP._default_mean_function` is used, which is the average of the `y_data`.
     run_every_iteration : Callable, optional
         A function that is run at every iteration. It accepts as input a
         `gpcam.AutonomousExperimenterGP` instance. The default is a no-op.
@@ -815,10 +824,9 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
     noise_variances : np.ndarray, optional
         Initial data point observation variances.
     vp : np.ndarray, optional
-        A 2d numpy array of shape (U x output_number), so that for each measurement position, the outputs
-        are clearly defined by their positions in the output space.
-        The default is np.array([0,1,2,3,...,output_number - 1]) for each
-        point in the input space.
+        A 2d numpy array of shape (V x output_number), so that for each measurement position, the outputs
+        are clearly defined by their positions in the output space. The default is
+        np.array([[0,1,2,3,...,output_number - 1],[0,1,2,3,...,output_number - 1],...]).
     communicate_full_dataset : bool, optional
         If True, the full dataset will be communicated to the `instrument_function`
         on each iteration. If False, only the
@@ -828,10 +836,12 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
     calc_inv : bool, optional
         If True, the algorithm calculates and stores the inverse of the covariance
         matrix after each training or update of the dataset or hyperparameters,
-        which makes computing the posterior covariance faster. Together with `online=True`
-        and `communicate_full_dataset=False` this leads to very fast online execution.
-        The default is True. Note, the training will always use Cholesky or LU decomposition instead of the
-        inverse for stability reasons.
+        which makes computing the posterior covariance faster (5-10 times).
+        For larger problems (>2000 data points), the use of inversion should be avoided due
+        to computational instability and costs. The default is
+        False. Note, the training will not the
+        inverse for stability reasons. Storing the inverse is
+        a good option when the dataset is not too large and the posterior covariance is heavily used.
     training_dask_client : distributed.client.Client, optional
         A Dask Distributed Client instance for distributed training. If None is provided, a new
         `dask.distributed.Client` instance is constructed.

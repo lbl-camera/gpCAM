@@ -30,7 +30,7 @@ def instrument2(data, instrument_dict=None):
         entry["noise variances"] = np.array([0.01,0.01])
     return data
 
-def mt_kernel(x1,x2,hps,obj):
+def mt_kernel(x1,x2,hps):
     d = get_distance_matrix(x1,x2)
     return np.exp(-d)
 

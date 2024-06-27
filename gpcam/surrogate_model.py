@@ -187,8 +187,8 @@ def evaluate_acquisition_function(x, *, gpo=None, acquisition_function=None, ori
 
 
 def evaluate_gp_acquisition_function(x, acquisition_function, gpo, x_out):
-    ##this function will always spit out a 1d numpy array
-    ##for certain functions, this array will only have one entry
+    ##this function will always spit out a 1d numpy array because it assumes several `x`.
+    ##For certain functions, this array will only have one entry
     ##for the other the length == len(x)
     if isinstance(x, np.ndarray) and np.ndim(x) == 1: raise Exception(
         "1d array given in evaluate_gp_acquisition_function. It has to be 2d")
@@ -317,9 +317,9 @@ def acq_function_vectorization_wrapper(x, func=None, vectorized=False):
 
 def gradient(x, func=None):
     epsilon = 1e-6
-    gradient = np.zeros((len(x)))
+    grad = np.zeros(len(x))
     for i in range(len(x)):
         new_point = np.array(x)
         new_point[i] += epsilon
-        gradient[i] = (func(new_point) - func(x)) / epsilon
-    return gradient
+        grad[i] = (func(new_point)[0] - func(x)[0]) / epsilon
+    return grad
