@@ -10,12 +10,10 @@ import random
 
 
 # TODO (for gpCAM)
-#   should the gpoptimizer class have an "optimize" method?
 #   add a test that shows online mode up to 10000 points, for this the inv_update rounding error can't destroy us.
 #   in AE, can we ask including candidates?
 #   how is append vs overwrite handled?
-#   should we store the original non transformed data in fvgpOptimizer
-#   needs `set_hyperparameters`
+#   should we store the original non transformed data in fvgpOptimizer?
 
 
 class GPOptimizer:
@@ -193,6 +191,9 @@ class GPOptimizer:
         A local client is used as the default.
     gp2Scale_batch_size : int, optional
         Matrix batch size for distributed computing in gp2Scale. The default is 10000.
+    gp2Scale_linalg_mode : str, optional
+        One of `Chol`, `sparseLU`, `sparseCG`, or `sparseMINRES`. The default is None which amounts to
+        an automatic determination of the mode.
     calc_inv : bool, optional
         If True, the algorithm calculates and stores the inverse of the covariance
         matrix after each training or update of the dataset or hyperparameters,
@@ -202,6 +203,10 @@ class GPOptimizer:
         False. Note, the training will not the
         inverse for stability reasons. Storing the inverse is
         a good option when the dataset is not too large and the posterior covariance is heavily used.
+        Caution: this option, together with `append=True` in `tell()` will mean that the inverse of
+        the covariance is updated, not recomputed, which can lead to instability.
+        In application where data is appended many times, it is recommended to either turn
+        `calc_inv` off, or to regularly communicate the whole dataset to recompute the inverse.
     ram_economy : bool, optional
         Only of interest if the gradient and/or Hessian of the log marginal likelihood is/are used for the training.
         If True, components of the derivative of the log marginal likelihood are
@@ -268,7 +273,8 @@ class GPOptimizer:
             gp2Scale=False,
             gp2Scale_dask_client=None,
             gp2Scale_batch_size=10000,
-            calc_inv=True,
+            gp2Scale_linalg_mode=None,
+            calc_inv=False,
             ram_economy=False,
             args=None,
             info=False,
@@ -276,30 +282,6 @@ class GPOptimizer:
             cost_function_parameters=None,
             cost_update_function=None
     ):
-        self.gp = None
-        if x_data is not None and y_data is not None:
-            self._initializeGP(
-                x_data,
-                y_data,
-                init_hyperparameters=init_hyperparameters,
-                noise_variances=noise_variances,
-                compute_device=compute_device,
-                gp_kernel_function=gp_kernel_function,
-                gp_kernel_function_grad=gp_kernel_function_grad,
-                gp_noise_function=gp_noise_function,
-                gp_noise_function_grad=gp_noise_function_grad,
-                gp_mean_function=gp_mean_function,
-                gp_mean_function_grad=gp_mean_function_grad,
-                gp2Scale=gp2Scale,
-                gp2Scale_dask_client=gp2Scale_dask_client,
-                gp2Scale_batch_size=gp2Scale_batch_size,
-                calc_inv=calc_inv,
-                ram_economy=ram_economy,
-                args=args,
-                info=info)
-        else:
-            warnings.warn("You have not provided data yet. You have to manually initialize the GP "
-                          "before any class method can be used!")
         self.cost_function = cost_function
         self.cost_function_parameters = cost_function_parameters
         self.cost_update_function = cost_update_function
@@ -314,10 +296,15 @@ class GPOptimizer:
         self.gp2Scale = gp2Scale
         self.gp2Scale_dask_client = gp2Scale_dask_client
         self.gp2Scale_batch_size = gp2Scale_batch_size
+        self.gp2Scale_linalg_mode = gp2Scale_linalg_mode
         self.calc_inv = calc_inv
         self.ram_economy = ram_economy
         self.args = args
         self.info = info
+
+        self.gp = None
+        if x_data is not None and y_data is not None:
+            self._initializeGP(x_data, y_data, noise_variances=noise_variances)
         if info:
             logger.enable('gpcam')
             logger.add(sys.stdout, filter="gpcam", level="INFO")
@@ -341,25 +328,7 @@ class GPOptimizer:
             raise Exception(f"Attribute '{attr}' not available.")
 
     #########################################################################################
-    def _initializeGP(self,
-                      x_data,
-                      y_data,
-                      init_hyperparameters=None,
-                      noise_variances=None,
-                      compute_device="cpu",
-                      gp_kernel_function=None,
-                      gp_kernel_function_grad=None,
-                      gp_noise_function=None,
-                      gp_noise_function_grad=None,
-                      gp_mean_function=None,
-                      gp_mean_function_grad=None,
-                      gp2Scale=False,
-                      gp2Scale_dask_client=None,
-                      gp2Scale_batch_size=10000,
-                      calc_inv=True,
-                      ram_economy=False,
-                      args=None,
-                      info=False):
+    def _initializeGP(self, x_data, y_data, noise_variances=None):
         """
         Function to initialize a GP object.
         If data is prided at initialization this function is NOT needed.
@@ -368,22 +337,23 @@ class GPOptimizer:
         self.gp = GP(
             x_data,
             y_data,
-            init_hyperparameters=init_hyperparameters,
+            init_hyperparameters=self.hyperparameters,
             noise_variances=noise_variances,
-            compute_device=compute_device,
-            gp_kernel_function=gp_kernel_function,
-            gp_kernel_function_grad=gp_kernel_function_grad,
-            gp_noise_function=gp_noise_function,
-            gp_noise_function_grad=gp_noise_function_grad,
-            gp_mean_function=gp_mean_function,
-            gp_mean_function_grad=gp_mean_function_grad,
-            gp2Scale=gp2Scale,
-            gp2Scale_dask_client=gp2Scale_dask_client,
-            gp2Scale_batch_size=gp2Scale_batch_size,
-            calc_inv=calc_inv,
-            ram_economy=ram_economy,
-            args=args,
-            info=info,
+            compute_device=self.compute_device,
+            gp_kernel_function=self.gp_kernel_function,
+            gp_kernel_function_grad=self.gp_kernel_function_grad,
+            gp_noise_function=self.gp_noise_function,
+            gp_noise_function_grad=self.gp_noise_function_grad,
+            gp_mean_function=self.gp_mean_function,
+            gp_mean_function_grad=self.gp_mean_function_grad,
+            gp2Scale=self.gp2Scale,
+            gp2Scale_dask_client=self.gp2Scale_dask_client,
+            gp2Scale_batch_size=self.gp2Scale_batch_size,
+            gp2Scale_linalg_mode=self.gp2Scale_linalg_mode,
+            calc_inv=self.calc_inv,
+            ram_economy=self.ram_economy,
+            args=self.args,
+            info=self.info
         )
         self.index_set_dim = self.gp.index_set_dim
         self.input_space_dim = self.gp.index_set_dim
@@ -461,25 +431,7 @@ class GPOptimizer:
             The default is True. Indicates if existent data should be appended by or overwritten with the new data.
         """
         if self.gp is None:
-            self._initializeGP(
-                x,
-                y,
-                init_hyperparameters=self.hyperparameters,
-                noise_variances=noise_variances,
-                compute_device=self.compute_device,
-                gp_kernel_function=self.gp_kernel_function,
-                gp_kernel_function_grad=self.gp_kernel_function_grad,
-                gp_noise_function=self.gp_noise_function,
-                gp_noise_function_grad=self.gp_noise_function_grad,
-                gp_mean_function=self.gp_mean_function,
-                gp_mean_function_grad=self.gp_mean_function_grad,
-                gp2Scale=self.gp2Scale,
-                gp2Scale_dask_client=self.gp2Scale_dask_client,
-                gp2Scale_batch_size=self.gp2Scale_batch_size,
-                calc_inv=self.calc_inv,
-                ram_economy=self.ram_economy,
-                args=self.args,
-                info=self.info)
+            self._initializeGP(x, y, noise_variances=noise_variances)
         else:
             self.update_gp_data(x, y, noise_variances_new=noise_variances, append=append)
 
@@ -905,74 +857,90 @@ class GPOptimizer:
         else:
             warnings.warn("No cost_update_function available. Cost update failed.")
 
-    def optimize(self, *, func, search_space, max_iter=10000000, x0=None, acq_func='lcb', mode='min'):
+    def optimize(self,
+                 *,
+                 func=None,
+                 search_space=None,
+                 hyperparameter_bounds=None,
+                 train_at=(10, 20, 50, 100, 200),
+                 x0=None,
+                 acq_func='lcb',
+                 max_iter=100,
+                 callback=None,
+                 break_condition=None,
+                 ):
         """
         This function is a light-weight optimization loop, using `tell()` and `ask()` repeatedly
-        to optimize a given function.
+        to optimize a given function, while retraining the GP regularly. For advanced customizations please
+        use those three methods in a customized loop.
 
         Parameters
         ----------
         func : Callable
-            The function to be optimized. The callable should be of the form def f(x), where `x` is a 2d
-            np.ndarray or a list of points and return a 1d np.ndarray and 1d np.ndarray of the
-            corresponding noise_variances.
+            The function to be optimized. The callable should be of the form def f(x),
+            where `x` is an element of your search space. The return is a tuple of scalars (a,b) where
+            `a` is the function evaluation and `b` is the noise variance.
         search_space : np.ndarray or list
             In the Euclidean case this should be a 2d np.ndarray of bounds in each direction of the input space.
             In the non-Euclidean case, this should be a list of all candidates.
-        max_iter : int, optional
-            The maximum number of iterations. Default=10,000,000.
+        hyperparameter_bounds : np.ndarray
+            Bound of the hyperparameters for the training. The default will only work for the default kernel.
+            Otherwise, please specify bounds for your hyperparameters.
+        train_at : tuple, optional
+            The list should contain the integers that indicate the data lengths
+            at which to train the GP. The default = [10,20,50,100,200].
         x0 : np.ndarray, optional
             Starting positions. Corresponding to the search space either elements of
             the candidate set in form of a list or elements of the Euclidean search space in the form of a
             2d np.ndarray.
         acq_func : Callable, optional
-            Default lcb
-        mode : str, optional
-            Default=`min`
+            Default lower-confidence bound(lcb) which means minimizing the `func`.
+            The acquisition function should be formulated such that MAXIMIZING it will lead to the
+            desired optimization (minimization or minimization) of `func`.
+            For example `lcb` (the default) MAXIMIZES -(mean - 3.0 * standard dev) which is equivalent to minimizing
+            (mean - 3.0 * standard dev) which lead to finding a minimum.
+        max_iter : int, optional
+            The maximum number of iterations. Default=10,000,000.
+        callback : Callable, optional
+            Function to be called in every iteration. Form: f(x_data, y_data)
+        break_condition : Callable, optional
+            Callable f(x_data, y_data) that should return `True` if run is complete, otherwise `False`.
+
 
         Return
         ------
-        optimum f(x) : np.ndarray
-            The function value of the optimum.
-        optimum y(y) : np.ndarray
-            ...
-        argument of the optimum x : np.ndarray
-            ...
+        Full traces of function values `f(x)` and arguments `x` : dict
         """
+        assert callable(func)
+        assert isinstance(search_space, np.ndarray) or isinstance(search_space, list)
+        assert isinstance(max_iter, int)
+
         if not x0:
             if isinstance(search_space, list): x0 = random.sample(search_space, 3)
             if isinstance(search_space, np.ndarray): x0 = np.random.uniform(low=search_space[:, 0],
                                                                             high=search_space[:, 1],
-                                                                            size=(3,len(search_space)))
-        print(x0)
-        y, v = func(x0)
-        print(y,v)
+                                                                            size=(3, len(search_space)))
+        result = list(map(func, x0))
+        y, v = map(np.hstack, zip(*result))
         self.tell(x=x0, y=y, noise_variances=v, append=False)
+        self.train(hyperparameter_bounds=hyperparameter_bounds)
         for i in range(max_iter):
+            logger.info("iteration {}", i)
             x_new = self.ask(search_space,
-                        position=None,
-                        n=1,
-                        acquisition_function=acq_func,
-                        method="global",
-                        pop_size=20,
-                        max_iter=20,
-                        tol=1e-6,
-                        constraints=(),
-                        x0=None,
-                        vectorized=True,
-                        info=False,
-                        dask_client=None)["x"]
+                             acquisition_function=acq_func,
+                             method="global",
+                             pop_size=20,
+                             max_iter=20,
+                             tol=1e-6,
+                             constraints=(),
+                             info=False)["x"]
             y_new, v_new = func(x_new)
+            if callable(callback): callback(self.gp.x_data, self.gp.y_data)
             self.tell(x=x_new, y=y_new, noise_variances=v_new, append=True)
-            self.train()
-            if break_condition(self.gp.x_data, self.gp.y_data): break
-        if mode == "min":
-            argopt = np.argmin(self.gp.y_data)
-        elif mode == "max":
-            argopt = np.argmax(self.gp.y_data)
-        else:
-            raise Exceprion("No mode")
-        return {'f(x)': self.gp.y_data[argopt], 'x': self.gp.x_data[argopt]}
+            if len(self.gp.x_data) in train_at: self.train(hyperparameter_bounds=hyperparameter_bounds)
+            if callable(break_condition):
+                if break_condition(self.gp.x_data, self.gp.y_data): break
+        return {'f(x)': self.gp.y_data, 'x': self.gp.x_data}
 
 
 ######################################################################################
@@ -1189,6 +1157,9 @@ class fvGPOptimizer:
         A local client is used as the default.
     gp2Scale_batch_size : int, optional
         Matrix batch size for distributed computing in gp2Scale. The default is 10000.
+    gp2Scale_linalg_mode : str, optional
+        One of `Chol`, `sparseLU`, `sparseCG`, or `sparseMINRES`. The default is None which amounts to
+        an automatic determination of the mode.
     calc_inv : bool, optional
         If True, the algorithm calculates and stores the inverse of the covariance
         matrix after each training or update of the dataset or hyperparameters,
@@ -1198,6 +1169,10 @@ class fvGPOptimizer:
         False. Note, the training will not the
         inverse for stability reasons. Storing the inverse is
         a good option when the dataset is not too large and the posterior covariance is heavily used.
+        Caution: this option, together with `append=True` in `tell()` will mean that the inverse of
+        the covariance is updated, not recomputed, which can lead to instability.
+        In application where data is appended many times, it is recommended to either turn
+        `calc_inv` off, or to regularly communicate the whole dataset to recompute the inverse.
     ram_economy : bool, optional
         Only of interest if the gradient and/or Hessian of the log marginal likelihood is/are used for the training.
         If True, components of the derivative of the log marginal likelihood are
@@ -1271,7 +1246,8 @@ class fvGPOptimizer:
             gp2Scale=False,
             gp2Scale_dask_client=None,
             gp2Scale_batch_size=10000,
-            calc_inv=True,
+            gp2Scale_linalg_mode=None,
+            calc_inv=False,
             ram_economy=False,
             args=None,
             info=False,
@@ -1279,29 +1255,6 @@ class fvGPOptimizer:
             cost_function_parameters=None,
             cost_update_function=None,
     ):
-        self.gp = None
-        if x_data is not None and y_data is not None:
-            self._initializefvGP(
-                x_data,
-                y_data,
-                init_hyperparameters=init_hyperparameters,
-                output_positions=output_positions,
-                noise_variances=noise_variances,
-                compute_device=compute_device,
-                gp_kernel_function=gp_kernel_function,
-                gp_kernel_function_grad=gp_kernel_function_grad,
-                gp_noise_function=gp_noise_function,
-                gp_noise_function_grad=gp_noise_function_grad,
-                gp_mean_function=gp_mean_function,
-                gp_mean_function_grad=gp_mean_function_grad,
-                gp2Scale=gp2Scale,
-                gp2Scale_dask_client=gp2Scale_dask_client,
-                gp2Scale_batch_size=gp2Scale_batch_size,
-                calc_inv=calc_inv,
-                ram_economy=ram_economy,
-                args=args,
-                info=info)
-
         self.cost_function = cost_function
         self.cost_function_parameters = cost_function_parameters
         self.cost_update_function = cost_update_function
@@ -1316,10 +1269,15 @@ class fvGPOptimizer:
         self.gp2Scale = gp2Scale
         self.gp2Scale_dask_client = gp2Scale_dask_client
         self.gp2Scale_batch_size = gp2Scale_batch_size
+        self.gp2Scale_linalg_mode = gp2Scale_linalg_mode
         self.calc_inv = calc_inv
         self.ram_economy = ram_economy
         self.args = args
         self.info = info
+
+        self.gp = None
+        if x_data is not None and y_data is not None:
+            self._initializefvGP(x_data, y_data, output_positions=output_positions, noise_variances=noise_variances)
 
         if info:
             logger.enable('gpcam')
@@ -1342,26 +1300,7 @@ class fvGPOptimizer:
         else:
             raise Exception(f"Attribute '{attr}' not available.")
 
-    def _initializefvGP(self,
-                        x_data,
-                        y_data,
-                        init_hyperparameters=None,
-                        output_positions=None,
-                        noise_variances=None,
-                        compute_device="cpu",
-                        gp_kernel_function=None,
-                        gp_kernel_function_grad=None,
-                        gp_noise_function=None,
-                        gp_noise_function_grad=None,
-                        gp_mean_function=None,
-                        gp_mean_function_grad=None,
-                        gp2Scale=False,
-                        gp2Scale_dask_client=None,
-                        gp2Scale_batch_size=10000,
-                        calc_inv=True,
-                        ram_economy=False,
-                        args=None,
-                        info=False):
+    def _initializefvGP(self, x_data, y_data, output_positions=None, noise_variances=None):
         """
         Function to initialize a GP object.
         If data is prided at initialization this function is NOT needed.
@@ -1370,23 +1309,24 @@ class fvGPOptimizer:
         self.gp = fvGP(
             x_data,
             y_data,
-            init_hyperparameters=init_hyperparameters,
+            init_hyperparameters=self.hyperparameters,
             output_positions=output_positions,
             noise_variances=noise_variances,
-            compute_device=compute_device,
-            gp_kernel_function=gp_kernel_function,
-            gp_kernel_function_grad=gp_kernel_function_grad,
-            gp_noise_function=gp_noise_function,
-            gp_noise_function_grad=gp_noise_function_grad,
-            gp_mean_function=gp_mean_function,
-            gp_mean_function_grad=gp_mean_function_grad,
-            gp2Scale=gp2Scale,
-            gp2Scale_dask_client=gp2Scale_dask_client,
-            gp2Scale_batch_size=gp2Scale_batch_size,
-            calc_inv=calc_inv,
-            ram_economy=ram_economy,
-            args=args,
-            info=info,
+            compute_device=self.compute_device,
+            gp_kernel_function=self.gp_kernel_function,
+            gp_kernel_function_grad=self.gp_kernel_function_grad,
+            gp_noise_function=self.gp_noise_function,
+            gp_noise_function_grad=self.gp_noise_function_grad,
+            gp_mean_function=self.gp_mean_function,
+            gp_mean_function_grad=self.gp_mean_function_grad,
+            gp2Scale=self.gp2Scale,
+            gp2Scale_dask_client=self.gp2Scale_dask_client,
+            gp2Scale_batch_size=self.gp2Scale_batch_size,
+            gp2Scale_linalg_mode=self.gp2Scale_linalg_mode,
+            calc_inv=self.calc_inv,
+            ram_economy=self.ram_economy,
+            args=self.args,
+            info=self.info
         )
         self.index_set_dim = self.gp.index_set_dim
         self.input_space_dim = self.gp.input_space_dim
@@ -1473,26 +1413,7 @@ class fvGPOptimizer:
             The default is True. Indicates if existent data should be appended by or overwritten with the new data.
         """
         if self.gp is None:
-            self._initializefvGP(
-                x,
-                y,
-                init_hyperparameters=self.hyperparameters,
-                output_positions=output_positions,
-                noise_variances=noise_variances,
-                compute_device=self.compute_device,
-                gp_kernel_function=self.gp_kernel_function,
-                gp_kernel_function_grad=self.gp_kernel_function_grad,
-                gp_noise_function=self.gp_noise_function,
-                gp_noise_function_grad=self.gp_noise_function_grad,
-                gp_mean_function=self.gp_mean_function,
-                gp_mean_function_grad=self.gp_mean_function_grad,
-                gp2Scale=self.gp2Scale,
-                gp2Scale_dask_client=self.gp2Scale_dask_client,
-                gp2Scale_batch_size=self.gp2Scale_batch_size,
-                calc_inv=self.calc_inv,
-                ram_economy=self.ram_economy,
-                args=self.args,
-                info=self.info)
+            self._initializefvGP(x, y, output_positions=output_positions, noise_variances=noise_variances)
         else:
             self.update_gp_data(x, y, noise_variances_new=noise_variances,
                                 output_positions_new=output_positions, append=append)
