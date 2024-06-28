@@ -6,6 +6,7 @@ from fvgp import GP
 from . import surrogate_model as sm
 import warnings
 import sys
+import random
 
 
 # TODO (for gpCAM)
@@ -303,6 +304,20 @@ class GPOptimizer:
         self.cost_function_parameters = cost_function_parameters
         self.cost_update_function = cost_update_function
         self.hyperparameters = init_hyperparameters
+        self.compute_device = compute_device
+        self.gp_kernel_function = gp_kernel_function
+        self.gp_kernel_function_grad = gp_kernel_function_grad
+        self.gp_noise_function = gp_noise_function
+        self.gp_noise_function_grad = gp_noise_function_grad
+        self.gp_mean_function = gp_mean_function
+        self.gp_mean_function_grad = gp_mean_function_grad
+        self.gp2Scale = gp2Scale
+        self.gp2Scale_dask_client = gp2Scale_dask_client
+        self.gp2Scale_batch_size = gp2Scale_batch_size
+        self.calc_inv = calc_inv
+        self.ram_economy = ram_economy
+        self.args = args
+        self.info = info
         if info:
             logger.enable('gpcam')
             logger.add(sys.stdout, filter="gpcam", level="INFO")
@@ -315,6 +330,7 @@ class GPOptimizer:
             logger.disable('fvgp')
             logger.disable('hgdl')
 
+    #########################################################################################
     def __getattr__(self, attr):
         if not self.gp:
             raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{attr}'. "
@@ -324,6 +340,7 @@ class GPOptimizer:
         else:
             raise Exception(f"Attribute '{attr}' not available.")
 
+    #########################################################################################
     def _initializeGP(self,
                       x_data,
                       y_data,
@@ -371,6 +388,7 @@ class GPOptimizer:
         self.index_set_dim = self.gp.index_set_dim
         self.input_space_dim = self.gp.index_set_dim
 
+    #########################################################################################
     def get_data(self):
         """
         Function that provides access to the class attributes.
@@ -442,7 +460,28 @@ class GPOptimizer:
         append : bool, optional
             The default is True. Indicates if existent data should be appended by or overwritten with the new data.
         """
-        self.update_gp_data(x, y, noise_variances_new=noise_variances, append=append)
+        if self.gp is None:
+            self._initializeGP(
+                x,
+                y,
+                init_hyperparameters=self.hyperparameters,
+                noise_variances=noise_variances,
+                compute_device=self.compute_device,
+                gp_kernel_function=self.gp_kernel_function,
+                gp_kernel_function_grad=self.gp_kernel_function_grad,
+                gp_noise_function=self.gp_noise_function,
+                gp_noise_function_grad=self.gp_noise_function_grad,
+                gp_mean_function=self.gp_mean_function,
+                gp_mean_function_grad=self.gp_mean_function_grad,
+                gp2Scale=self.gp2Scale,
+                gp2Scale_dask_client=self.gp2Scale_dask_client,
+                gp2Scale_batch_size=self.gp2Scale_batch_size,
+                calc_inv=self.calc_inv,
+                ram_economy=self.ram_economy,
+                args=self.args,
+                info=self.info)
+        else:
+            self.update_gp_data(x, y, noise_variances_new=noise_variances, append=append)
 
     ##############################################################
     def train(
@@ -665,6 +704,18 @@ class GPOptimizer:
         self.hyperparameters = hps
         return hps
 
+    def set_hyperparameters(self, hps):
+        """
+        Function to set hyperparameters.
+
+        Parameters
+        ----------
+        hps : np.ndarray
+            A 1-d numpy array of hyperparameters.
+        """
+
+        self.gp.set_hyperparameters(hps)
+
     ##############################################################
     def ask(self,
             input_set,
@@ -853,6 +904,75 @@ class GPOptimizer:
             self.cost_function_parameters = self.cost_update_function(measurement_costs, self.cost_function_parameters)
         else:
             warnings.warn("No cost_update_function available. Cost update failed.")
+
+    def optimize(self, *, func, search_space, max_iter=10000000, x0=None, acq_func='lcb', mode='min'):
+        """
+        This function is a light-weight optimization loop, using `tell()` and `ask()` repeatedly
+        to optimize a given function.
+
+        Parameters
+        ----------
+        func : Callable
+            The function to be optimized. The callable should be of the form def f(x), where `x` is a 2d
+            np.ndarray or a list of points and return a 1d np.ndarray and 1d np.ndarray of the
+            corresponding noise_variances.
+        search_space : np.ndarray or list
+            In the Euclidean case this should be a 2d np.ndarray of bounds in each direction of the input space.
+            In the non-Euclidean case, this should be a list of all candidates.
+        max_iter : int, optional
+            The maximum number of iterations. Default=10,000,000.
+        x0 : np.ndarray, optional
+            Starting positions. Corresponding to the search space either elements of
+            the candidate set in form of a list or elements of the Euclidean search space in the form of a
+            2d np.ndarray.
+        acq_func : Callable, optional
+            Default lcb
+        mode : str, optional
+            Default=`min`
+
+        Return
+        ------
+        optimum f(x) : np.ndarray
+            The function value of the optimum.
+        optimum y(y) : np.ndarray
+            ...
+        argument of the optimum x : np.ndarray
+            ...
+        """
+        if not x0:
+            if isinstance(search_space, list): x0 = random.sample(search_space, 3)
+            if isinstance(search_space, np.ndarray): x0 = np.random.uniform(low=search_space[:, 0],
+                                                                            high=search_space[:, 1],
+                                                                            size=(3,len(search_space)))
+        print(x0)
+        y, v = func(x0)
+        print(y,v)
+        self.tell(x=x0, y=y, noise_variances=v, append=False)
+        for i in range(max_iter):
+            x_new = self.ask(search_space,
+                        position=None,
+                        n=1,
+                        acquisition_function=acq_func,
+                        method="global",
+                        pop_size=20,
+                        max_iter=20,
+                        tol=1e-6,
+                        constraints=(),
+                        x0=None,
+                        vectorized=True,
+                        info=False,
+                        dask_client=None)["x"]
+            y_new, v_new = func(x_new)
+            self.tell(x=x_new, y=y_new, noise_variances=v_new, append=True)
+            self.train()
+            if break_condition(self.gp.x_data, self.gp.y_data): break
+        if mode == "min":
+            argopt = np.argmin(self.gp.y_data)
+        elif mode == "max":
+            argopt = np.argmax(self.gp.y_data)
+        else:
+            raise Exceprion("No mode")
+        return {'f(x)': self.gp.y_data[argopt], 'x': self.gp.x_data[argopt]}
 
 
 ######################################################################################
@@ -1181,14 +1301,25 @@ class fvGPOptimizer:
                 ram_economy=ram_economy,
                 args=args,
                 info=info)
-        else:
-            warnings.warn("You have not provided data yet. You have to manually initialize the GP "
-                          "before any class method can be used!")
 
         self.cost_function = cost_function
         self.cost_function_parameters = cost_function_parameters
         self.cost_update_function = cost_update_function
         self.hyperparameters = init_hyperparameters
+        self.compute_device = compute_device
+        self.gp_kernel_function = gp_kernel_function
+        self.gp_kernel_function_grad = gp_kernel_function_grad
+        self.gp_noise_function = gp_noise_function
+        self.gp_noise_function_grad = gp_noise_function_grad
+        self.gp_mean_function = gp_mean_function
+        self.gp_mean_function_grad = gp_mean_function_grad
+        self.gp2Scale = gp2Scale
+        self.gp2Scale_dask_client = gp2Scale_dask_client
+        self.gp2Scale_batch_size = gp2Scale_batch_size
+        self.calc_inv = calc_inv
+        self.ram_economy = ram_economy
+        self.args = args
+        self.info = info
 
         if info:
             logger.enable('gpcam')
@@ -1341,8 +1472,30 @@ class fvGPOptimizer:
         append : bool, optional
             The default is True. Indicates if existent data should be appended by or overwritten with the new data.
         """
-        self.update_gp_data(x, y, noise_variances_new=noise_variances,
-                            output_positions_new=output_positions, append=append)
+        if self.gp is None:
+            self._initializefvGP(
+                x,
+                y,
+                init_hyperparameters=self.hyperparameters,
+                output_positions=output_positions,
+                noise_variances=noise_variances,
+                compute_device=self.compute_device,
+                gp_kernel_function=self.gp_kernel_function,
+                gp_kernel_function_grad=self.gp_kernel_function_grad,
+                gp_noise_function=self.gp_noise_function,
+                gp_noise_function_grad=self.gp_noise_function_grad,
+                gp_mean_function=self.gp_mean_function,
+                gp_mean_function_grad=self.gp_mean_function_grad,
+                gp2Scale=self.gp2Scale,
+                gp2Scale_dask_client=self.gp2Scale_dask_client,
+                gp2Scale_batch_size=self.gp2Scale_batch_size,
+                calc_inv=self.calc_inv,
+                ram_economy=self.ram_economy,
+                args=self.args,
+                info=self.info)
+        else:
+            self.update_gp_data(x, y, noise_variances_new=noise_variances,
+                                output_positions_new=output_positions, append=append)
 
     ##############################################################
     def train(self,
@@ -1563,6 +1716,18 @@ class fvGPOptimizer:
         hps = self.gp.update_hyperparameters(opt_obj)
         self.hyperparameters = hps
         return hps
+
+    def set_hyperparameters(self, hps):
+        """
+        Function to set hyperparameters.
+
+        Parameters
+        ----------
+        hps : np.ndarray
+            A 1-d numpy array of hyperparameters.
+        """
+
+        self.gp.set_hyperparameters(hps)
 
     def ask(self,
             input_set,
