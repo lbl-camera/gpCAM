@@ -272,6 +272,12 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gpo, x_out):
             v = gpo.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"]
             av_v = np.sum(v.reshape(len(x), len(x_out), order="F"), axis=1)
             return av_m + 3.0 * np.sqrt(av_v)
+        elif acquisition_function == "lcb":
+            m = gpo.posterior_mean(x, x_out=x_out)["f(x)"]
+            av_m = np.sum(m.reshape(len(x), len(x_out), order="F"), axis=1)
+            v = gpo.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"]
+            av_v = np.sum(v.reshape(len(x), len(x_out), order="F"), axis=1)
+            return -(av_m - 3.0 * np.sqrt(av_v))
         elif acquisition_function == "expected improvement":
             m = gpo.posterior_mean(x, x_out=x_out)["f(x)"]
             m = np.sum(m.reshape(len(x), len(x_out), order="F"), axis=1)

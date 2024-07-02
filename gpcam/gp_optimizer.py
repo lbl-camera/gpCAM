@@ -884,7 +884,7 @@ class GPOptimizer:
         func : Callable
             The function to be optimized. The callable should be of the form def f(x),
             where `x` is an element of your search space. The return is a tuple of scalars (a,b) where
-            `a` is the function evaluation and `b` is the noise variance.
+            `a` is the function evaluation scalar and `b` is the noise variance scalar.
         search_space : np.ndarray or list
             In the Euclidean case this should be a 2d np.ndarray of bounds in each direction of the input space.
             In the non-Euclidean case, this should be a list of all candidates.
@@ -1727,9 +1727,9 @@ class fvGPOptimizer:
             such that the highest scored point will be measured next.
             Built-in functions can be used by one of the following keys:
             `variance`, `relative information entropy`,
-            `relative information entropy set`, `total correlation`, `ucb`,
+            `relative information entropy set`, `total correlation`, `ucb`, `lcb`,
             and `expected improvement`.
-            See `GPOptimizer.ask()` for a short explanation of these functions.
+            See :py:meth:`gpcam.GPOptimizer.ask` for a short explanation of these functions.
             In the multi-task case, it is highly recommended to
             deploy a user-defined acquisition function due to the intricate relationship
             of posterior distributions at different points in the output space.
@@ -1879,7 +1879,7 @@ class fvGPOptimizer:
         func : Callable
             The function to be optimized. The callable should be of the form def f(x),
             where `x` is an element of your search space. The return is a tuple of scalars (a,b) where
-            `a` is the function evaluation and `b` is the noise variance.
+            `a` is a vector of function evaluations and `b` is a vector of noise variances.
         search_space : np.ndarray or list
             In the Euclidean case this should be a 2d np.ndarray of bounds in each direction of the input space.
             In the non-Euclidean case, this should be a list of all candidates.
@@ -1939,8 +1939,9 @@ class fvGPOptimizer:
                                                                             high=search_space[:, 1],
                                                                             size=(10, len(search_space)))
         result = list(map(func, x0))
-        y, v = map(np.hstack, zip(*result))
-        self.tell(x=x0, y=y, noise_variances=v, append=False)
+        y = np.asarray(list(map(np.hstack, zip(*result)))).reshape(-1, len(x_out))[0:len(result)]
+        v = np.asarray(list(map(np.hstack, zip(*result)))).reshape(-1, len(x_out))[len(result):]
+        self.tell(x=x0, y=y, noise_variances=v, output_positions=np.array([x_out] * len(x0)), append=False)
         self.train(hyperparameter_bounds=hyperparameter_bounds)
         for i in range(max_iter):
             logger.info("iteration {}", i)

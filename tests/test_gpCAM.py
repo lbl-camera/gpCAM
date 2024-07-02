@@ -161,7 +161,25 @@ class TestgpCAM(unittest.TestCase):
         #...and run. That's it. You successfully executed an autonomous experiment.
         my_ae.go(N = 10)
 
+    def test_optimizers(self):
+        def f1(x):
+            if np.ndim(x) == 1: return (np.sin(5. * x) + np.cos(10. * x) + (2.* (x-0.4)**2) * np.cos(100. * x)), 0.01
+            else: return (np.sin(5. * x[:,0]) + np.cos(10. * x[:,0]) + (2.* (x[:,0]-0.4)**2) * np.cos(100. * x[:,0])), np.zeros(len(x)) + 0.01
 
+        def f2(x):
+            if np.ndim(x) == 1:
+                res = np.array([f1(x)[0], -f1(x)[0]/3.]).reshape(2), np.array([0.01,0.01])
+                return res
+            else:
+                res = np.column_stack([f1(x)[0], -f1(x)[0]/3.]).reshape(len(x),2),\
+                np.array([np.zeros(len(x)) + 0.01, np.zeros(len(x)) + 0.01]).reshape(len(x),2)
+            return res
+        my_gp1 = GPOptimizer()
+        result = my_gp1.optimize(func = f1, search_space =  np.array([[0,1]]), max_iter = 10)
+
+
+        my_gp2 = fvGPOptimizer()
+        result = my_gp2.optimize(func = f2, x_out = np.array([0,1]), search_space =  np.array([[0,1]]), max_iter = 10)
 
     def test_acq_funcs(self):
         import numpy as np
