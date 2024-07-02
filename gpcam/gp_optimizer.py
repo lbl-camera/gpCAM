@@ -870,7 +870,9 @@ class GPOptimizer:
                  break_condition=None,
                  ask_max_iter=20,
                  ask_pop_size=20,
-                 method="global"
+                 method="global",
+                 training_method="global",
+                 training_max_iter=20
                  ):
         """
         This function is a light-weight optimization loop, using `tell()` and `ask()` repeatedly
@@ -915,6 +917,10 @@ class GPOptimizer:
         method : str, optional
             Default=`global`. Method of optimization of the acquisition function.
             One of `global, `local`, `hybrid`.
+        training_method : str, optional
+            Default=`global`. See :py:meth:`gpcam.GPOptimizer.train`
+        training_max_iter : int, optional
+            Default=20. See :py:meth:`gpcam.GPOptimizer.train`
 
 
         Return
@@ -951,7 +957,8 @@ class GPOptimizer:
             y_new, v_new = func(x_new)
             if callable(callback): callback(self.gp.x_data, self.gp.y_data)
             self.tell(x=x_new, y=y_new, noise_variances=v_new, append=True)
-            if len(self.gp.x_data) in train_at: self.train(hyperparameter_bounds=hyperparameter_bounds)
+            if len(self.gp.x_data) in train_at: self.train(hyperparameter_bounds=hyperparameter_bounds,
+                                                           method=training_method, max_iter=training_max_iter)
             if callable(break_condition):
                 if break_condition(self.gp.x_data, self.gp.y_data): break
         return {'trace f(x)': self.gp.y_data,
@@ -1858,7 +1865,9 @@ class fvGPOptimizer:
                  break_condition=None,
                  ask_max_iter=20,
                  ask_pop_size=20,
-                 method="global"
+                 method="global",
+                 training_method="global",
+                 training_max_iter=20
                  ):
         """
         This function is a light-weight optimization loop, using `tell()` and `ask()` repeatedly
@@ -1906,6 +1915,10 @@ class fvGPOptimizer:
         method : str, optional
             Default=`global`. Method of optimization of the acquisition function.
             One of `global, `local`, `hybrid`.
+        training_method : str, optional
+            Default=`global`. See :py:meth:`gpcam.GPOptimizer.train`
+        training_max_iter : int, optional
+            Default=20. See :py:meth:`gpcam.GPOptimizer.train`
 
 
         Return
@@ -1943,7 +1956,8 @@ class fvGPOptimizer:
             y_new, v_new = func(x_new)
             if callable(callback): callback(self.gp.x_data, self.gp.y_data)
             self.tell(x=x_new, y=y_new, noise_variances=v_new, append=True)
-            if len(self.gp.x_data) in train_at: self.train(hyperparameter_bounds=hyperparameter_bounds)
+            if len(self.gp.x_data) in train_at: self.train(hyperparameter_bounds=hyperparameter_bounds,
+                                                           method=training_method, max_iter=training_max_iter)
             if callable(break_condition):
                 if break_condition(self.gp.x_data, self.gp.y_data): break
         return {'trace f(x)': self.gp.y_data,
