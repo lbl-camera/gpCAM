@@ -901,9 +901,9 @@ class GPOptimizer:
         acq_func : Callable, optional
             Default lower-confidence bound(lcb) which means minimizing the `func`.
             The acquisition function should be formulated such that MAXIMIZING it will lead to the
-            desired optimization (minimization or minimization) of `func`.
+            desired optimization (minimization or maximization) of `func`.
             For example `lcb` (the default) MAXIMIZES -(mean - 3.0 * standard dev) which is equivalent to minimizing
-            (mean - 3.0 * standard dev) which lead to finding a minimum.
+            (mean - 3.0 * standard dev) which leads to finding a minimum.
         max_iter : int, optional
             The maximum number of iterations. Default=10,000,000.
         callback : Callable, optional
@@ -1899,9 +1899,9 @@ class fvGPOptimizer:
         acq_func : Callable, optional
             Default lower-confidence bound(lcb) which means minimizing the `func`.
             The acquisition function should be formulated such that MAXIMIZING it will lead to the
-            desired optimization (minimization or minimization) of `func`.
+            desired optimization (minimization or maximization) of `func`.
             For example `lcb` (the default) MAXIMIZES -(mean - 3.0 * standard dev) which is equivalent to minimizing
-            (mean - 3.0 * standard dev) which lead to finding a minimum.
+            (mean - 3.0 * standard dev) which leads to finding a minimum.
         max_iter : int, optional
             The maximum number of iterations. Default=10,000,000.
         callback : Callable, optional

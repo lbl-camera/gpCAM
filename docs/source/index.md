@@ -36,6 +36,7 @@ examples/GPOptimizer_SingleTaskTest.ipynb
 examples/GPOptimizer_NonEuclideanInputSpaces.ipynb
 examples/GPOptimizer_gp2ScaleTest.ipynb
 examples/GPOptimizer_MultiTaskTest.ipynb
+examples/GPOptimizerOptimization.ipynb
 ```
 
 
