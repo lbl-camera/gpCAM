@@ -859,8 +859,8 @@ class GPOptimizer:
 
     def optimize(self,
                  *,
-                 func=None,
-                 search_space=None,
+                 func,
+                 search_space,
                  hyperparameter_bounds=None,
                  train_at=(10, 20, 50, 100, 200),
                  x0=None,
@@ -868,6 +868,9 @@ class GPOptimizer:
                  max_iter=100,
                  callback=None,
                  break_condition=None,
+                 ask_max_iter=20,
+                 ask_pop_size=20,
+                 method="global"
                  ):
         """
         This function is a light-weight optimization loop, using `tell()` and `ask()` repeatedly
@@ -905,21 +908,32 @@ class GPOptimizer:
             Function to be called in every iteration. Form: f(x_data, y_data)
         break_condition : Callable, optional
             Callable f(x_data, y_data) that should return `True` if run is complete, otherwise `False`.
+        ask_max_iter : int, optional
+            Default=20. Maximum number of iteration of the global and hybrid optimizer within `ask()`.
+        ask_pop_size : int, optional
+            Default=20. Population size of the global and hybrid optimizer.
+        method : str, optional
+            Default=`global`. Method of optimization of the acquisition function.
+            One of `global, `local`, `hybrid`.
 
 
         Return
         ------
-        Full traces of function values `f(x)` and arguments `x` : dict
+        Full traces of function values `f(x)` and arguments `x` and the last entry: dict
+            Form {'trace f(x)': self.gp.y_data,
+                  'trace x': self.gp.x_data,
+                  'f(x)': self.gp.y_data[-1],
+                  'x': self.gp.x_data[-1]}
         """
         assert callable(func)
         assert isinstance(search_space, np.ndarray) or isinstance(search_space, list)
         assert isinstance(max_iter, int)
 
         if not x0:
-            if isinstance(search_space, list): x0 = random.sample(search_space, 3)
+            if isinstance(search_space, list): x0 = random.sample(search_space, 10)
             if isinstance(search_space, np.ndarray): x0 = np.random.uniform(low=search_space[:, 0],
                                                                             high=search_space[:, 1],
-                                                                            size=(3, len(search_space)))
+                                                                            size=(10, len(search_space)))
         result = list(map(func, x0))
         y, v = map(np.hstack, zip(*result))
         self.tell(x=x0, y=y, noise_variances=v, append=False)
@@ -928,9 +942,9 @@ class GPOptimizer:
             logger.info("iteration {}", i)
             x_new = self.ask(search_space,
                              acquisition_function=acq_func,
-                             method="global",
-                             pop_size=20,
-                             max_iter=20,
+                             method=method,
+                             pop_size=ask_pop_size,
+                             max_iter=ask_max_iter,
                              tol=1e-6,
                              constraints=(),
                              info=False)["x"]
@@ -940,7 +954,10 @@ class GPOptimizer:
             if len(self.gp.x_data) in train_at: self.train(hyperparameter_bounds=hyperparameter_bounds)
             if callable(break_condition):
                 if break_condition(self.gp.x_data, self.gp.y_data): break
-        return {'f(x)': self.gp.y_data, 'x': self.gp.x_data}
+        return {'trace f(x)': self.gp.y_data,
+                'trace x': self.gp.x_data,
+                'f(x)': self.gp.y_data[-1],
+                'x': self.gp.x_data[-1]}
 
 
 ######################################################################################
@@ -1670,7 +1687,7 @@ class fvGPOptimizer:
         Given that the acquisition device is at `position`, this function `ask()`s for
         `n` new optimal points within a given `input_set` (given as bounds or candidates)
         using the optimization setup `method`,
-        `acquisition_function_pop_size`, `max_iter`, `tol`, `constraints", and `x0`.
+        `acquisition_function_pop_size`, `max_iter`, `tol`, `constraints`, and `x0`.
         This function can also choose the best candidate of a candidate set for Bayesian optimization
         on non-Euclidean input spaces.
 
@@ -1685,7 +1702,7 @@ class fvGPOptimizer:
             Euclidean, they should be provided as a list of 1d np.ndarray`s.
         x_out : np.ndarray
             The position indicating where in the output space the acquisition function should be evaluated.
-            This array is of shape (No, Do).
+            This array is of shape (No).
         position : np.ndarray, optional
             Current position in the input space. If a cost function is
             provided this position will be taken into account
@@ -1826,3 +1843,110 @@ class fvGPOptimizer:
                 measurement_costs, self.cost_function_parameters)
         else:
             warnings.warn("No cost_update_function available. Cost update failed.")
+
+    def optimize(self,
+                 *,
+                 func,
+                 search_space,
+                 x_out,
+                 hyperparameter_bounds=None,
+                 train_at=(10, 20, 50, 100, 200),
+                 x0=None,
+                 acq_func='lcb',
+                 max_iter=100,
+                 callback=None,
+                 break_condition=None,
+                 ask_max_iter=20,
+                 ask_pop_size=20,
+                 method="global"
+                 ):
+        """
+        This function is a light-weight optimization loop, using `tell()` and `ask()` repeatedly
+        to optimize a given function, while retraining the GP regularly. For advanced customizations please
+        use those three methods in a customized loop.
+
+        Parameters
+        ----------
+        func : Callable
+            The function to be optimized. The callable should be of the form def f(x),
+            where `x` is an element of your search space. The return is a tuple of scalars (a,b) where
+            `a` is the function evaluation and `b` is the noise variance.
+        search_space : np.ndarray or list
+            In the Euclidean case this should be a 2d np.ndarray of bounds in each direction of the input space.
+            In the non-Euclidean case, this should be a list of all candidates.
+        x_out : np.ndarray
+            The position indicating where in the output space the acquisition function should be evaluated.
+            This array is of shape (No).
+        hyperparameter_bounds : np.ndarray
+            Bound of the hyperparameters for the training. The default will only work for the default kernel.
+            Otherwise, please specify bounds for your hyperparameters.
+        train_at : tuple, optional
+            The list should contain the integers that indicate the data lengths
+            at which to train the GP. The default = [10,20,50,100,200].
+        x0 : np.ndarray, optional
+            Starting positions. Corresponding to the search space either elements of
+            the candidate set in form of a list or elements of the Euclidean search space in the form of a
+            2d np.ndarray.
+        acq_func : Callable, optional
+            Default lower-confidence bound(lcb) which means minimizing the `func`.
+            The acquisition function should be formulated such that MAXIMIZING it will lead to the
+            desired optimization (minimization or minimization) of `func`.
+            For example `lcb` (the default) MAXIMIZES -(mean - 3.0 * standard dev) which is equivalent to minimizing
+            (mean - 3.0 * standard dev) which lead to finding a minimum.
+        max_iter : int, optional
+            The maximum number of iterations. Default=10,000,000.
+        callback : Callable, optional
+            Function to be called in every iteration. Form: f(x_data, y_data)
+        break_condition : Callable, optional
+            Callable f(x_data, y_data) that should return `True` if run is complete, otherwise `False`.
+        ask_max_iter : int, optional
+            Default=20. Maximum number of iteration of the global and hybrid optimizer within `ask()`.
+        ask_pop_size : int, optional
+            Default=20. Population size of the global and hybrid optimizer.
+        method : str, optional
+            Default=`global`. Method of optimization of the acquisition function.
+            One of `global, `local`, `hybrid`.
+
+
+        Return
+        ------
+        Full traces of function values `f(x)` and arguments `x` and the last entry: dict
+            Form {'trace f(x)': self.gp.y_data,
+                  'trace x': self.gp.x_data,
+                  'f(x)': self.gp.y_data[-1],
+                  'x': self.gp.x_data[-1]}
+        """
+        assert callable(func)
+        assert isinstance(search_space, np.ndarray) or isinstance(search_space, list)
+        assert isinstance(max_iter, int)
+
+        if not x0:
+            if isinstance(search_space, list): x0 = random.sample(search_space, 10)
+            if isinstance(search_space, np.ndarray): x0 = np.random.uniform(low=search_space[:, 0],
+                                                                            high=search_space[:, 1],
+                                                                            size=(10, len(search_space)))
+        result = list(map(func, x0))
+        y, v = map(np.hstack, zip(*result))
+        self.tell(x=x0, y=y, noise_variances=v, append=False)
+        self.train(hyperparameter_bounds=hyperparameter_bounds)
+        for i in range(max_iter):
+            logger.info("iteration {}", i)
+            x_new = self.ask(search_space,
+                             x_out,
+                             acquisition_function=acq_func,
+                             method=method,
+                             pop_size=ask_pop_size,
+                             max_iter=ask_max_iter,
+                             tol=1e-6,
+                             constraints=(),
+                             info=False)["x"]
+            y_new, v_new = func(x_new)
+            if callable(callback): callback(self.gp.x_data, self.gp.y_data)
+            self.tell(x=x_new, y=y_new, noise_variances=v_new, append=True)
+            if len(self.gp.x_data) in train_at: self.train(hyperparameter_bounds=hyperparameter_bounds)
+            if callable(break_condition):
+                if break_condition(self.gp.x_data, self.gp.y_data): break
+        return {'trace f(x)': self.gp.y_data,
+                'trace x': self.gp.x_data,
+                'f(x)': self.gp.y_data[-1],
+                'x': self.gp.x_data[-1]}
