@@ -197,7 +197,7 @@ class GPOptimizer:
     calc_inv : bool, optional
         If True, the algorithm calculates and stores the inverse of the covariance
         matrix after each training or update of the dataset or hyperparameters,
-        which makes computing the posterior covariance faster (5-10 times).
+        which makes computing the posterior covariance faster (3-10 times).
         For larger problems (>2000 data points), the use of inversion should be avoided due
         to computational instability and costs. The default is
         False. Note, the training will not the
@@ -325,7 +325,7 @@ class GPOptimizer:
         elif self.gp and hasattr(self.gp, attr):
             return getattr(self.gp, attr)
         else:
-            raise Exception(f"Attribute '{attr}' not available.")
+            raise AttributeError(f"Attribute '{attr}' not available.")
 
     #########################################################################################
     def _initializeGP(self, x_data, y_data, noise_variances=None):
@@ -1322,7 +1322,7 @@ class fvGPOptimizer:
         elif self.gp and hasattr(self.gp, attr):
             return getattr(self.gp, attr)
         else:
-            raise Exception(f"Attribute '{attr}' not available.")
+            raise AttributeError(f"Attribute '{attr}' not available.")
 
     def _initializefvGP(self, x_data, y_data, output_positions=None, noise_variances=None):
         """
@@ -1400,7 +1400,6 @@ class fvGPOptimizer:
         if self.cost_function and origin is None:
             warnings.warn("Warning: For the cost function to be active, an origin has to be provided.")
         x = np.array(x)
-        cost_function = self.cost_function
         try:
             res = sm.evaluate_acquisition_function(
                 x, gpo=self.gp, acquisition_function=acquisition_function, origin=origin, dim=self.input_space_dim,

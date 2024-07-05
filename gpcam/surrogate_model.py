@@ -6,6 +6,7 @@ from hgdl.hgdl import HGDL
 from scipy.optimize import differential_evolution as devo, minimize
 from scipy.stats import norm
 from functools import partial
+import time
 
 
 ##########################################################################
@@ -37,7 +38,6 @@ def find_acquisition_function_maxima(gpo, acquisition_function, *,
     else:
         raise Exception("input_set not given in an allowed format")
     opt_obj = None
-
     func = partial(evaluate_acquisition_function, gpo=gpo,
                    acquisition_function=acquisition_function,
                    origin=origin, dim=input_set_dim,
@@ -194,7 +194,7 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gpo, x_out):
         "1d array given in evaluate_gp_acquisition_function. It has to be 2d")
     if x_out is None:
         if acquisition_function == "variance":
-            res = gpo.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"]
+            res = gpo.posterior_covariance(x, x_out=x_out, variance_only=False)["v(x)"]
             return res
         elif acquisition_function == "relative information entropy":
             res = -gpo.gp_relative_information_entropy(x, x_out=x_out)["RIE"]
@@ -303,10 +303,8 @@ def differential_evolution(func,
                            constraints=(),
                            disp=False,
                            vectorized=True):
-    if vectorized:
-        updating = 'deferred'
-    else:
-        updating = 'immediate'
+    if vectorized: updating = 'deferred'
+    else: updating = 'immediate'
     res = devo(partial(acq_function_vectorization_wrapper, func=func, vectorized=vectorized), bounds, tol=tol, x0=x0,
                maxiter=max_iter, popsize=popsize, polish=False, disp=disp, constraints=constraints,
                vectorized=vectorized, updating=updating)
