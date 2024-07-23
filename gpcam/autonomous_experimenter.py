@@ -122,7 +122,7 @@ class AutonomousExperimenterGP:
         `fvgp.GP._default_mean_function` is used, which is the average of the `y_data`.
     noise_function : Callable optional
         The noise function is a callable f(x,hyperparameters) that returns a
-        positive symmetric definite matrix of shape(len(x),len(x)).
+        vector (1d np.ndarray) of length(x).
         The input `x` is a numpy array of shape (N x D). The hyperparameter array is the same
         that is communicated to mean and kernel functions.
         Only provide a noise function OR a noise variance vector, not both.
@@ -823,6 +823,12 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
          hyperparameters (a 1d array of length Di+2 for the default kernel).
         The return value is a 1d array of length N1. If None is provided,
         `fvgp.GP._default_mean_function` is used, which is the average of the `y_data`.
+    noise_function : Callable optional
+        The noise function is a callable f(x,hyperparameters) that returns a
+        vector (1d np.ndarray) of length(x).
+        The input `x` is a numpy array of shape (N x D). The hyperparameter array is the same
+        that is communicated to mean and kernel functions.
+        Only provide a noise function OR a noise variance vector, not both.
     run_every_iteration : Callable, optional
         A function that is run at every iteration. It accepts as input a
         `gpcam.AutonomousExperimenterGP` instance. The default is a no-op.

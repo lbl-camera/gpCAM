@@ -6,7 +6,6 @@ from hgdl.hgdl import HGDL
 from scipy.optimize import differential_evolution as devo, minimize
 from scipy.stats import norm
 from functools import partial
-import time
 
 
 ##########################################################################

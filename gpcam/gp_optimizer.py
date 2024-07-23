@@ -159,18 +159,18 @@ class GPOptimizer:
         or a finite-difference approximation
         is used if `gp_mean_function` is provided.
     gp_noise_function : Callable, optional
-        The noise function is a callable f(x,hyperparameters,obj) that returns a
-        positive symmetric definite matrix of shape(len(x),len(x)).
+        The noise function is a callable f(x,hyperparameters) that returns a
+        vector (1d np.ndarray) of length(x).
         The input `x` is a numpy array of shape (N x D). The hyperparameter array is the same
         that is communicated to mean and kernel functions. The obj is a `fvgp.GP` instance.
         Only provide a noise function OR a noise variance vector, not both.
     gp_noise_function_grad : Callable, optional
         A function that evaluates the gradient of the `gp_noise_function`
         at an input position with respect to the hyperparameters.
-        It accepts as input an array of positions (of size N x D),
-        hyperparameters (a 1d array of length D+1 for the default kernel)
-        and a `fvgp.GP` instance. The return value is a 3-D array of
-        shape (len(hyperparameters) x N x N). If None is provided, either
+        It accepts as input an array of positions (of size N x D) and
+        hyperparameters (a 1d array of length D+1 for the default kernel).
+        The return value is a 2-D array of
+        shape (len(hyperparameters) x N). If None is provided, either
         zeros are returned since the default noise function does not depend on
         hyperparameters, or, if `gp_noise_function` is provided but no gradient function,
         a finite-difference approximation will be used.
@@ -412,7 +412,7 @@ class GPOptimizer:
             logger.error("Evaluating the acquisition function was not successful.")
             raise Exception("Evaluating the acquisition function was not successful.", ex)
 
-    def tell(self, x, y, noise_variances=None, append=False):
+    def tell(self, x, y, noise_variances=None, append=False, gp_rank_n_update=None):
         """
         This function can tell() the gp_optimizer class
         the data that was collected. The data will instantly be used to update the GP data.
@@ -429,11 +429,16 @@ class GPOptimizer:
             If not provided, the GP will 1% of the y values as variances.
         append : bool, optional
             The default is True. Indicates if existent data should be appended by or overwritten with the new data.
+        gp_rank_n_update : bool , optional
+            Indicates whether the GP marginal should be rank-n updated or recomputed. The default
+            is `gp_rank_n_update=append`, meaning if data is only appended, the rank_n_update will
+            be performed.
         """
         if self.gp is None:
             self._initializeGP(x, y, noise_variances=noise_variances)
         else:
-            self.update_gp_data(x, y, noise_variances_new=noise_variances, append=append)
+            self.update_gp_data(x, y, noise_variances_new=noise_variances,
+                                append=append, gp_rank_n_update=gp_rank_n_update)
 
     ##############################################################
     def train(
@@ -1149,18 +1154,18 @@ class fvGPOptimizer:
         or a finite-difference approximation
         is used if `gp_mean_function` is provided.
     gp_noise_function : Callable, optional
-        The noise function is a callable f(x,hyperparameters,obj) that returns a
-        positive symmetric definite matrix of shape(len(x),len(x)).
+        The noise function is a callable f(x,hyperparameters) that returns a
+        vector (1d np.ndarray) of length(x).
         The input `x` is a numpy array of shape (N x Di+1). The hyperparameter array is the same
         that is communicated to mean and kernel functions. The obj is a `fvgp.GP` instance.
         Only provide a noise function OR a noise variance vector, not both.
     gp_noise_function_grad : Callable, optional
         A function that evaluates the gradient of the `gp_noise_function`
         at an input position with respect to the hyperparameters.
-        It accepts as input an array of positions (of size N x Di+1),
-        hyperparameters (a 1d array of length D+1 for the default kernel)
-        and a `fvgp.GP` instance. The return value is a 3-D array of
-        shape (len(hyperparameters) x N x N). If None is provided, either
+        It accepts as input an array of positions (of size N x Di+1) and
+        hyperparameters (a 1d array of length D+1 for the default kernel).
+        The return value is a 2-D array of
+        shape (len(hyperparameters) x N). If None is provided, either
         zeros are returned since the default noise function does not depend on
         hyperparameters, or, if `gp_noise_function` is provided but no gradient function,
         a finite-difference approximation will be used.
@@ -1412,7 +1417,7 @@ class fvGPOptimizer:
             raise Exception("Evaluating the acquisition function was not successful.", ex)
 
     ############################################################################
-    def tell(self, x, y, noise_variances=None, output_positions=None, append=False):
+    def tell(self, x, y, noise_variances=None, output_positions=None, append=False, gp_rank_n_update=None):
         """
         This function can tell() the gp_optimizer class
         the data that was collected. The data will instantly be used to update the GP data.
@@ -1434,12 +1439,16 @@ class fvGPOptimizer:
             np.array([[0,1,2,3,...,output_number - 1],[0,1,2,3,...,output_number - 1],...]).
         append : bool, optional
             The default is True. Indicates if existent data should be appended by or overwritten with the new data.
+        gp_rank_n_update : bool , optional
+            Indicates whether the GP marginal should be rank-n updated or recomputed. The default
+            is `gp_rank_n_update=append`, meaning if data is only appended, the rank_n_update will
+            be performed.
         """
         if self.gp is None:
             self._initializefvGP(x, y, output_positions=output_positions, noise_variances=noise_variances)
         else:
             self.update_gp_data(x, y, noise_variances_new=noise_variances,
-                                output_positions_new=output_positions, append=append)
+                                output_positions_new=output_positions, append=append, gp_rank_n_update=gp_rank_n_update)
 
     ##############################################################
     def train(self,
