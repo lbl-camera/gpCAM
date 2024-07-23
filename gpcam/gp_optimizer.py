@@ -487,8 +487,10 @@ class GPOptimizer:
             via non-standard user-defined objectives.
             The default is the Hessian of the negative log marginal likelihood.
         init_hyperparameters : np.ndarray, optional
-            Initial hyperparameters used as starting location for all optimizers with local component.
+            Initial hyperparameters used as starting location for all optimizers.
             The default is a random draw from a uniform distribution within the `hyperparameter_bounds`.
+            If you want the training to start at previously trained hyperparameters you have to specify that
+            explicitly.
         method : str or Callable, optional
             The method used to train the hyperparameters.
             The options are `global`, `local`, `hgdl`, `mcmc`, and a callable.
@@ -581,8 +583,10 @@ class GPOptimizer:
             via non-standard user-defined objectives.
             The default is the Hessian of the negative log marginal likelihood.
         init_hyperparameters : np.ndarray, optional
-            Initial hyperparameters used as starting location for all optimizers with local component.
+            Initial hyperparameters used as starting location for all optimizers.
             The default is a random draw from a uniform distribution within the `hyperparameter_bounds`.
+            If you want the training to start at previously trained hyperparameters you have to specify that
+            explicitly.
         max_iter : int, optional
             Maximum number of iterations for global and local optimizers. Default = 120.
         local_optimizer : str, optional
@@ -1496,8 +1500,10 @@ class fvGPOptimizer:
             via non-standard user-defined objectives.
             The default is the Hessian of the negative log marginal likelihood.
         init_hyperparameters : np.ndarray, optional
-            Initial hyperparameters used as starting location for all optimizers with local component.
+            Initial hyperparameters used as starting location for all optimizers.
             The default is a random draw from a uniform distribution within the `hyperparameter_bounds`.
+            If you want the training to start at previously trained hyperparameters you have to specify that
+            explicitly.
         method : str or Callable, optional
             The method used to train the hyperparameters.
             The options are `global`, `local`, `hgdl`, `mcmc`, and a callable.
@@ -1590,8 +1596,10 @@ class fvGPOptimizer:
             via non-standard user-defined objectives.
             The default is the Hessian of the negative log marginal likelihood.
         init_hyperparameters : np.ndarray, optional
-            Initial hyperparameters used as starting location for all optimizers with local component.
+            Initial hyperparameters used as starting location for all optimizers.
             The default is a random draw from a uniform distribution within the `hyperparameter_bounds`.
+            If you want the training to start at previously trained hyperparameters you have to specify that
+            explicitly.
         max_iter : int, optional
             Maximum number of iterations for global and local optimizers. Default = 120.
         local_optimizer : str, optional
