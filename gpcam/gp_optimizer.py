@@ -192,7 +192,8 @@ class GPOptimizer:
     gp2Scale_batch_size : int, optional
         Matrix batch size for distributed computing in gp2Scale. The default is 10000.
     gp2Scale_linalg_mode : str, optional
-        One of `Chol`, `sparseLU`, `sparseCG`, or `sparseMINRES`. The default is None which amounts to
+        One of `Chol`, `sparseLU`, `sparseCG`, `sparseMINRES`, `sparseSolve`, `sparseCGpre`
+        (incomplete LU preconditioner), or `sparseMINRESpre`. The default is None which amounts to
         an automatic determination of the mode.
     calc_inv : bool, optional
         If True, the algorithm calculates and stores the inverse of the covariance
@@ -1086,21 +1087,28 @@ class fvGPOptimizer:
         For multi-task GPs, the index set dimension = input space dimension + 1.
         If dealing with non-Euclidean inputs
         x_data should be a list, not a numpy array.
-    y_data : np.ndarray
-        The values of the data points. Shape (V,No).
+    y_data : np.ndarray or list
+        The values of the data points. Shape (V,No) if `y_data` is an array.
+        It is possible that not every entry in `x_data`
+        has all corresponding tasks available. In that case `y_data` can be a list. In that case make sure
+        that every entry in `y_data` has a corresponding `output_position` of the same shape.
     init_hyperparameters : np.ndarray, optional
         Vector of hyperparameters used to initiate the GP.
         The default is an array of ones with the right length for the anisotropic Matern
         kernel with automatic relevance determination (ARD). The task direction is
         simply considered a separate dimension. If sparse_node or gp2Scale is
         enabled, the default kernel changes to the anisotropic Wendland kernel.
-    output_positions : np.ndarray, optional
-        A 2d numpy array of shape (V x output_number), so that for each measurement position, the outputs
+    output_positions : list, optional
+        A list of 1d numpy arrays indicating which `task` measurements are available,
+        so that for each measurement position, the outputs
         are clearly defined by their positions in the output space. The default is
-        np.array([[0,1,2,3,...,output_number - 1],[0,1,2,3,...,output_number - 1],...]).
-    noise_variances : np.ndarray, optional
-        An numpy array defining the uncertainties/noise in the
-        `y_data` in form of a point-wise variance. Shape (V, No).
+        [[0,1,2,3,...,output_number - 1],[0,1,2,3,...,output_number - 1],...].
+        It is possible that for certain inputs tasks are missing, e.g.,
+        output_positions = [[0,1],[1]].
+    noise_variances : np.ndarray or list, optional
+        An numpy array or list defining the uncertainties/noise in the
+        `y_data` in form of a point-wise variance. Shape (V, No) if np.ndarray.
+        If `y_data` is a list then the `noise_variances` should be a list.
         Note: if no noise_variances are provided here, the gp_noise_function
         callable will be used; if the callable is not provided, the noise variances
         will be set to `abs(np.mean(y_data)) / 100.0`. If
@@ -1191,7 +1199,8 @@ class fvGPOptimizer:
     gp2Scale_batch_size : int, optional
         Matrix batch size for distributed computing in gp2Scale. The default is 10000.
     gp2Scale_linalg_mode : str, optional
-        One of `Chol`, `sparseLU`, `sparseCG`, or `sparseMINRES`. The default is None which amounts to
+        One of `Chol`, `sparseLU`, `sparseCG`, `sparseMINRES`, `sparseSolve`, `sparseCGpre`
+        (incomplete LU preconditioner), or `sparseMINRESpre`. The default is None which amounts to
         an automatic determination of the mode.
     calc_inv : bool, optional
         If True, the algorithm calculates and stores the inverse of the covariance
@@ -1431,18 +1440,29 @@ class fvGPOptimizer:
         x : np.ndarray or list
             Point positions to be communicated to the Gaussian Process; either a np.ndarray of shape (U x D)
             or a list.
-        y : np.ndarray
-            Point values (of shape U x 1 or U) to be communicated to the Gaussian Process.
-        noise_variances : np.ndarray, optional
-            Point value variances (of shape U x 1 or U) to be communicated 
-            to the Gaussian Process.
-            If not provided, the GP will 1% of the y values as variances.
-        output_positions : np.ndarray, optional
-            A 2d numpy array of shape (V x output_number), so that for each measurement position, the outputs
+        y : np.ndarray or list
+            The values of the data points. Shape (V,No) if `y`  is an array.
+            It is possible that not every entry in `x`
+            has all corresponding tasks available. In that case `y_new` can be a list. In that case make sure
+            that every entry in `y` has a corresponding `output_positions` of the same shape.
+        noise_variances : np.ndarray or list, optional
+            An numpy array or list defining the uncertainties/noise in
+            `y` in form of a point-wise variance. Shape (V, No) if np.ndarray.
+            If `y` is a list then the `noise_variances` should be a list.
+            Note: if no noise_variances are provided here, the gp_noise_function
+            callable will be used; if the callable is not provided, the noise variances
+            will be set to `abs(np.mean(y_data)) / 100.0`. If
+            noise covariances are required (correlated noise), make use of the gp_noise_function.
+            Only provide a noise function OR `noise_variances`, not both.
+        output_positions : list, optional
+            A list of 1d numpy arrays indicating which `task` measurements are available,
+            so that for each measurement position, the outputs
             are clearly defined by their positions in the output space. The default is
-            np.array([[0,1,2,3,...,output_number - 1],[0,1,2,3,...,output_number - 1],...]).
+            [[0,1,2,3,...,output_number - 1],[0,1,2,3,...,output_number - 1],...].
+            The output_number is defined by the first entry in `y_data`.
         append : bool, optional
-            The default is True. Indicates if existent data should be appended by or overwritten with the new data.
+            Indication whether to append to or overwrite the existing dataset. Default = True.
+            In the default case, data will be appended.
         gp_rank_n_update : bool , optional
             Indicates whether the GP marginal should be rank-n updated or recomputed. The default
             is `gp_rank_n_update=append`, meaning if data is only appended, the rank_n_update will
