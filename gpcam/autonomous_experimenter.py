@@ -1,6 +1,7 @@
 # /usr/bin/env python
 import inspect
 import time
+import warnings
 import dask
 import sys
 import numpy as np
@@ -11,7 +12,6 @@ from .gp_optimizer import GPOptimizer, fvGPOptimizer
 
 #TODO
 #   docstrings
-#   
 
 class AutonomousExperimenterGP:
     """
@@ -20,6 +20,7 @@ class AutonomousExperimenterGP:
     The AutonomousExperimenter is a convenience-driven functionality that does not allow
     as much customization as using the :py:class:`gpcam.GPOptimizer` directly. But it is a great option to
     get started.
+
 
     Parameters
     ----------
@@ -838,10 +839,13 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         Initial data point values.
     noise_variances : np.ndarray, optional
         Initial data point observation variances.
-    vp : np.ndarray, optional
-        A 2d numpy array of shape (V x output_number), so that for each measurement position, the outputs
+    vp : list, optional
+        A list of 1d numpy arrays indicating which `task` measurements are available,
+        so that for each measurement position, the outputs
         are clearly defined by their positions in the output space. The default is
-        np.array([[0,1,2,3,...,output_number - 1],[0,1,2,3,...,output_number - 1],...]).
+        [[0,1,2,3,...,output_number - 1],[0,1,2,3,...,output_number - 1],...].
+        It is possible that for certain inputs tasks are missing, e.g.,
+        vp = [[0,1],[1]].
     communicate_full_dataset : bool, optional
         If True, the full dataset will be communicated to the `instrument_function`
         on each iteration. If False, only the
@@ -907,7 +911,8 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
                  prior_mean_function=None,
                  noise_function=None,
                  run_every_iteration=None,
-                 x_data=None, y_data=None, noise_variances=None, vp=None, dataset=None,
+                 x_data=None, y_data=None, noise_variances=None,
+                 vp=None, dataset=None,
                  communicate_full_dataset=False,
                  compute_device="cpu",
                  calc_inv=False,
@@ -969,6 +974,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         ######################
         self.gp_optimizer = fvGPOptimizer(
             self.x_data, self.y_data,
+            output_positions=vp,
             init_hyperparameters=hyperparameters,
             noise_variances=self.noise_variances,
             compute_device=compute_device,

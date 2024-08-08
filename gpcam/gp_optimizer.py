@@ -1977,7 +1977,7 @@ class fvGPOptimizer:
         result = list(map(func, x0))
         y = np.asarray(list(map(np.hstack, zip(*result)))).reshape(-1, len(x_out))[0:len(result)]
         v = np.asarray(list(map(np.hstack, zip(*result)))).reshape(-1, len(x_out))[len(result):]
-        self.tell(x=x0, y=y, noise_variances=v, output_positions=np.array([x_out] * len(x0)), append=False)
+        self.tell(x=x0, y=y, noise_variances=v, output_positions=[x_out] * len(x0), append=False)
         self.train(hyperparameter_bounds=hyperparameter_bounds)
         for i in range(max_iter):
             logger.info("iteration {}", i)

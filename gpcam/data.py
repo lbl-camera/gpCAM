@@ -21,7 +21,6 @@ class gpData:
         self.dataset = []
         self.output_number = output_number
         self.point_number = None
-        self.x = None
 
     ###############################################################
 
@@ -34,9 +33,9 @@ class gpData:
         """
         creates random data of "length" and creates a dataset
         """
-        self.x = self._create_random_points(length)
-        self.point_number = len(self.x)
-        self.dataset = self.arrays2data(self.x)
+        x = self._create_random_points(length)
+        self.point_number = len(x)
+        self.dataset = self.arrays2data(x)
 
     def inject_dataset(self, dataset):
         """
@@ -50,9 +49,14 @@ class gpData:
         """
         translates numpy arrays to the data format
         """
+        assert isinstance(x, np.ndarray)
+        if y is not None: assert isinstance(y, np.ndarray) or isinstance(y, list)
+        if v is not None: assert isinstance(v, np.ndarray) or isinstance(v, list)
+
         assert np.ndim(x) == 2
-        if y is not None: assert np.ndim(y) == 1
-        if v is not None: assert np.ndim(v) == 1
+        if isinstance(y, np.ndarray): assert np.ndim(y) == 1
+        if isinstance(v, np.ndarray): assert np.ndim(v) == 1
+
         data = []
         for i in range(len(x)):
             val = None
@@ -73,8 +77,6 @@ class gpData:
         d = {"x_data": x, "y_data": y, "noise variance": v, "cost": None, "id": str(uuid.uuid4()),
              "time stamp": time.time(), "date time": datetime.datetime.now().strftime("%d/%m/%Y_%H:%M:%S"),
              "measured": False}
-        # d["posterior variance"] = None #post_var
-        # d["hyperparameters"] = None #hps
         return d
 
     ################################################################
@@ -187,10 +189,6 @@ class gpData:
 ######################################################################
 ######################################################################
 ######################################################################
-######################################################################
-######################################################################
-######################################################################
-######################################################################
 class fvgpData(gpData):
     def __init__(self, dim, parameter_bounds, output_number):
         if output_number is None:
@@ -199,9 +197,9 @@ class fvgpData(gpData):
         super(fvgpData, self).__init__(dim, parameter_bounds, output_number)
 
     def create_random_dataset(self, length):
-        self.x = self._create_random_points(length)
-        self.point_number = len(self.x)
-        self.dataset = self.arrays2data(self.x)
+        x = self._create_random_points(length)
+        self.point_number = len(x)
+        self.dataset = self.arrays2data(x)
 
     def inject_dataset(self, dataset):
         """
@@ -215,10 +213,10 @@ class fvgpData(gpData):
         """
         translates numpy arrays to the data format
         """
-        if np.ndim(x) != 2: raise Exception("'arrays2data' called with dim(x) != 2")
-        if np.ndim(y) != 2 and y is not None: raise Exception("'arrays2data' called with dim(y) != 2")
-        if np.ndim(v) != 2 and v is not None: raise Exception("'arrays2data' called with dim(v) != 2")
-        if np.ndim(vp) != 2 and vp is not None: raise Exception("'arrays2data' called with dim(vp)!= 2")
+        assert isinstance(x, np.ndarray)
+        if y is not None: assert isinstance(y, np.ndarray) or isinstance(y, list)
+        if v is not None: assert isinstance(v, np.ndarray) or isinstance(v, list)
+        if vp is not None: assert isinstance(vp, np.ndarray) or isinstance(vp, list)
 
         data = []
         for i in range(len(x)):
@@ -228,7 +226,7 @@ class fvgpData(gpData):
             if y is not None: val = y[i]
             if v is not None: var = v[i]
             if vp is not None: valp = vp[i]
-            if y is not None and vp is None: valp = np.array([np.array([float(i)]) for i in range(len(y[0]))])
+            if y is not None and vp is None: valp = [np.array([float(i)]) for i in range(len(y[0]))]
 
             data.append(self.npy2dataset_entry(x[i], val, var, valp))
             if info is not None: data[i].update(info[i])
@@ -243,8 +241,6 @@ class fvgpData(gpData):
         d = {"x_data": x, "y_data": y, "noise variances": v, "output positions": vp, "cost": None,
              "id": str(uuid.uuid4()), "time stamp": time.time(),
              "date time": datetime.datetime.now().strftime("%d/%m/%Y_%H:%M:%S"), "measured": False}
-        # d["posterior variances"] = None
-        # d["hyperparameters"] = None
         return d
 
     ################################################################
@@ -260,25 +256,26 @@ class fvgpData(gpData):
         return x, y, v, t, c, vp
 
     def extract_output_positions_from_data(self):
-        VP = np.zeros((self.point_number, self.output_number))
-        for idx_data in range(self.point_number):
-            if "output positions" in self.dataset[idx_data]:
-                VP[idx_data] = self.dataset[idx_data]["output positions"]
+        VP = []
+        for item in self.dataset:
+            if "output positions" in item:
+                VP.append(item["output positions"])
             else:
-                VP[idx_data] = self.dataset[idx_data - 1]["output positions"]
+                raise Exception("output positions missing from the following data item: ", item)
         return VP
 
     def extract_y_data_from_data(self):
-        M = np.zeros((self.point_number, self.output_number))
-        for idx_data in range(self.point_number):
-            M[idx_data] = self.dataset[idx_data]["y_data"]
-        return M
+        Y = []
+        for item in self.dataset: Y.append(item["y_data"])
+        return Y
 
     def extract_variances_from_data(self):
-        Variance = np.zeros((self.point_number, self.output_number))
-        for idx_data in range(self.point_number):
-            if self.dataset[idx_data]["noise variances"] is None: return None
-            Variance[idx_data] = self.dataset[idx_data]["noise variances"]
+        Variance = []
+        for item in self.dataset:
+            if item["noise variances"] is None:
+                warnings.warn("At least one noise variances `None` in data. All noise variances will be ignored.")
+                return None
+            Variance.append(item["noise variances"])
         return Variance
 
     def check_incoming_data(self):
