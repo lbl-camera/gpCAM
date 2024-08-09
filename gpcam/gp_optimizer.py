@@ -11,18 +11,17 @@ import random
 
 # TODO (for gpCAM)
 #   add a test that shows online mode up to 10000 points, for this the inv_update rounding error can't destroy us.
-#   in AE, can we ask including candidates?
+#   in AE, can ask including candidates?
 #   how is append vs overwrite handled?
-#   should we store the original non transformed data in fvgpOptimizer?
 
 
 class GPOptimizer:
     """
-    This class is an optimization wrapper around the :doc:`fvgp <fvgp:index>` package
+    This class is an optimization extension of the :doc:`fvgp <fvgp:index>` package
     for single-task (scalar-valued) Gaussian Processes.
     Gaussian Processes can be initialized, trained, and conditioned; also
     the posterior can be evaluated and used via acquisition functions,
-    and plugged into optimizers to find its optima. This class inherits many methods from
+    and plugged into optimizers to find their optima. This class inherits all methods from
     the :py:class:`fvgp.GP` class.
 
     V ... number of input points
@@ -33,7 +32,6 @@ class GPOptimizer:
 
 
     All posterior evaluation functions are inherited from :py:class:`fvgp.GP`.
-    Check there for a full list of capabilities. Methods for validation are also  available.
     These include, but are not limited to:
 
     :py:meth:`fvgp.GP.posterior_mean`
@@ -68,7 +66,7 @@ class GPOptimizer:
 
     :py:meth:`fvgp.GP.posterior_probability_grad`
 
-    Other methods:
+    Methods for validation:
 
     :py:meth:`fvgp.GP.crps`
 
@@ -80,12 +78,6 @@ class GPOptimizer:
 
     :py:meth:`fvgp.GP.log_likelihood`
 
-    :py:meth:`fvgp.GP.neg_log_likelihood`
-
-    :py:meth:`fvgp.GP.neg_log_likelihood_gradient`
-
-    :py:meth:`fvgp.GP.neg_log_likelihood_hessian`
-
 
     Parameters
     ----------
@@ -95,7 +87,7 @@ class GPOptimizer:
         For multi-task GPs, the index set dimension = input space dimension + 1.
         If dealing with non-Euclidean inputs
         x_data should be a list, not a numpy array.
-        If not provided here the GP will be initiated after `tell()`.
+        If x_data is not provided here the GP will be initiated after `tell()`.
     y_data : np.ndarray, optional
         The values of the data points. Shape (V).
         If not provided here the GP will be initiated after `tell()`.
@@ -110,13 +102,13 @@ class GPOptimizer:
         Note: if no noise_variances are provided here, the gp_noise_function
         callable will be used; if the callable is not provided, the noise variances
         will be set to `abs(np.mean(y_data)) / 100.0`. If
-        noise covariances are required (correlated noise), make use of the gp_noise_function.
+        noise covariances are required (correlated noise), make use of the gp_kernel_function.
         Only provide a noise function OR `noise_variances`, not both.
     compute_device : str, optional
-        One of `cpu` or `gpu`, determines how linear system solves are executed. The default is `cpu`.
+        One of `cpu` or `gpu`, determines how linear algebra computations are executed. The default is `cpu`.
         For "gpu", pytorch has to be installed manually.
-        If gp2Scale is enabled but no kernel is provided, the choice of the compute_device
-        becomes much more important. In that case, the default Wendland kernel will be computed on
+        If gp2Scale is enabled but no kernel is provided, the choice of the `compute_device`
+        will be particularly important. In that case, the default Wendland kernel will be computed on
         the cpu or the gpu which will significantly change the compute time depending on the compute
         architecture.
     gp_kernel_function : Callable, optional
@@ -201,7 +193,7 @@ class GPOptimizer:
         which makes computing the posterior covariance faster (3-10 times).
         For larger problems (>2000 data points), the use of inversion should be avoided due
         to computational instability and costs. The default is
-        False. Note, the training will not the
+        False. Note, the training will not use the
         inverse for stability reasons. Storing the inverse is
         a good option when the dataset is not too large and the posterior covariance is heavily used.
         Caution: this option, together with `append=True` in `tell()` will mean that the inverse of
@@ -990,12 +982,12 @@ class GPOptimizer:
 ######################################################################################
 class fvGPOptimizer:
     """
-    This class is an optimization wrapper around the :doc:`fvgp <fvgp:index>`
-    package for multi-task (scalar-valued) Gaussian Processes.
+    This class is an optimization extension of the :doc:`fvgp <fvgp:index>`
+    package for multi-task (vector-valued) Gaussian Processes.
     Gaussian Processes can be initialized, trained, and conditioned; also
     the posterior can be evaluated and used via acquisition functions,
-    and plugged into optimizers to find its maxima. This class inherits many methods from
-    the :py:class:`fvgp.GP` class. Check :doc:`fvgp.readthedocs.io <fvgp:index>` for a full list of capabilities.
+    and plugged into optimizers to find their maxima. This class inherits all methods from
+    the :py:class:`fvgp.fvGP` class. Check :doc:`fvgp.readthedocs.io <fvgp:index>` for a full list of capabilities.
 
     V ... number of input points
 
@@ -1009,11 +1001,11 @@ class fvGPOptimizer:
     The main logic of :doc:`fvgp <fvgp:index>` is that any multi-task GP is just a single-task GP
     over a Cartesian product space of input and output space, as long as the kernel
     is flexible enough, so prepare to work on your kernel. This is the best
-    way to give the user optimal control and power. At various instances, for instances
+    way to give the user optimal control and power. At various instances, for example
     prior-mean function, noise function, and kernel function definitions, you will
     see that the input `x` is defined over this combined space.
     For example, if your input space is a Euclidean 2d space and your output
-    is labelled [[0],[1]], the input to the mean, kernel, and noise function might be
+    is labelled [0,1], the input to the mean, kernel, and noise function might be
 
     x =
 
@@ -1027,7 +1019,7 @@ class fvGPOptimizer:
 
     All posterior evaluation functions are inherited from :py:class:`fvgp.GP`.
     Check there for a full list of capabilities. Methods for validation are also  available.
-    These include, but are not limited to:
+    Inherited include, but are not limited to:
 
     :py:meth:`fvgp.GP.posterior_mean`
 
@@ -1073,21 +1065,15 @@ class fvGPOptimizer:
 
     :py:meth:`fvgp.GP.log_likelihood`
 
-    :py:meth:`fvgp.GP.neg_log_likelihood`
-
-    :py:meth:`fvgp.GP.neg_log_likelihood_gradient`
-
-    :py:meth:`fvgp.GP.neg_log_likelihood_hessian`
-
 
     Parameters
     ----------
-    x_data : np.ndarray or list
+    x_data : np.ndarray or list, optional
         The input point positions. Shape (V x Di), where Di is the :py:attr:`fvgp.fvGP.input_space_dim`.
         For multi-task GPs, the index set dimension = input space dimension + 1.
         If dealing with non-Euclidean inputs
         x_data should be a list, not a numpy array.
-    y_data : np.ndarray or list
+    y_data : np.ndarray or list, optional
         The values of the data points. Shape (V,No) if `y_data` is an array.
         It is possible that not every entry in `x_data`
         has all corresponding tasks available. In that case `y_data` can be a list. In that case make sure
@@ -1203,16 +1189,10 @@ class fvGPOptimizer:
     calc_inv : bool, optional
         If True, the algorithm calculates and stores the inverse of the covariance
         matrix after each training or update of the dataset or hyperparameters,
-        which makes computing the posterior covariance faster (5-10 times).
-        For larger problems (>2000 data points), the use of inversion should be avoided due
-        to computational instability and costs. The default is
-        False. Note, the training will not the
+        which makes computing the posterior covariance faster (3-10 times).
+        The default is False. Note, the training will not use the
         inverse for stability reasons. Storing the inverse is
-        a good option when the dataset is not too large and the posterior covariance is heavily used.
-        Caution: this option, together with `append=True` in `tell()` will mean that the inverse of
-        the covariance is updated, not recomputed, which can lead to instability.
-        In application where data is appended many times, it is recommended to either turn
-        `calc_inv` off, or to regularly communicate the whole dataset to recompute the inverse.
+        a good option when the posterior covariance is heavily used.
     ram_economy : bool, optional
         Only of interest if the gradient and/or Hessian of the log marginal likelihood is/are used for the training.
         If True, components of the derivative of the log marginal likelihood are

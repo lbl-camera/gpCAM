@@ -148,15 +148,9 @@ class AutonomousExperimenterGP:
         If True, the algorithm calculates and stores the inverse of the covariance
         matrix after each training or update of the dataset or hyperparameters,
         which makes computing the posterior covariance faster (3-10 times).
-        For larger problems (>2000 data points), the use of inversion should be avoided due
-        to computational instability and costs. The default is
-        False. Note, the training will not the
+        The default is False. Note, the training will not use the
         inverse for stability reasons. Storing the inverse is
-        a good option when the dataset is not too large and the posterior covariance is heavily used.
-        Caution: this option, together with `append=True` in `tell()` will mean that the inverse of
-        the covariance is updated, not recomputed, which can lead to instability.
-        In application where data is appended many times, it is recommended to either turn
-        `calc_inv` off, or to regularly communicate the whole dataset to recompute the inverse.
+        a good option when the posterior covariance is heavily used.
     training_dask_client : distributed.client.Client, optional
         A Dask Distributed Client instance for distributed training. If None is provided, a new
         `dask.distributed.Client` instance is constructed.
