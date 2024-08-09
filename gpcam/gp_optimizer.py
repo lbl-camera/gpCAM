@@ -122,21 +122,21 @@ class GPOptimizer:
     gp_kernel_function : Callable, optional
         A symmetric positive definite covariance function (a kernel)
         that calculates the covariance between
-        data points. It is a function of the form k(x1,x2,hyperparameters, obj).
+        data points. It is a function of the form k(x1,x2,hyperparameters).
         The input `x1` is a N1 x D array of positions, `x2` is a N2 x D
         array of positions, the hyperparameters argument
         is a 1d array of length D+1 for the default kernel and of a different
         length for user-defined kernels.
-        `obj` is an `fvgp.GP` instance. The default is a stationary anisotropic kernel
+        The default is a stationary anisotropic kernel
         (`fvgp.GP.default_kernel`) which performs automatic relevance determination (ARD).
         The output is a matrix, an N1 x N2 numpy array.
     gp_kernel_function_grad : Callable, optional
         A function that calculates the derivative of the `gp_kernel_function` with respect to the hyperparameters.
         If provided, it will be used for local training (optimization) and can speed up the calculations.
         It accepts as input `x1` (a N1 x D array of positions),
-        `x2` (a N2 x D array of positions),
-        `hyperparameters` (a 1d array of length D+1 for the default kernel), and a
-        `fvgp.GP` instance. The default is a finite difference calculation.
+        `x2` (a N2 x D array of positions) and
+        `hyperparameters` (a 1d array of length D+1 for the default kernel).
+        The default is a finite difference calculation.
         If `ram_economy` is True, the function's input is x1, x2, direction (int), hyperparameters (numpy array), and a
         `fvgp.GP` instance, and the output
         is a numpy array of shape (len(hps) x N).
@@ -145,15 +145,15 @@ class GPOptimizer:
         a numpy array of shape (len(hyperparameters) x N1 x N2). See `ram_economy`.
     gp_mean_function : Callable, optional
         A function that evaluates the prior mean at a set of input position. It accepts as input
-        an array of positions (of shape N1 x D), hyperparameters (a 1d array of length D+1 for the default kernel)
-        and a `fvgp.GP` instance. The return value is a 1d array of length N1. If None is provided,
+        an array of positions (of shape N1 x D) and hyperparameters (a 1d array of length D+1 for the default kernel).
+        The return value is a 1d array of length N1. If None is provided,
         `fvgp.GP._default_mean_function` is used, which is the average of the `y_data`.
     gp_mean_function_grad : Callable, optional
         A function that evaluates the gradient of the `gp_mean_function` at
         a set of input positions with respect to the hyperparameters.
-        It accepts as input an array of positions (of size N1 x D), hyperparameters
-        (a 1d array of length D+1 for the default kernel)
-        and a `fvgp.GP` instance. The return value is a 2d array of
+        It accepts as input an array of positions (of size N1 x D) and hyperparameters
+        (a 1d array of length D+1 for the default kernel).
+        The return value is a 2d array of
         shape (len(hyperparameters) x N1). If None is provided, either
         zeros are returned since the default mean function does not depend on hyperparameters,
         or a finite-difference approximation
@@ -162,7 +162,7 @@ class GPOptimizer:
         The noise function is a callable f(x,hyperparameters) that returns a
         vector (1d np.ndarray) of length(x).
         The input `x` is a numpy array of shape (N x D). The hyperparameter array is the same
-        that is communicated to mean and kernel functions. The obj is a `fvgp.GP` instance.
+        that is communicated to mean and kernel functions.
         Only provide a noise function OR a noise variance vector, not both.
     gp_noise_function_grad : Callable, optional
         A function that evaluates the gradient of the `gp_noise_function`
@@ -1124,14 +1124,11 @@ class fvGPOptimizer:
     gp_kernel_function : Callable, optional
         A symmetric positive definite covariance function (a kernel)
         that calculates the covariance between
-        data points. It is a function of the form k(x1,x2,hyperparameters, obj).
+        data points. It is a function of the form k(x1,x2,hyperparameters).
         The input `x1` a N1 x Di+1 array of positions, `x2` is a N2 x Di+1
         array of positions, the hyperparameters argument
-        is a 1d array of length D+1 for the default kernel and of a different
-        length for user-defined kernels.
-        `obj` is an `fvgp.GP` instance.
-        is a 1d array of length N depending on how many hyperparameters are initialized, and
-        obj is an `fvgp.GP` instance. The default is a stationary anisotropic kernel
+        is a 1d array of length N depending on how many hyperparameters are initialized.
+        The default is a stationary anisotropic kernel
         (`fvgp.GP.default_kernel`) which performs automatic relevance determination (ARD). The task
         direction is simply considered an additional dimension. This kernel should only be used for tests and in the
         simplest of cases.
@@ -1140,9 +1137,9 @@ class fvGPOptimizer:
         A function that calculates the derivative of the `gp_kernel_function` with respect to the hyperparameters.
         If provided, it will be used for local training (optimization) and can speed up the calculations.
         It accepts as input `x1` (a N1 x Di + 1 array of positions),
-        `x2` (a N2 x Di + 1 array of positions),
-        `hyperparameters` (a 1d array of length Di+2 for the default kernel), and a
-        `fvgp.GP` instance. The default is a finite difference calculation.
+        `x2` (a N2 x Di + 1 array of positions) and
+        `hyperparameters` (a 1d array of length Di+2 for the default kernel).
+        The default is a finite difference calculation.
         If `ram_economy` is True, the function's input is x1, x2,
         direction (int), hyperparameters (numpy array), and a
         `fvgp.GP` instance, and the output
@@ -1152,15 +1149,16 @@ class fvGPOptimizer:
         a numpy array of shape (len(hyperparameters) x N1 x N2). See `ram_economy`.
     gp_mean_function : Callable, optional
         A function that evaluates the prior mean at a set of input position. It accepts as input
-        an array of positions (of shape N1 x Di+1), hyperparameters (a 1d array of length Di+2 for the default kernel)
-        and a `fvgp.GP` instance. The return value is a 1d array of length N1. If None is provided,
+        an array of positions (of shape N1 x Di+1) and
+         hyperparameters (a 1d array of length Di+2 for the default kernel).
+        The return value is a 1d array of length N1. If None is provided,
         `fvgp.GP._default_mean_function` is used, which is the average of the `y_data`.
     gp_mean_function_grad : Callable, optional
         A function that evaluates the gradient of the `gp_mean_function` at
         a set of input positions with respect to the hyperparameters.
-        It accepts as input an array of positions (of size N1 x Di+1), hyperparameters
-        (a 1d array of length Di+2 for the default kernel)
-        and a `fvgp.GP` instance. The return value is a 2d array of
+        It accepts as input an array of positions (of size N1 x Di+1) and hyperparameters
+        (a 1d array of length Di+2 for the default kernel).
+        The return value is a 2d array of
         shape (len(hyperparameters) x N1). If None is provided, either
         zeros are returned since the default mean function does not depend on hyperparameters,
         or a finite-difference approximation
@@ -1169,14 +1167,14 @@ class fvGPOptimizer:
         The noise function is a callable f(x,hyperparameters) that returns a
         vector (1d np.ndarray) of length(x).
         The input `x` is a numpy array of shape (N x Di+1). The hyperparameter array is the same
-        that is communicated to mean and kernel functions. The obj is a `fvgp.GP` instance.
+        that is communicated to mean and kernel functions.
         Only provide a noise function OR a noise variance vector, not both.
     gp_noise_function_grad : Callable, optional
         A function that evaluates the gradient of the `gp_noise_function`
         at an input position with respect to the hyperparameters.
         It accepts as input an array of positions (of size N x Di+1) and
         hyperparameters (a 1d array of length D+1 for the default kernel).
-        The return value is a 2-D array of
+        The return value is a 3-D array of
         shape (len(hyperparameters) x N). If None is provided, either
         zeros are returned since the default noise function does not depend on
         hyperparameters, or, if `gp_noise_function` is provided but no gradient function,
@@ -1468,6 +1466,7 @@ class fvGPOptimizer:
             is `gp_rank_n_update=append`, meaning if data is only appended, the rank_n_update will
             be performed.
         """
+
         if self.gp is None:
             self._initializefvGP(x, y, output_positions=output_positions, noise_variances=noise_variances)
         else:

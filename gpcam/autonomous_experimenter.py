@@ -741,8 +741,6 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         A numpy array of floats of shape D x 2 describing the input space (bounds).
         The autonomous experimenter is only able to handle Euclidean spaces.
         Please use the gpOptimizer to deal with non-Euclidean cases.
-    output_number : int
-        An integer defining how many outputs are created by each measurement.
     hyperparameters : np.ndarray, optional
         Vector of hyperparameters used by the GP initially.
         This class provides methods to train hyperparameters.
@@ -897,7 +895,6 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
 
     def __init__(self,
                  input_space,
-                 output_number,
                  hyperparameters=None,
                  hyperparameter_bounds=None,
                  instrument_function=None,
@@ -947,7 +944,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
 
         if init_dataset_size is None and x_data is None and dataset is None:
             raise Exception("Either provide length of initial data or an initial dataset")
-        self.data = fvgpData(dim, input_space, output_number=output_number)
+        self.data = fvgpData(dim, input_space)
 
         if x_data is None and dataset is None:
             self.data.create_random_dataset(init_dataset_size)
@@ -974,7 +971,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         ######################
         self.gp_optimizer = fvGPOptimizer(
             self.x_data, self.y_data,
-            output_positions=vp,
+            output_positions=self.vp,
             init_hyperparameters=hyperparameters,
             noise_variances=self.noise_variances,
             compute_device=compute_device,

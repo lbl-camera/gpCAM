@@ -143,13 +143,13 @@ class TestgpCAM(unittest.TestCase):
         hps_bounds =  np.array([[0.01,100],[0.01,100.0],[0.01,100]])
 
         ##let's initialize the autonomous experimenter ...
-        my_ae = AutonomousExperimenterFvGP(input_space, 2, hyperparameters=init_hyperparameters, kernel_function = mt_kernel,
+        my_ae = AutonomousExperimenterFvGP(input_space, hyperparameters=init_hyperparameters, kernel_function = mt_kernel,
                                         hyperparameter_bounds=hps_bounds,instrument_function = instrument2,
                                         init_dataset_size=10)
         #...train...
         my_ae.data.inject_dataset(my_ae.data.dataset)
         my_ae.data.arrays2data(np.array([[0.,0.1],[1.,1.]]), y = np.array([[3.,4.],[5.,9.]]), v = np.array([[.1,.2],[0.01,0.03]]), vp = [[2.0,3.0],[1.,2.]],info = [{"f": 2.}, {'d':3.}])
-        my_ae = AutonomousExperimenterFvGP(input_space,2, hyperparameters=init_hyperparameters, kernel_function = mt_kernel,
+        my_ae = AutonomousExperimenterFvGP(input_space, hyperparameters=init_hyperparameters, kernel_function = mt_kernel,
                                         hyperparameter_bounds=hps_bounds,instrument_function = instrument2,
                                         init_dataset_size=4)
 

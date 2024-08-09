@@ -15,11 +15,10 @@ class gpData:
     data arrays are numpy arrays
     """
 
-    def __init__(self, dim, parameter_bounds, output_number=None):
+    def __init__(self, dim, parameter_bounds):
         self.dim = dim
         self.parameter_bounds = parameter_bounds
         self.dataset = []
-        self.output_number = output_number
         self.point_number = None
 
     ###############################################################
@@ -190,11 +189,8 @@ class gpData:
 ######################################################################
 ######################################################################
 class fvgpData(gpData):
-    def __init__(self, dim, parameter_bounds, output_number):
-        if output_number is None:
-            raise Exception("When initializing the data class for a multi-output GP, "
-                            "please provide the output_number.")
-        super(fvgpData, self).__init__(dim, parameter_bounds, output_number)
+    def __init__(self, dim, parameter_bounds):
+        super(fvgpData, self).__init__(dim, parameter_bounds)
 
     def create_random_dataset(self, length):
         x = self._create_random_points(length)
