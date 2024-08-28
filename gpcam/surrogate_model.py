@@ -86,7 +86,7 @@ def find_acquisition_function_maxima(gpo, acquisition_function, *,
                        constraints=constraints)
 
         ###optimization_max_iter, tolerance here
-        if optimization_x0: optimization_x0 = optimization_x0.reshape(1, -1)
+        if optimization_x0 is not None: optimization_x0 = optimization_x0.reshape(1, -1)
         opt_obj.optimize(dask_client=dask_client, x0=optimization_x0, tolerance=optimization_tol)
         res = opt_obj.get_final()
         opt_obj.cancel_tasks()
@@ -103,7 +103,7 @@ def find_acquisition_function_maxima(gpo, acquisition_function, *,
                        constraints=constraints)
 
         ###optimization_max_iter, tolerance here
-        if optimization_x0: optimization_x0 = optimization_x0.reshape(1, -1)
+        if optimization_x0 is not None: optimization_x0 = optimization_x0.reshape(1, -1)
         opt_obj.optimize(dask_client=dask_client, x0=optimization_x0, tolerance=optimization_tol)
         opti = np.zeros((1, input_set_dim))
         func_eval = np.zeros(1)
