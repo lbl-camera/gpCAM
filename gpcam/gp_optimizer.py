@@ -666,7 +666,7 @@ class GPOptimizer:
         hps : np.ndarray
             A 1-d numpy array of hyperparameters.
         """
-
+        self.hyperparameters = hps
         self.gp.set_hyperparameters(hps)
 
     ##############################################################
@@ -1691,7 +1691,7 @@ class fvGPOptimizer:
         hps : np.ndarray
             A 1-d numpy array of hyperparameters.
         """
-
+        self.hyperparameters = hps
         self.gp.set_hyperparameters(hps)
 
     def ask(self,
