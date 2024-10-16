@@ -802,7 +802,7 @@ class GPOptimizer:
         if isinstance(input_set, np.ndarray) and n > 1 and method != "hgdl":
             vectorized = False
             method = "global"
-            new_optimization_bounds = np.row_stack([input_set for i in range(n)])
+            new_optimization_bounds = np.vstack([input_set for i in range(n)])
             input_set = new_optimization_bounds
             if acquisition_function != "total correlation" and acquisition_function != "relative information entropy":
                 acquisition_function = "total correlation"
@@ -1815,7 +1815,7 @@ class fvGPOptimizer:
         if isinstance(input_set, np.ndarray) and n > 1 and method != "hgdl":
             vectorized = False
             method = "global"
-            new_optimization_bounds = np.row_stack([input_set for i in range(n)])
+            new_optimization_bounds = np.vstack([input_set for i in range(n)])
             input_set = new_optimization_bounds
             if acquisition_function != "total correlation" and acquisition_function != "relative information entropy":
                 acquisition_function = "total correlation"
