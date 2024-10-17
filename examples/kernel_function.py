@@ -191,7 +191,55 @@ def deep_multi_task_kernel(x1, x2, hps):  # pragma: no cover
     return k
 
 
+import torch
+import torch.nn as nn
+import torch.optim as optim
 
+
+# Define a simple neural network to warp a 3D space
+class WarpNet(nn.Module):
+    def __init__(self, input_dim=3, hidden_dim=64, output_dim=3):
+        super(WarpNet, self).__init__()
+
+        # Define the architecture
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+        self.fc3 = nn.Linear(hidden_dim, output_dim)
+
+        # Activation functions
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        # Pass input through the layers
+        x = self.relu(self.fc1(x))  # Input layer to hidden layer 1
+        x = self.relu(self.fc2(x))  # Hidden layer 1 to hidden layer 2
+        x = self.fc3(x)  # Hidden layer 2 to output layer
+        return x
+
+
+# Initialize the network
+#model = WarpNet()
+
+# Example usage: Warping a 3D point (e.g., [x, y, z])
+#points = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])  # Example input
+#warped_points = model(points)  # Get warped points
+#print("Warped Points: ", warped_points)
+
+# Loss function and optimizer for training
+#criterion = nn.MSELoss()
+#optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+# Dummy target points (assuming you know where the warped points should go)
+#target_points = torch.tensor([[0.5, 1.5, 2.5], [3.5, 4.5, 5.5]])
+
+# Training loop (single step for simplicity)
+#optimizer.zero_grad()
+#output = model(points)
+#loss = criterion(output, target_points)  # Calculate loss
+#loss.backward()  # Backpropagation
+#optimizer.step()  # Update the weights
+
+#print("Updated Warped Points: ", model(points))
 
 
 def kernel_l2_single_task(x1, x2, hyperparameters):
