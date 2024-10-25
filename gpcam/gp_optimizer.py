@@ -214,8 +214,6 @@ class GPOptimizer:
         CAUTION: This array will be stored and is very large.
     args : any, optional
         args will be a class attribute and therefore available to kernel, noise and prior mean functions.
-    info : bool, optional
-        Provides a way how to access various information reports. The default is False.
     cost_function : Callable, optional
         A function encoding the cost of motion through the input
         space and the cost of a measurement. Its inputs
@@ -269,7 +267,6 @@ class GPOptimizer:
             calc_inv=False,
             ram_economy=False,
             args=None,
-            info=False,
             cost_function=None,
             cost_function_parameters=None,
             cost_update_function=None
@@ -292,22 +289,11 @@ class GPOptimizer:
         self.calc_inv = calc_inv
         self.ram_economy = ram_economy
         self.args = args
-        self.info = info
 
         self.gp = None
         if x_data is not None and y_data is not None:
             self._initializeGP(x_data, y_data, noise_variances=noise_variances)
-        if info:
-            logger.enable('gpcam')
-            logger.add(sys.stdout, filter="gpcam", level="INFO")
-            logger.enable('fvgp')
-            logger.add(sys.stdout, filter="fvgp", level="INFO")
-            logger.enable('hgdl')
-            logger.add(sys.stdout, filter="hgdl", level="INFO")
-        else:
-            logger.disable('gpcam')
-            logger.disable('fvgp')
-            logger.disable('hgdl')
+
 
     #########################################################################################
     def __getattr__(self, attr):
@@ -344,8 +330,7 @@ class GPOptimizer:
             gp2Scale_linalg_mode=self.gp2Scale_linalg_mode,
             calc_inv=self.calc_inv,
             ram_economy=self.ram_economy,
-            args=self.args,
-            info=self.info
+            args=self.args
         )
         self.index_set_dim = self.gp.index_set_dim
         self.input_space_dim = self.gp.index_set_dim
@@ -426,6 +411,8 @@ class GPOptimizer:
             is `gp_rank_n_update=append`, meaning if data is only appended, the rank_n_update will
             be performed.
         """
+
+        if gp_rank_n_update is None: gp_rank_n_update = append
         if self.gp is None:
             self._initializeGP(x, y, noise_variances=noise_variances)
         else:
@@ -447,7 +434,8 @@ class GPOptimizer:
             local_optimizer="L-BFGS-B",
             global_optimizer="genetic",
             constraints=(),
-            dask_client=None):
+            dask_client=None,
+            info=False):
 
         """
         This function finds the maximum of the log marginal likelihood and therefore trains the GP (synchronously).
@@ -508,6 +496,10 @@ class GPOptimizer:
         dask_client : distributed.client.Client, optional
             A Dask Distributed Client instance for distributed training if `hgdl` is used. If None is provided, a new
             `dask.distributed.Client` instance is constructed.
+        info : bool, optional
+            Provides a way how to access information reports during training of the GP. The default is False.
+            If other information is needed please utilize `logger` as described in the online
+            documentation (separately for HGDL and fvgp if needed).
 
 
         Return
@@ -527,7 +519,8 @@ class GPOptimizer:
             local_optimizer=local_optimizer,
             global_optimizer=global_optimizer,
             constraints=constraints,
-            dask_client=dask_client)
+            dask_client=dask_client,
+            info=info)
         return self.hyperparameters
 
     ##############################################################
@@ -784,10 +777,10 @@ class GPOptimizer:
             that, only in case of `method` = `hgdl` can be queried for solutions.
         """
 
-        logger.info("ask() initiated with hyperparameters: {}", self.hyperparameters)
-        logger.info("optimization method: {}", method)
-        logger.info("input set:\n{}", input_set)
-        logger.info("acq func: {}", acquisition_function)
+        logger.debug("ask() initiated with hyperparameters: {}", self.hyperparameters)
+        logger.debug("optimization method: {}", method)
+        logger.debug("input set:\n{}", input_set)
+        logger.debug("acq func: {}", acquisition_function)
 
         assert isinstance(vectorized, bool)
 
@@ -946,7 +939,7 @@ class GPOptimizer:
         self.tell(x=x0, y=y, noise_variances=v, append=False)
         self.train(hyperparameter_bounds=hyperparameter_bounds)
         for i in range(max_iter):
-            logger.info("iteration {}", i)
+            logger.debug("iteration {}", i)
             x_new = self.ask(search_space,
                              acquisition_function=acq_func,
                              method=method,
@@ -1212,8 +1205,6 @@ class fvGPOptimizer:
         CAUTION: This array will be stored and is very large.
     args : any, optional
         args will be a class attribute and therefore available to kernel, noise and prior mean functions.
-    info : bool, optional
-        Provides a way how to access various information reports. The default is False.
     cost_function : Callable, optional
         A function encoding the cost of motion through the input
         space and the cost of a measurement. Its inputs
@@ -1275,7 +1266,6 @@ class fvGPOptimizer:
             calc_inv=False,
             ram_economy=False,
             args=None,
-            info=False,
             cost_function=None,
             cost_function_parameters=None,
             cost_update_function=None,
@@ -1298,23 +1288,10 @@ class fvGPOptimizer:
         self.calc_inv = calc_inv
         self.ram_economy = ram_economy
         self.args = args
-        self.info = info
 
         self.gp = None
         if x_data is not None and y_data is not None:
             self._initializefvGP(x_data, y_data, output_positions=output_positions, noise_variances=noise_variances)
-
-        if info:
-            logger.enable('gpcam')
-            logger.add(sys.stdout, filter="gpcam", level="INFO")
-            logger.enable('fvgp')
-            logger.add(sys.stdout, filter="fvgp", level="INFO")
-            logger.enable('hgdl')
-            logger.add(sys.stdout, filter="hgdl", level="INFO")
-        else:
-            logger.disable('gpcam')
-            logger.disable('fvgp')
-            logger.disable('hgdl')
 
     def __getattr__(self, attr):
         if not self.gp:
@@ -1351,7 +1328,6 @@ class fvGPOptimizer:
             calc_inv=self.calc_inv,
             ram_economy=self.ram_economy,
             args=self.args,
-            info=self.info
         )
         self.index_set_dim = self.gp.index_set_dim
         self.input_space_dim = self.gp.input_space_dim
@@ -1452,6 +1428,7 @@ class fvGPOptimizer:
             be performed.
         """
 
+        if gp_rank_n_update is None: gp_rank_n_update = append
         if self.gp is None:
             self._initializefvGP(x, y, output_positions=output_positions, noise_variances=noise_variances)
         else:
@@ -1801,10 +1778,10 @@ class fvGPOptimizer:
             that, only in case of `method` = `hgdl` can be queried for solutions.
         """
 
-        logger.info("ask() initiated with hyperparameters: {}", self.hyperparameters)
-        logger.info("optimization method: {}", method)
-        logger.info("bounds:\n{}", input_set)
-        logger.info("acq func: {}", acquisition_function)
+        logger.debug("ask() initiated with hyperparameters: {}", self.hyperparameters)
+        logger.debug("optimization method: {}", method)
+        logger.debug("bounds:\n{}", input_set)
+        logger.debug("acq func: {}", acquisition_function)
 
         assert isinstance(vectorized, bool)
         if isinstance(input_set, np.ndarray) and np.ndim(input_set) != 2:
@@ -1964,7 +1941,7 @@ class fvGPOptimizer:
         self.tell(x=x0, y=y, noise_variances=v, output_positions=[x_out] * len(x0), append=False)
         self.train(hyperparameter_bounds=hyperparameter_bounds)
         for i in range(max_iter):
-            logger.info("iteration {}", i)
+            logger.debug("iteration {}", i)
             x_new = self.ask(search_space,
                              x_out,
                              acquisition_function=acq_func,

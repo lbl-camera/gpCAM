@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 import math
+import time
+
 import numpy as np
 from loguru import logger
 from hgdl.hgdl import HGDL
@@ -44,15 +46,15 @@ def find_acquisition_function_maxima(gpo, acquisition_function, *,
                    cost_function_parameters=cost_function_parameters, x_out=x_out)
     grad = partial(gradient, func=func)
 
-    logger.info("====================================")
-    logger.info(f"Finding acquisition function maxima via {optimization_method} method")
-    logger.info("tolerance: {}", optimization_tol)
-    logger.info("population size: {}", optimization_pop_size)
-    logger.info("maximum number of iterations: {}", optimization_max_iter)
-    logger.info("bounds:")
-    logger.info(bounds)
-    logger.info("cost function parameters: {}", cost_function_parameters)
-    logger.info("====================================")
+    logger.debug("====================================")
+    logger.debug(f"Finding acquisition function maxima via {optimization_method} method")
+    logger.debug("tolerance: {}", optimization_tol)
+    logger.debug("population size: {}", optimization_pop_size)
+    logger.debug("maximum number of iterations: {}", optimization_max_iter)
+    logger.debug("bounds:")
+    logger.debug(bounds)
+    logger.debug("cost function parameters: {}", cost_function_parameters)
+    logger.debug("====================================")
     if candidates is not None:
         res = np.asarray(list(map(func, candidates))).reshape(len(candidates))
         sort_indices = np.argsort(res)
@@ -124,7 +126,8 @@ def find_acquisition_function_maxima(gpo, acquisition_function, *,
             constraints=constraints,
             tol=optimization_tol,
             callback=None,
-            options={"maxiter": optimization_max_iter}
+            options={"maxiter": optimization_max_iter,
+                     'disp': info}
         )
         opti = np.array([a["x"]])
         func_eval = np.array(a["fun"])
@@ -193,7 +196,7 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gpo, x_out):
         "1d array given in evaluate_gp_acquisition_function. It has to be 2d")
     if x_out is None:
         if acquisition_function == "variance":
-            res = gpo.posterior_covariance(x, x_out=x_out, variance_only=False)["v(x)"]
+            res = gpo.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"]
             return res
         elif acquisition_function == "relative information entropy":
             res = -gpo.gp_relative_information_entropy(x, x_out=x_out)["RIE"]
