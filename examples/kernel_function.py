@@ -500,31 +500,26 @@ def periodic_kernel_2d(x1, x2, hps):
     return (1.0 / 9.0) * (k1 + k2 + k3 + k4 + k5 + k6 + k7 + k8 + k9)
 
 
-###########################################################
-#############important psd proofs##########################
-###########################################################
-def psd_kernel_test1(func, hps):
-    for i in range(100):
-        x = np.random.rand(1000)
-        K = func(x, x, hps)
-        logger.debug("check if it is 0 or larger (allow for machine precision zero): {}", np.min(np.real(np.linalg.eig(K)[0])))
 
 
-def psd_proof(N, kernel):
-    a = (np.random.rand(N) * 10.0) - 5.0
-    x1 = (np.random.rand(N) * 10.0) - 5.0
-    s = 0
-    for i in range(N):
-        for j in range(N):
-            s += a[i] * a[j] * kernel(x1[i], x1[j])
+######################################################
+######################################################
+##SIMPLE MT Kernel
+
+def sigma(x, hps):
+    x = x[:,2]
+    ind0 = np.where(x==0.)
+    ind1 = np.where(x==1.)
+    s = np.empty(len(x))
+    s[ind0] = hps[0]
+    s[ind1] = hps[1]
     return s
 
-
-def fft_kernel_ckeck():
-    N = 1024
-    x = np.arange(-10, 10, 20. / (2.0 * N))
-    y = np.exp(-x ** 2)
-    y_fft = np.fft.fftshift(np.abs(np.fft.fft(y))) / np.sqrt(len(y))
-    plt.plot(x, y)
-    plt.plot(x, y_fft)
-    plt.show()
+def mkernel(x1,x2,hps):
+    sigma1a = sigma(x1, hps[0:2])
+    sigma2a = sigma(x2, hps[0:2])
+    sigma1b = sigma(x1, hps[2:4])
+    sigma2b = sigma(x2, hps[2:4])
+    d = get_distance_matrix(x1[:,0:2],x2[:,0:2])
+    k = (np.outer(sigma1a, sigma2a) + np.outer(sigma1b, sigma2b)) * matern_kernel_diff1(d,hps[2])
+    return k
