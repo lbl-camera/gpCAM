@@ -265,7 +265,7 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gpo, x_out):
             return np.array([res])
         elif acquisition_function == "relative information entropy set":
             res = -gpo.gp_relative_information_entropy_set(x, x_out=x_out)["RIE"]
-            return np.sum(res.reshape(len(x), len(x_out), order="F"), axis=1)
+            return res
         elif acquisition_function == "total correlation":
             return -np.array([gpo.gp_total_correlation(x, x_out=x_out)["total correlation"]])
         elif acquisition_function == "ucb":

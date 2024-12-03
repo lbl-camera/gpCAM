@@ -52,8 +52,6 @@ class GPOptimizer:
 
     :py:meth:`fvgp.GP.gp_kl_div`
 
-    :py:meth:`fvgp.GP.gp_kl_div_grad`
-
     :py:meth:`fvgp.GP.gp_mutual_information`
 
     :py:meth:`fvgp.GP.gp_total_correlation`
@@ -63,8 +61,6 @@ class GPOptimizer:
     :py:meth:`fvgp.GP.gp_relative_information_entropy_set`
 
     :py:meth:`fvgp.GP.posterior_probability`
-
-    :py:meth:`fvgp.GP.posterior_probability_grad`
 
     Methods for validation:
 
@@ -1031,8 +1027,6 @@ class fvGPOptimizer:
 
     :py:meth:`fvgp.GP.gp_kl_div`
 
-    :py:meth:`fvgp.GP.gp_kl_div_grad`
-
     :py:meth:`fvgp.GP.gp_mutual_information`
 
     :py:meth:`fvgp.GP.gp_total_correlation`
@@ -1043,7 +1037,6 @@ class fvGPOptimizer:
 
     :py:meth:`fvgp.GP.posterior_probability`
 
-    :py:meth:`fvgp.GP.posterior_probability_grad`
 
     Other methods:
 
