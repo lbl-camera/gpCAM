@@ -161,6 +161,21 @@ def cory(x1, x2, hps):
 ############################################################
 ############################################################
 ############################################################
+#simple multi-task kernel
+def kernel(x1, x2, hps):
+    x1_red = x1[:, :-1]  # All elements except last
+    x2_red = x2[:, :-1]
+    x1_t  = x1[:,-1]    # Last element (assumed time)
+    x2_t  = x2[:,-1]
+    d = get_distance_matrix(x1_red, x2_red)
+    # Evaluate kernel function
+    k1 = func_kernel(x1_t, hps)
+    k2 = func_kernel(x2_t, hps)
+    kernel = matern_kernel_diff1(d, hps[2])
+    return (np.outer(k1,k2) + hps[3]) *  kernel
+
+
+
 #deep kernel
 def deep_multi_task_kernel(x1, x2, hps):  # pragma: no cover
     signal_var = hps[0]

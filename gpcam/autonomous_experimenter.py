@@ -229,7 +229,6 @@ class AutonomousExperimenterGP:
         self.costs = None
         self.acq_func_max_opt_obj = None
         self.multi_task = False
-        self.vp = []
         ################################
         # getting the data ready#########
         ################################
@@ -406,9 +405,9 @@ class AutonomousExperimenterGP:
                 "The autonomous experimenter could not find an instance of asynchronous training. Therefore no update.")
         logger.debug("hps: {}", self.gp_optimizer.hyperparameters)
 
-    def _tell(self, x, y, v, vp=None, append=True):
+    def _tell(self, x, y, v, append=True):
         if not self.multi_task: self.gp_optimizer.tell(x, y, noise_variances=v, append=append)
-        else: self.gp_optimizer.tell(x, y, noise_variances=v, output_positions=vp, append=append)
+        else: self.gp_optimizer.tell(x, y, noise_variances=v,  append=append)
 
     def _ask(self,
              bounds=None,
@@ -452,7 +451,7 @@ class AutonomousExperimenterGP:
 
     def _extract_data(self):
         x, y, v, t, c = self.data.extract_data()
-        return x, y, v, t, c, np.zeros(len(c))
+        return x, y, v, t, c
 
     ###################################################################################
     def go(self, N=1e15, breaking_error=1e-50,
@@ -557,7 +556,7 @@ class AutonomousExperimenterGP:
             if current_method == "hgdl" and self.acq_func_opt_dask_client is None:
                 self.acq_func_opt_dask_client = dask.distributed.Client()
 
-            if self.multi_task: x_out = self.data.dataset[-1]["output positions"]
+            if self.multi_task: x_out = np.arange(len(self.data.dataset[-1]["y_data"]))
             else: x_out = None
 
             res = self._ask(
@@ -582,8 +581,6 @@ class AutonomousExperimenterGP:
             ###################################################
             if self.multi_task:
                 a = np.array(next_measurement_points)
-                b = np.array(self.vp[-1])
-                test_points = np.array([np.append(a[i], b[j]) for i in range(len(a)) for j in range(len(b))])
                 post_var = self.gp_optimizer.posterior_covariance(a)["v(x)"]
             else:
                 post_var = self.gp_optimizer.posterior_covariance(next_measurement_points)["v(x)"]
@@ -622,7 +619,7 @@ class AutonomousExperimenterGP:
             self.data.check_incoming_data()
             #if self.data.nan_in_dataset(): self.data.clean_data_NaN()
             # update arrays and the gp_optimizer
-            self.x_data, self.y_data, self.noise_variances, self.times, self.costs, self.vp = self._extract_data()
+            self.x_data, self.y_data, self.noise_variances, self.times, self.costs = self._extract_data()
             logger.debug("Communicating new data to the GP")
 
             ###################################################
@@ -633,13 +630,13 @@ class AutonomousExperimenterGP:
                 self._tell(self.x_data[-len_of_new_data_received:],
                            self.y_data[-len_of_new_data_received:],
                            self.noise_variances[-len_of_new_data_received:],
-                           self.vp[-len_of_new_data_received:], append=True)
+                           append=True)
             else:
                 logger.debug("OFFLINE UPDATE")
                 self._tell(self.x_data,
                            self.y_data,
                            self.noise_variances,
-                           self.vp, append=False)
+                           append=False)
 
             ###################################################
             # train() the GP###################################
@@ -822,13 +819,6 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         Initial data point values.
     noise_variances : np.ndarray, optional
         Initial data point observation variances.
-    vp : list, optional
-        A list of 1d numpy arrays indicating which `task` measurements are available,
-        so that for each measurement position, the outputs
-        are clearly defined by their positions in the output space. The default is
-        [[0,1,2,3,...,output_number - 1],[0,1,2,3,...,output_number - 1],...].
-        It is possible that for certain inputs tasks are missing, e.g.,
-        vp = [[0,1],[1]].
     dataset : string, optional
         A filename of a gpcam-generated file that is used to initialize a new instance.
     communicate_full_dataset : bool, optional
@@ -893,8 +883,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
                  prior_mean_function=None,
                  noise_function=None,
                  run_every_iteration=None,
-                 x_data=None, y_data=None, noise_variances=None,
-                 vp=None, dataset=None,
+                 x_data=None, y_data=None, noise_variances=None, dataset=None,
                  communicate_full_dataset=False,
                  compute_device="cpu",
                  calc_inv=False,
@@ -924,7 +913,6 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         self.acq_func_opt_dask_client = acq_func_opt_dask_client
         self.args = args
         self.online = online
-        self.vp = vp
 
         if init_dataset_size is None and x_data is None and dataset is None:
             raise Exception("Either provide length of initial data or an initial dataset")
@@ -938,7 +926,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
             self.data.inject_dataset(list(np.load(dataset, allow_pickle=True)))
             self.hyperparameters = self.data.dataset[-1]["hyperparameters"]
         elif x_data is not None and y_data is not None and noise_variances is not None:
-            self.data.update_dataset(self.data.arrays2data(x_data, y=y_data, v=noise_variances, vp=self.vp))
+            self.data.update_dataset(self.data.arrays2data(x_data, y=y_data, v=noise_variances))
         elif x_data is not None and y_data is None:
             if instrument_function is None: raise Exception("You need to provide an instrument function.")
             self.data.update_dataset(self.instrument_function(self.data.arrays2data(x_data,
@@ -946,8 +934,7 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         else:
             raise Exception("No viable option for data given!")
         self.data.check_incoming_data()
-        #if self.data.nan_in_dataset(): self.data.clean_data_NaN()
-        self.x_data, self.y_data, self.noise_variances, self.times, self.costs, self.vp = self.data.extract_data()
+        self.x_data, self.y_data, self.noise_variances, self.times, self.costs = self.data.extract_data()
         self.init_dataset_size = len(self.x_data)
         self.multi_task = True
         ######################
@@ -955,7 +942,6 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         ######################
         self.gp_optimizer = fvGPOptimizer(
             self.x_data, self.y_data,
-            output_positions=self.vp,
             init_hyperparameters=hyperparameters,
             noise_variances=self.noise_variances,
             compute_device=compute_device,
@@ -980,7 +966,3 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         Autonomous Experimenter fvGP initialization successfully concluded
         now train(...) or train_async(...), and then go(...)
         ##################################################################################"""))
-
-    def _extract_data(self):
-        x, y, v, t, c, vp = self.data.extract_data()
-        return x, y, v, t, c, vp

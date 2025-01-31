@@ -49,8 +49,8 @@ class gpData:
         translates numpy arrays to the data format
         """
         assert isinstance(x, np.ndarray)
-        if y is not None: assert isinstance(y, np.ndarray) or isinstance(y, list)
-        if v is not None: assert isinstance(v, np.ndarray) or isinstance(v, list)
+        if y is not None: assert isinstance(y, np.ndarray)
+        if v is not None: assert isinstance(v, np.ndarray)
 
         assert np.ndim(x) == 2
         if isinstance(y, np.ndarray): assert np.ndim(y) == 1
@@ -191,6 +191,7 @@ class gpData:
 class fvgpData(gpData):
     def __init__(self, dim, parameter_bounds):
         super(fvgpData, self).__init__(dim, parameter_bounds)
+        #self.number_of_outputs = number_of_outputs
 
     def create_random_dataset(self, length):
         x = self._create_random_points(length)
@@ -205,36 +206,32 @@ class fvgpData(gpData):
         self.point_number = len(self.dataset)
         self.dataset = dataset
 
-    def arrays2data(self, x, y=None, v=None, vp=None, info=None):
+    def arrays2data(self, x, y=None, v=None, info=None):
         """
         translates numpy arrays to the data format
         """
         assert isinstance(x, np.ndarray)
-        if y is not None: assert isinstance(y, np.ndarray) or isinstance(y, list)
-        if v is not None: assert isinstance(v, np.ndarray) or isinstance(v, list)
-        if vp is not None: assert isinstance(vp, np.ndarray) or isinstance(vp, list)
+        if y is not None: assert isinstance(y, np.ndarray)
+        if v is not None: assert isinstance(v, np.ndarray)
 
         data = []
         for i in range(len(x)):
             val = None
             var = None
-            valp = None
             if y is not None: val = y[i]
             if v is not None: var = v[i]
-            if vp is not None: valp = vp[i]
-            if y is not None and vp is None: valp = [np.array([float(i)]) for i in range(len(y[0]))]
 
-            data.append(self.npy2dataset_entry(x[i], val, var, valp))
+            data.append(self.npy2dataset_entry(x[i], val, var))
             if info is not None: data[i].update(info[i])
         return data
 
-    def npy2dataset_entry(self, x, y=None, v=None, vp=None):
+    def npy2dataset_entry(self, x, y=None, v=None):
         """
         parameters:
         -----------
         x ... 1d numpy array
         """
-        d = {"x_data": x, "y_data": y, "noise variances": v, "output positions": vp, "cost": None,
+        d = {"x_data": x, "y_data": y, "noise variances": v, "cost": None,
              "id": str(uuid.uuid4()), "time stamp": time.time(),
              "date time": datetime.datetime.now().strftime("%d/%m/%Y_%H:%M:%S"), "measured": False}
         return d
@@ -248,22 +245,12 @@ class fvgpData(gpData):
         v = self.extract_variances_from_data()
         t = self.extract_times_from_data()
         c = self.extract_costs_from_data()
-        vp = self.extract_output_positions_from_data()
-        return x, y, v, t, c, vp
-
-    def extract_output_positions_from_data(self):
-        VP = []
-        for item in self.dataset:
-            if "output positions" in item:
-                VP.append(item["output positions"])
-            else:
-                raise Exception("output positions missing from the following data item: ", item)
-        return VP
+        return x, y, v, t, c
 
     def extract_y_data_from_data(self):
         Y = []
         for item in self.dataset: Y.append(item["y_data"])
-        return Y
+        return np.asarray(Y)
 
     def extract_variances_from_data(self):
         Variance = []
@@ -272,7 +259,7 @@ class fvgpData(gpData):
                 warnings.warn("At least one noise variances `None` in data. All noise variances will be ignored.")
                 return None
             Variance.append(item["noise variances"])
-        return Variance
+        return np.asarray(Variance)
 
     def check_incoming_data(self):
         try:
@@ -281,9 +268,6 @@ class fvgpData(gpData):
                     raise Exception("Entry with no specified y_data in communicated list of data dictionaries")
                 if entry["x_data"] is None:
                     raise Exception("Entry with no specified x_data in communicated list of data dictionaries")
-                if entry["output positions"] is None:
-                    raise Exception(
-                        "Entry with no specified output positions in communicated list of data dictionaries")
                 if entry["noise variances"] is None:
                     raise Exception("Entry with no specified noise variances in communicated list of data dictionaries")
         except Exception as e:

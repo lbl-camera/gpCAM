@@ -27,10 +27,15 @@ The following demonstrates a simple usage of the gpCAM API (see [interactive dem
 from gpcam.autonomous_experimenter import AutonomousExperimenterGP
 import numpy as np
 
+#define an instrument function, this is how the autonomous experimenter interacts with the world.
 def instrument(data):
     for entry in data:
-        entry["y_data"] = np.sin(np.linalg.norm(entry["x_data"]))
+        print("I want to know the y_data at: ", entry["x_data"])
+        ##always fill in y_data and noise variances
+        entry["y_data"] = 0.001 * np.linalg.norm(entry["x_data"])**2
         entry["noise variance"] = 0.01
+        print("I received ",entry["y_data"])
+        print("")
     return data
 
 ##set up your parameter space
@@ -38,18 +43,21 @@ parameters = np.array([[3.0,45.8],
                        [4.0,47.0]])
 
 ##set up some hyperparameters, if you have no idea, set them to 1 and make the training bounds large
-init_hyperparameters = np.array([1,1,1])
-hyperparameter_bounds =  np.array([[0.01,100],[0.01,100.0],[0.01,100]])
+init_hyperparameters = np.array([ 1.,1.,1.])
+hyperparameter_bounds =  np.array([[0.01,100],[0.01,1000.0],[0.01,1000]])
 
 ##let's initialize the autonomous experimenter ...
 my_ae = AutonomousExperimenterGP(parameters, init_hyperparameters,
-                                 hyperparameter_bounds,instrument_function = instrument,  
-                                 init_dataset_size=10, info=False)
+                                 hyperparameter_bounds,instrument_function = instrument, online=True, calc_inv=True, 
+                                 init_dataset_size=20)
 #...train...
-my_ae.train()
+my_ae.train(max_iter=2)
+
 
 #...and run. That's it. You successfully executed an autonomous experiment.
-my_ae.go(N = 100)
+st = time.time()
+my_ae.go(N = 100, retrain_globally_at=[], retrain_locally_at=[])
+print("Exec time: ", time.time() - st)
 ```
 
 

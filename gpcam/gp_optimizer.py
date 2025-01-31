@@ -285,7 +285,6 @@ class GPOptimizer:
         self.calc_inv = calc_inv
         self.ram_economy = ram_economy
         self.args = args
-
         self.gp = None
         if x_data is not None and y_data is not None:
             self._initializeGP(x_data, y_data, noise_variances=noise_variances)
@@ -1058,32 +1057,25 @@ class fvGPOptimizer:
         For multi-task GPs, the index set dimension = input space dimension + 1.
         If dealing with non-Euclidean inputs
         x_data should be a list, not a numpy array.
-    y_data : np.ndarray or list, optional
-        The values of the data points. Shape (V,No) if `y_data` is an array.
+    y_data : np.ndarray
+        The values of the data points. Shape (V,No).
         It is possible that not every entry in `x_data`
-        has all corresponding tasks available. In that case `y_data` can be a list. In that case make sure
-        that every entry in `y_data` has a corresponding `output_position` of the same shape.
+        has all corresponding tasks available. In that case `y_data` may have np.nan as the corresponding entries.
     init_hyperparameters : np.ndarray, optional
         Vector of hyperparameters used to initiate the GP.
         The default is an array of ones with the right length for the anisotropic Matern
         kernel with automatic relevance determination (ARD). The task direction is
         simply considered a separate dimension. If gp2Scale is
         enabled, the default kernel changes to the anisotropic Wendland kernel.
-    output_positions : list, optional
-        A list of 1d numpy arrays indicating which `task` measurements are available,
-        so that for each measurement position, the outputs
-        are clearly defined by their positions in the output space. The default is
-        [[0,1,2,3,...,output_number - 1],[0,1,2,3,...,output_number - 1],...].
-        It is possible that for certain inputs tasks are missing, e.g.,
-        output_positions = [[0,1],[1]].
-    noise_variances : np.ndarray or list, optional
+    noise_variances : np.ndarray, optional
         An numpy array or list defining the uncertainties/noise in the
-        `y_data` in form of a point-wise variance. Shape (V, No) if np.ndarray.
-        If `y_data` is a list then the `noise_variances` should be a list.
+        `y_data` in form of a point-wise variance. Shape (V, No).
+        If `y_data` has np.nan entries, the corresponding
+        `noise_variances` have to be np.nan.
         Note: if no noise_variances are provided here, the gp_noise_function
         callable will be used; if the callable is not provided, the noise variances
         will be set to `abs(np.mean(y_data)) / 100.0`. If
-        noise covariances are required (correlated noise), make use of the `gp_kernel_function`.
+        noise covariances are required (correlated noise), make use of the `gp_noise_function`.
         Only provide a noise function OR `noise_variances`, not both.
     compute_device : str, optional
         One of `cpu` or `gpu`, determines how linear algebra computations are executed. The default is `cpu`.
@@ -1243,7 +1235,6 @@ class fvGPOptimizer:
             x_data=None,
             y_data=None,
             init_hyperparameters=None,
-            output_positions=None,
             noise_variances=None,
             compute_device="cpu",
             gp_kernel_function=None,
@@ -1284,7 +1275,7 @@ class fvGPOptimizer:
 
         self.gp = None
         if x_data is not None and y_data is not None:
-            self._initializefvGP(x_data, y_data, output_positions=output_positions, noise_variances=noise_variances)
+            self._initializefvGP(x_data, y_data, noise_variances=noise_variances)
 
     def __getattr__(self, attr):
         if not self.gp:
@@ -1295,7 +1286,7 @@ class fvGPOptimizer:
         else:
             raise AttributeError(f"Attribute '{attr}' not available.")
 
-    def _initializefvGP(self, x_data, y_data, output_positions=None, noise_variances=None):
+    def _initializefvGP(self, x_data, y_data, noise_variances=None):
         """
         Function to initialize a GP object.
         If data is prided at initialization this function is NOT needed.
@@ -1305,7 +1296,6 @@ class fvGPOptimizer:
             x_data,
             y_data,
             init_hyperparameters=self.hyperparameters,
-            output_positions=output_positions,
             noise_variances=noise_variances,
             compute_device=self.compute_device,
             gp_kernel_function=self.gp_kernel_function,
@@ -1382,7 +1372,7 @@ class fvGPOptimizer:
             raise Exception("Evaluating the acquisition function was not successful.", ex)
 
     ############################################################################
-    def tell(self, x, y, noise_variances=None, output_positions=None, append=False, gp_rank_n_update=None):
+    def tell(self, x, y, noise_variances=None, append=False, gp_rank_n_update=None):
         """
         This function can tell() the gp_optimizer class
         the data that was collected. The data will instantly be used to update the GP data.
@@ -1392,26 +1382,20 @@ class fvGPOptimizer:
         x : np.ndarray or list
             Point positions to be communicated to the Gaussian Process; either a np.ndarray of shape (U x D)
             or a list.
-        y : np.ndarray or list
-            The values of the data points. Shape (V,No) if `y`  is an array.
-            It is possible that not every entry in `x`
-            has all corresponding tasks available. In that case `y_new` can be a list. In that case make sure
-            that every entry in `y` has a corresponding `output_positions` of the same shape.
-        noise_variances : np.ndarray or list, optional
-            An numpy array or list defining the uncertainties/noise in
-            `y` in form of a point-wise variance. Shape (V, No) if np.ndarray.
-            If `y` is a list then the `noise_variances` should be a list.
+        y : np.ndarray
+            The values of the data points. Shape (V,No).
+            It is possible that not every entry in `x_new`
+            has all corresponding tasks available. In that case `y_new` may contain np.nan entries.
+        noise_variances : np.ndarray, optional
+            An numpy array or list defining the uncertainties/noise in the
+            `y_data` in form of a point-wise variance. Shape (V, No).
+            If `y_data` has np.nan entries, the corresponding
+            `noise_variances` have to be np.nan.
             Note: if no noise_variances are provided here, the gp_noise_function
             callable will be used; if the callable is not provided, the noise variances
             will be set to `abs(np.mean(y_data)) / 100.0`. If
             noise covariances are required (correlated noise), make use of the gp_noise_function.
             Only provide a noise function OR `noise_variances`, not both.
-        output_positions : list, optional
-            A list of 1d numpy arrays indicating which `task` measurements are available,
-            so that for each measurement position, the outputs
-            are clearly defined by their positions in the output space. The default is
-            [[0,1,2,3,...,output_number - 1],[0,1,2,3,...,output_number - 1],...].
-            The output_number is defined by the first entry in `y_data`.
         append : bool, optional
             Indication whether to append to or overwrite the existing dataset. Default = True.
             In the default case, data will be appended.
@@ -1423,10 +1407,10 @@ class fvGPOptimizer:
 
         if gp_rank_n_update is None: gp_rank_n_update = append
         if self.gp is None:
-            self._initializefvGP(x, y, output_positions=output_positions, noise_variances=noise_variances)
+            self._initializefvGP(x, y, noise_variances=noise_variances)
         else:
             self.update_gp_data(x, y, noise_variances_new=noise_variances,
-                                output_positions_new=output_positions, append=append, gp_rank_n_update=gp_rank_n_update)
+                                append=append, gp_rank_n_update=gp_rank_n_update)
 
     ##############################################################
     def train(self,
@@ -1931,7 +1915,7 @@ class fvGPOptimizer:
         result = list(map(func, x0))
         y = np.asarray(list(map(np.hstack, zip(*result)))).reshape(-1, len(x_out))[0:len(result)]
         v = np.asarray(list(map(np.hstack, zip(*result)))).reshape(-1, len(x_out))[len(result):]
-        self.tell(x=x0, y=y, noise_variances=v, output_positions=[x_out] * len(x0), append=False)
+        self.tell(x=x0, y=y, noise_variances=v, append=False)
         self.train(hyperparameter_bounds=hyperparameter_bounds)
         for i in range(max_iter):
             logger.debug("iteration {}", i)
