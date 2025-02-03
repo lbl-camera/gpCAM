@@ -83,7 +83,7 @@ html_theme_options = dict(
                  primary="indigo",
                  accent="green",
                  ),
-    globaltoc_collapse=True,
+    globaltoc_collapse=False,
 
 )
 
