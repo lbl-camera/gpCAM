@@ -92,7 +92,7 @@ gpCAM is implemented with options supporting fast training and predictions on HP
 Advanced Mathematics for Increased Flexibility
 ```
 
-gpCAM allows virtually unlimited customizability; all functions follow their mathematical definitions. There are absolutely no limitations imposed by the software design.
+gpCAM allows virtually unlimited customizability. All functions follow their mathematical definitions; no sofwtare limitations are imposed.
 
 ````
 `````
