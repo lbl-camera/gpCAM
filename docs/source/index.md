@@ -26,7 +26,7 @@ api/logging.md
 ```{toctree}
 ---
 hidden: true
-maxdepth: 2
+maxdepth: 1
 caption: Examples
 ---
 examples/autonomous_experimenter_basic.ipynb
@@ -48,7 +48,7 @@ Mission of the project
 
 ```{div} text-center
 
-gpCAM is an API and software designed to make autonomous data acquisition and analysis for experiments and simulations faster, simpler and more widely available. The tool is based on a flexible and powerful Gaussian process regression at the core. The flexibility stems from the modular design of gpCAM which allows the user to implement and import their own Python functions to customize and control almost every aspect of the software. That makes it possible to easily tune the algorithm to account for various kinds of physics and other domain knowledge, and to identify and find interesting features. A specialized function optimizer in gpCAM can take advantage of HPC architectures for fast analysis time and reactive autonomous data acquisition.   
+gpCAM is an API and software designed to make new methodologies for Gaussian process modeling, Bayesian optimization, and decision-making under uncertainty faster, more straightforward, and more widely available. The tool is powered by a flexible and powerful Gaussian process regression at the core. The flexibility stems from the modular design of gpCAM, which allows the user to implement and import their own Python functions to customize and control almost every aspect of the software. Due to a synergy between computational and mathematical function definitions that is fundamental to gpCAM, there are virtually no limits to its customizability. That makes it possible to easily tune the algorithm to account for various types of domain knowledge, consider non-standard inputs, such as distributions and arbitrary structures, and scale it to millions of data points. This makes gpCAM the go-to solution for stochastic function approximation in scientific applications. 
 ```
 
 ---
@@ -65,7 +65,7 @@ gpCAM is an API and software designed to make autonomous data acquisition and an
 Simple API
 ```
 
-The API is designed in a way that makes it easy to be used  
+The API calls, function names, and inputs follow the mathematical representation of GPs.
 ````
 `````
 ````` {div} row
@@ -78,7 +78,8 @@ The API is designed in a way that makes it easy to be used
 Powerful Computing
 ```
 
-gpCAM is implemented using torch and DASK for fast training and predictions
+gpCAM is implemented with options supporting fast training and predictions on HPC architecture.
+
 ````
 `````
 ````` {div} row
@@ -91,7 +92,8 @@ gpCAM is implemented using torch and DASK for fast training and predictions
 Advanced Mathematics for Increased Flexibility
 ```
 
-gpCAM allows the advanced user to import their own Python functions to control the training and prediction
+gpCAM allows virtually unlimited customizability; all functions follow their mathematical definitions. There are absolutely no limitations imposed by the software design.
+
 ````
 `````
 ````` {div} row
@@ -104,7 +106,7 @@ gpCAM allows the advanced user to import their own Python functions to control t
 Software for the Novice and the Expert
 ```
 
-Simple approximation and autonomous-experimentation problems can be set up in minutes; the options for customization are endless
+Simple uncertainty quantification and Bayesian optimization problems can be set up in minutes; the options for customization are endless.
 
 ````
 `````
@@ -118,14 +120,7 @@ Questions?
 
 ````{div} text-center
 
-Contact [MarcusNoack@lbl.gov](mailto:MarcusNoack@lbl.gov) to get more information on the project. We also encourage you to join the [SLACK channel](https://gpcam.slack.com/).
-
-Want to transform your science with autonomous data acquisition?
-
-```{link-button} getting-started.html
-:text: Take action
-:classes: btn-primary
-```
+Contact [MarcusNoack@lbl.gov](mailto:MarcusNoack@lbl.gov) to get more information on the project. 
 
 ---
 
@@ -140,21 +135,11 @@ The Center for Advanced Mathematics for Energy Research Application
 
 ---
 
-```{div} centered-heading 
-Partners
-```
-
-````{div} text-center
-
-![_static/many-logos.png](_static/many-logos.png)
-
----
 
 ![_static/doe-os.png](_static/doe-os.png)
 
 Supported by the US Department of Energy Office of Science  
-[Advanced Scientific Computing Research](https://www.energy.gov/science/ascr/advanced-scientific-computing-research) (steven.lee@science.doe.gov)  
-[Basic Energy Sciences](https://www.energy.gov/science/bes/basic-energy-sciences) (Peter.Lee@science.doe.gov)
+[Advanced Scientific Computing Research](https://www.energy.gov/science/ascr/advanced-scientific-computing-research) (steven.lee@science.doe.gov)
 ````
 
 
