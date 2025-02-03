@@ -29,7 +29,8 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
     'sphinx.ext.intersphinx',
-    'hoverxref.extension'
+    'hoverxref.extension',
+    'sphinx_immaterial'
 ]
 #if notebooks should not be executed:
 nb_execution_mode='off'
@@ -66,7 +67,7 @@ intersphinx_mapping = {
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinx_rtd_theme'
+html_theme = 'sphinx_immaterial'
 
 html_style = 'custom.css'
 
@@ -77,10 +78,13 @@ html_logo = '_static/gpCAM_dark_bg.png'
 html_theme_display_version = True
 
 html_theme_options = dict(
-    logo_only=True,
-    display_version=True,
-    collapse_navigation=False,
-    titles_only=False
+    repo_url='https://github.com/lbl-camera/gpcam',
+    palette=dict(scheme="slate",
+                 primary="indigo",
+                 accent="green",
+                 ),
+    globaltoc_collapse=False,
+
 )
 
 autoclass_content = 'both'
