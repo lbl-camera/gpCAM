@@ -1225,7 +1225,6 @@ class fvGPOptimizer:
 
     """
 
-
     def __init__(
             self,
             x_data=None,
