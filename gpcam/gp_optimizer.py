@@ -10,10 +10,6 @@ import random
 
 
 # TODO (for gpCAM)
-#   add a test that shows online mode up to 10000 points, for this the inv_update rounding error can't destroy us.
-#   in AE, can ask including candidates?
-#   how is append vs overwrite handled?
-
 
 class GPOptimizer:
     """
@@ -1292,6 +1288,7 @@ class fvGPOptimizer:
         If data is prided at initialization this function is NOT needed.
         It has the same parameters as the initialization of the class.
         """
+        self.x_out = np.arange(y_data.shape[1])
         self.gp = fvGP(
             x_data,
             y_data,
@@ -1335,7 +1332,7 @@ class fvGPOptimizer:
             "cost function": self.cost_function}
 
     ############################################################################
-    def evaluate_acquisition_function(self, x, x_out, acquisition_function="variance", origin=None):
+    def evaluate_acquisition_function(self, x, x_out=None, acquisition_function="variance", origin=None):
         """
         Function to evaluate the acquisition function.
 
@@ -1343,7 +1340,7 @@ class fvGPOptimizer:
         ----------
         x : np.ndarray or list
             Point positions at which the acquisition function is evaluated. np.ndarray of shape (N x D) or list.
-        x_out : np.ndarray
+        x_out : np.ndarray, optional
             Point positions in the output space.
         acquisition_function : Callable, optional
             Acquisition function to execute. Callable with inputs (x,gpcam.gp_optimizer.GPOptimizer),
@@ -1356,6 +1353,7 @@ class fvGPOptimizer:
         ------
         The acquisition function evaluations at all points x : np.ndarray
         """
+        if x_out is None: x_out = self.x_out
 
         if self.cost_function and origin is None:
             warnings.warn("Warning: For the cost function to be active, an origin has to be provided.")
@@ -1650,7 +1648,7 @@ class fvGPOptimizer:
 
     def ask(self,
             input_set,
-            x_out,
+            x_out=None,
             acquisition_function='variance',
             position=None,
             n=1,
@@ -1681,7 +1679,7 @@ class fvGPOptimizer:
             element and return a sorted array of length `n`.
             This is usually desirable for non-Euclidean inputs but can be used either way. If candidates are
             Euclidean, they should be provided as a list of 1d np.ndarray`s.
-        x_out : np.ndarray
+        x_out : np.ndarray, optional
             The position indicating where in the output space the acquisition function should be evaluated.
             This array is of shape (No).
         position : np.ndarray, optional
@@ -1759,6 +1757,7 @@ class fvGPOptimizer:
         logger.debug("optimization method: {}", method)
         logger.debug("bounds:\n{}", input_set)
         logger.debug("acq func: {}", acquisition_function)
+        if x_out is None: x_out = self.x_out
 
         assert isinstance(vectorized, bool)
         if isinstance(input_set, np.ndarray) and np.ndim(input_set) != 2:
@@ -1829,7 +1828,7 @@ class fvGPOptimizer:
                  *,
                  func,
                  search_space,
-                 x_out,
+                 x_out=None,
                  hyperparameter_bounds=None,
                  train_at=(10, 20, 50, 100, 200),
                  x0=None,
@@ -1857,7 +1856,7 @@ class fvGPOptimizer:
         search_space : np.ndarray or list
             In the Euclidean case this should be a 2d np.ndarray of bounds in each direction of the input space.
             In the non-Euclidean case, this should be a list of all candidates.
-        x_out : np.ndarray
+        x_out : np.ndarray, optional
             The position indicating where in the output space the acquisition function should be evaluated.
             This array is of shape (No).
         hyperparameter_bounds : np.ndarray
@@ -1906,6 +1905,7 @@ class fvGPOptimizer:
         assert callable(func)
         assert isinstance(search_space, np.ndarray) or isinstance(search_space, list)
         assert isinstance(max_iter, int)
+        if x_out is None: x_out = self.x_out
 
         if not x0:
             if isinstance(search_space, list): x0 = random.sample(search_space, 10)

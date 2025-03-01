@@ -100,6 +100,7 @@ class TestgpCAM(unittest.TestCase):
         for acq_func in acquisition_functions:
             gp.evaluate_acquisition_function(np.array([[0.0,0.6],[0.1,0.2]]), np.array([0,1]), acquisition_function = acq_func)
         gp.ask(index_set_bounds,np.array([0.,1.]), max_iter = 2)
+        gp.ask(index_set_bounds, max_iter = 2)
 
     def test_ae(self):
         ##set up your parameter space
