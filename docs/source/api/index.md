@@ -1,6 +1,6 @@
 # gpCAM API Levels
 
-The user has two options to deploy gpCAM: by using the AutonomousExperimenter of the gpOptimizer.
+The user has two options to deploy gpCAM: by using the AutonomousExperimenter or the gpOptimizer.
 Both come in single-task and multi-task versions. The AutonomousExperimenter is simpler to set up and implements a high-level
 loop, while the GPOptimizer is a thin optimization wrapper around the fvgp package and inherits all of its capabilities, including
 GPs on non-Euclidean input spaces and world-record-holding scaling of exact GPs.
