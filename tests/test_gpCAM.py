@@ -210,4 +210,24 @@ class TestgpCAM(unittest.TestCase):
         r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 5, acquisition_function="variance", method = "hgdl")
         r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="target probability", method = "local")
 
+    def test_pickle(self):
+        import numpy as np
+        from gpcam.gp_optimizer import GPOptimizer
+        import pickle
 
+        #initialize some data
+        x_data = np.random.uniform(size = (10,3))
+        y_data = np.sin(np.linalg.norm(x_data, axis = 1))
+
+
+        #initialize the GPOptimizer
+        my_gpo = GPOptimizer(x_data, y_data, args = {'a':2.,'b':3.})
+
+        #pickle the GPOptimizer
+        stash = pickle.dumps(my_gpo)
+
+        #unpickle the GPOptimizer
+        my_gpo2 = pickle.loads(stash)
+
+        #assert checks that my_gpo2 is same as my_gpo
+        #my_gpo.ask() == my_gpo2.ask()
