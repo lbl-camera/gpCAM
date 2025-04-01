@@ -951,6 +951,37 @@ class GPOptimizer:
                 'f(x)': self.gp.y_data[-1],
                 'x': self.gp.x_data[-1]}
 
+    def __getstate__(self):
+        if self.gp2Scale_dask_client:
+            raise logger.warn('GPOptimizer cannot be pickled with a dask client in gp2Scale_dask_client.')
+
+        state = dict(x_data=self.x_data,
+                     y_data=self.y_data,
+                     init_hyperparameters=self.hyperparameters,
+                     noise_variances=self.gp.likelihood.V,
+                     compute_device=self.compute_device,
+                     gp_kernel_function=self.gp_kernel_function,
+                     gp_kernel_function_grad=self.gp_kernel_function_grad,
+                     gp_noise_function=self.gp_noise_function,
+                     gp_noise_function_grad=self.gp_noise_function_grad,
+                     gp_mean_function=self.gp_mean_function,
+                     gp_mean_function_grad=self.gp_mean_function_grad,
+                     gp2Scale=self.gp2Scale,
+                     gp2Scale_batch_size=self.gp2Scale_batch_size,
+                     gp2Scale_linalg_mode=self.gp2Scale_linalg_mode,
+                     calc_inv=self.calc_inv,
+                     ram_economy=self.ram_economy,
+                     args=self.args,
+                     cost_function=self.cost_function,
+                     cost_function_parameters=self.cost_function_parameters,
+                     cost_update_function=self.cost_update_function,
+                     )
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
+
 
 ######################################################################################
 ######################################################################################
@@ -1938,3 +1969,33 @@ class fvGPOptimizer:
                 'trace x': self.gp.x_data,
                 'f(x)': self.gp.y_data[-1],
                 'x': self.gp.x_data[-1]}
+
+    def __getstate__(self):
+        if self.gp2Scale_dask_client:
+            raise logger.warn('GPOptimizer cannot be pickled with a dask client in gp2Scale_dask_client.')
+
+        state = dict(x_data=self.x_data,
+                     y_data=self.y_data,
+                     init_hyperparameters=self.hyperparameters,
+                     noise_variances=self.gp.likelihood.V,
+                     compute_device=self.compute_device,
+                     gp_kernel_function=self.gp_kernel_function,
+                     gp_kernel_function_grad=self.gp_kernel_function_grad,
+                     gp_noise_function=self.gp_noise_function,
+                     gp_noise_function_grad=self.gp_noise_function_grad,
+                     gp_mean_function=self.gp_mean_function,
+                     gp_mean_function_grad=self.gp_mean_function_grad,
+                     gp2Scale=self.gp2Scale,
+                     gp2Scale_batch_size=self.gp2Scale_batch_size,
+                     gp2Scale_linalg_mode=self.gp2Scale_linalg_mode,
+                     calc_inv=self.calc_inv,
+                     ram_economy=self.ram_economy,
+                     args=self.args,
+                     cost_function=self.cost_function,
+                     cost_function_parameters=self.cost_function_parameters,
+                     cost_update_function=self.cost_update_function,
+                     )
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
