@@ -2000,7 +2000,7 @@ class fvGPOptimizer:
 
         state = dict(x_data=self.x_data,
                      y_data=self.y_data,
-                     hyperparameters=self.hyperparameters,,
+                     hyperparameters=self.hyperparameters,
                      noise_variances=self.gp.likelihood.V,
                      compute_device=self.compute_device,
                      gp_kernel_function=self.gp_kernel_function,
