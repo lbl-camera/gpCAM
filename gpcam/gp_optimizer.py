@@ -226,6 +226,8 @@ class GPOptimizer:
         The function `cost_update_function` accepts as
         input costs and a parameter
         object. The default is a no-op.
+    logging : bool
+        If true, logging is enabled. The default is False.
 
     Attributes
     ----------
@@ -261,7 +263,8 @@ class GPOptimizer:
             args=None,
             cost_function=None,
             cost_function_parameters=None,
-            cost_update_function=None
+            cost_update_function=None,
+            logging=False
     ):
         self.cost_function = cost_function
         self.cost_function_parameters = cost_function_parameters
@@ -284,6 +287,9 @@ class GPOptimizer:
         self.gp = None
         if x_data is not None and y_data is not None:
             self._initializeGP(x_data, y_data, noise_variances=noise_variances)
+        if logging is True:
+            logger.enable("gpcam")
+            logger.enable("fvgp")
 
 
     #########################################################################################
@@ -1206,6 +1212,8 @@ class fvGPOptimizer:
         The function `cost_update_function` accepts as
         input costs and a parameter
         object. The default is a no-op.
+    logging : bool
+        If true, logging is enabled. The default is False.
 
 
     Attributes
@@ -1222,7 +1230,6 @@ class fvGPOptimizer:
         Datapoint observation variances.
     hyperparameters : np.ndarray
         Current hyperparameters in use.
-
     """
 
     def __init__(
@@ -1248,6 +1255,7 @@ class fvGPOptimizer:
             cost_function=None,
             cost_function_parameters=None,
             cost_update_function=None,
+            logging=False
     ):
         self.cost_function = cost_function
         self.cost_function_parameters = cost_function_parameters
@@ -1267,6 +1275,10 @@ class fvGPOptimizer:
         self.calc_inv = calc_inv
         self.ram_economy = ram_economy
         self.args = args
+
+        if logging is True:
+            logger.enable("gpcam")
+            logger.enable("fvgp")
 
         self.gp = None
         if x_data is not None and y_data is not None:
