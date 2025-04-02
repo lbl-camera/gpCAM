@@ -57,10 +57,8 @@ def find_acquisition_function_maxima(gpo, acquisition_function, *,
     logger.debug("====================================")
     if candidates is not None:
         if vectorized is False:
-            print("not vectorized")
             res = np.asarray(list(map(func, candidates))).reshape(len(candidates))
         else:
-            print("vectorized")
             res = np.asarray(func(candidates)).reshape(len(candidates))
         sort_indices = np.argsort(res)
         res = res[sort_indices]
