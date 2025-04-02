@@ -801,7 +801,7 @@ class GPOptimizer:
 
         if acquisition_function == "total correlation" or acquisition_function == "relative information entropy":
             vectorized = False
-        if method != "global": vectorized = False
+        #if method != "global": vectorized = False
 
         maxima, func_evals, opt_obj = sm.find_acquisition_function_maxima(
             self.gp,
@@ -986,7 +986,6 @@ class GPOptimizer:
 
     def __setstate__(self, state):
         self.__dict__.update(state)
-
 
 
 ######################################################################################
@@ -1818,7 +1817,7 @@ class fvGPOptimizer:
                               "has therefore been changed to 'total correlation'.")
         if acquisition_function == "total correlation" or acquisition_function == "relative information entropy":
             vectorized = False
-        if method != "global": vectorized = False
+        #if method != "global": vectorized = False
 
         maxima, func_evals, opt_obj = sm.find_acquisition_function_maxima(
             self.gp,

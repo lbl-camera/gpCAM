@@ -210,6 +210,10 @@ class TestgpCAM(unittest.TestCase):
         r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 5, acquisition_function="variance", method = "hgdl")
         r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="target probability", method = "local")
 
+        r = my_gpo.ask([np.array([0.,1.,.5])], n = 1, acquisition_function="target probability", vectorized = False)
+        r = my_gpo.ask([np.array([0.,1.,.5])], n = 1, acquisition_function="variance", vectorized = False)
+        r = my_gpo.ask([np.array([0.,1.,.5])], n = 1, acquisition_function="ucb", vectorized = False)
+
     def test_pickle(self):
         import numpy as np
         from gpcam.gp_optimizer import GPOptimizer
