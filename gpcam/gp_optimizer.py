@@ -288,6 +288,9 @@ class GPOptimizer:
 
     #########################################################################################
     def __getattr__(self, attr):
+        if attr == "gp":
+            raise AttributeError("GP is not initialized.")
+
         if not self.gp:
             raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{attr}'. "
                                  f"You may need to initialize the GP.")
@@ -957,7 +960,7 @@ class GPOptimizer:
 
         state = dict(x_data=self.x_data,
                      y_data=self.y_data,
-                     init_hyperparameters=self.hyperparameters,
+                     hyperparameters=self.hyperparameters,
                      noise_variances=self.gp.likelihood.V,
                      compute_device=self.compute_device,
                      gp_kernel_function=self.gp_kernel_function,
@@ -979,7 +982,14 @@ class GPOptimizer:
         return state
 
     def __setstate__(self, state):
+        x_data = state.pop('x_data')
+        y_data = state.pop('y_data')
+        noise_variances = state.pop('noise_variances')
+        state['gp2Scale_dask_client'] = None
+        # hyperparameters = state.pop('init_hyperparameters')
         self.__dict__.update(state)
+        if x_data is not None and y_data is not None:
+            self._initializeGP(x_data, y_data, noise_variances=noise_variances)
 
 
 
@@ -1304,6 +1314,9 @@ class fvGPOptimizer:
             self._initializefvGP(x_data, y_data, noise_variances=noise_variances)
 
     def __getattr__(self, attr):
+        if attr == "gp":
+            raise AttributeError("GP is not initialized.")
+
         if not self.gp:
             raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{attr}'. "
                                  f"You may need to initialize the GP.")
@@ -1998,4 +2011,11 @@ class fvGPOptimizer:
         return state
 
     def __setstate__(self, state):
+        x_data = state.pop('x_data')
+        y_data = state.pop('y_data')
+        noise_variances = state.pop('noise_variances')
+        state['gp2Scale_dask_client'] = None
+        # hyperparameters = state.pop('init_hyperparameters')
         self.__dict__.update(state)
+        if x_data is not None and y_data is not None:
+            self._initializeGP(x_data, y_data, noise_variances=noise_variances)
