@@ -233,5 +233,7 @@ class TestgpCAM(unittest.TestCase):
         #unpickle the GPOptimizer
         my_gpo2 = pickle.loads(stash)
 
+        r = my_gpo2.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]))
+
         #assert checks that my_gpo2 is same as my_gpo
         #my_gpo.ask() == my_gpo2.ask()
