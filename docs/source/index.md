@@ -14,8 +14,6 @@ maxdepth: 2
 caption: API
 ---
 api/index.md
-api/autonomous-experimenter.md
-api/autonomous-experimenterfvgp.md
 api/gpOptimizer.md
 api/fvgpOptimizer.md
 api/gpMCMC.md
@@ -29,8 +27,6 @@ hidden: true
 maxdepth: 1
 caption: Examples
 ---
-examples/autonomous_experimenter_basic.ipynb
-examples/autonomous_experimenter_advanced.ipynb
 examples/1dSingleTaskAcqFuncTest.ipynb
 examples/GPOptimizer_SingleTaskTest.ipynb
 examples/GPOptimizer_NonEuclideanInputSpaces.ipynb
