@@ -27,6 +27,7 @@ def find_acquisition_function_maxima(gpo, acquisition_function, *,
                                      vectorized=True,
                                      x_out=None,
                                      dask_client=None,
+                                     batch_size=10,
                                      info=False):
     bounds = None
     candidates = None
@@ -56,9 +57,21 @@ def find_acquisition_function_maxima(gpo, acquisition_function, *,
     logger.debug("====================================")
     if candidates is not None:
         if vectorized is False:
-            res = np.asarray(list(map(func, candidates))).reshape(len(candidates))
+            if dask_client is not None:
+                logger.debug("Mapping the acquisition function evaluation over dask workers in batches of size", batch_size)
+                res = np.asarray(list(dask_client.gather(dask_client.map(func, candidates, batch_size=batch_size)))).\
+                    reshape(len(candidates))
+            else:
+                logger.debug("Calling the acquisition function on candidates sequentially")
+                res = np.asarray(list(map(func, candidates))).reshape(len(candidates))
         else:
-            res = np.asarray(func(candidates)).reshape(len(candidates))
+            if dask_client is not None:
+                logger.debug("Calling the acquisition function on parallelized chunks of size ", batch_size)
+                tasks = list(divide_chunks(candidates, batch_size))
+                res = np.asarray(list(dask_client.gather(dask_client.map(func, tasks)))).reshape(len(candidates))
+            else:
+                logger.debug("Calling the acquisition function on all candidates in parallel.")
+                res = np.asarray(func(candidates)).reshape(len(candidates))
         sort_indices = np.argsort(res)
         res = res[sort_indices]
         sorted_candidates = [candidates[sort_index] for sort_index in sort_indices]
@@ -99,11 +112,14 @@ def find_acquisition_function_maxima(gpo, acquisition_function, *,
         idx = filter_similar_rows(opti, tol=0.01)
         opti = opti[idx]
         func_eval = func_eval[idx]
+
         if len(opti) < number_of_maxima_sought:
             warnings.warn("An insufficient number of unique optima identified" +
                           "Try `total correlation` or the use of candidates by using `input set` in ask(). ")
         opti = opti[0:min(len(opti), number_of_maxima_sought)]
         func_eval = func_eval[0:min(len(func_eval), number_of_maxima_sought)]
+        time.sleep(0.1)
+        opt_obj.kill_client()
 
     elif optimization_method == "hgdlAsync":
         opt_obj = HGDL(func,
@@ -150,7 +166,6 @@ def find_acquisition_function_maxima(gpo, acquisition_function, *,
                                                       origin=origin, dim=input_set_dim, cost_function=cost_function,
                                                       x_out=x_out)
             if np.ndim(func_eval) != 1: func_eval = np.array([func_eval])
-
     else:
         raise ValueError("Invalid acquisition function optimization method given.")
     if np.ndim(func_eval) != 1:
@@ -177,7 +192,8 @@ def evaluate_acquisition_function(x, *, gpo=None, acquisition_function=None, ori
         elif np.ndim(x) > 2:
             raise Exception("Wrong input dim in `x`.")
     elif isinstance(x, list):
-        x = x
+        try: x = np.asarray(x).reshape(len(x), dim)
+        finally: x = x
     else:
         x = [x]
 
@@ -273,7 +289,6 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gpo, x_out):
                         "ucb", "lcb", "expected improvement", "total correlation"]
         if acquisition_function == "variance":
             res = gpo.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"]
-            #return np.sum(res.reshape(len(x), len(x_out), order="F"), axis=1)
             return np.sum(res, axis=1)
         elif acquisition_function == "relative information entropy":
             res = -gpo.gp_relative_information_entropy(x, x_out=x_out)["RIE"]
@@ -285,10 +300,8 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gpo, x_out):
             return -np.array([gpo.gp_total_correlation(x, x_out=x_out)["total correlation"]])
         elif acquisition_function == "ucb":
             m = gpo.posterior_mean(x, x_out=x_out)["m(x)"]
-            #av_m = np.sum(m.reshape(len(x), len(x_out), order="F"), axis=1)
             av_m = np.sum(m, axis=1)
             v = gpo.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"]
-            #av_v = np.sum(v.reshape(len(x), len(x_out), order="F"), axis=1)
             av_v = np.sum(v, axis=1)
             return av_m + 3.0 * np.sqrt(av_v)
         elif acquisition_function == "lcb":
@@ -352,3 +365,8 @@ def filter_similar_rows(arr, tol=1.):
     rounded = np.round(arr / tol) * tol
     _, idx = np.unique(rounded, axis=0, return_index=True)
     return idx
+
+
+def divide_chunks(l, n):
+    for i in range(0, len(l), n):
+        yield l[i:i + n]

@@ -5,8 +5,7 @@ from .gp_optimizer_base import GPOptimizerBase
 
 
 # TODO (for gpCAM)
-#   mixed continuous-discrete space via cartesian product of random draws from continuous and candidates,
-#                           in this case allow "input_space" and "input set"/"candidates"
+#
 
 class GPOptimizer(GPOptimizerBase):
     """
@@ -216,7 +215,7 @@ class GPOptimizer(GPOptimizerBase):
         If true, logging is enabled. The default is False.
     args : any, optional
             Arguments will be transmitted to the acquisition function as part of the GPOptimizer
-            object instance.
+            object instance. It will also be transmitted as computational settings for the GP.
 
     Attributes
     ----------
@@ -524,7 +523,7 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
         If true, logging is enabled. The default is False.
     args : any, optional
             Arguments will be transmitted to the acquisition function as part of the GPOptimizer
-            object instance.
+            object instance. It will also be transmitted as computational settings for the GP.
 
 
     Attributes

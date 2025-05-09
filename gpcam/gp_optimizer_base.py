@@ -40,7 +40,7 @@ class GPOptimizerBase(GP):
             args=None,
     ):
         self.cost_function = cost_function
-        self.hyperparameters = init_hyperparameters
+        self._init_hyperparameters = init_hyperparameters
         self.compute_device = compute_device
         self.kernel_function = kernel_function
         self.kernel_function_grad = kernel_function_grad
@@ -76,15 +76,17 @@ class GPOptimizerBase(GP):
         """
         if np.ndim(y_data) == 2:
             self.x_out = np.arange(y_data.shape[1])
+            assert self.multi_task, "multi_task off but 2d y_data"
         elif np.ndim(y_data) == 1:
             self.x_out = None
+            assert self.multi_task is False, "multi_task on but 1d y_data"
         else:
             raise Exception("Wrong format in y_data")
 
         super().__init__(
             x_data,
             y_data,
-            init_hyperparameters=self.hyperparameters,
+            init_hyperparameters=self._init_hyperparameters,
             noise_variances=noise_variances,
             compute_device=self.compute_device,
             kernel_function=self.kernel_function,
@@ -99,6 +101,7 @@ class GPOptimizerBase(GP):
             gp2Scale_linalg_mode=self.gp2Scale_linalg_mode,
             calc_inv=self.calc_inv,
             ram_economy=self.ram_economy,
+            args=self.args
         )
         self.gp = True
         if self.multi_task:
@@ -114,6 +117,7 @@ class GPOptimizerBase(GP):
         ------
         dictionary of class attributes : dict
         """
+        assert self.gp, "GP not yet initialized; tell() data!"
 
         return {
             "input dim": self.input_space_dimension,
@@ -151,6 +155,7 @@ class GPOptimizerBase(GP):
         """
         if x_out is None: x_out = self.x_out
         if args is not None: self.args = args
+        assert self.gp, "GP not yet initialized; tell() data!"
 
         if self.cost_function and origin is None:
             warnings.warn("Warning: For the cost function to be active, an origin has to be provided.")
@@ -222,7 +227,8 @@ class GPOptimizerBase(GP):
             vectorized=True,
             info=False,
             args=None,
-            dask_client=None):
+            dask_client=None,
+            batch_size=None):
 
         """
         Given that the acquisition device is at `position`, this function `ask()`s for
@@ -235,12 +241,16 @@ class GPOptimizerBase(GP):
         Parameters
         ----------
         input_set : np.ndarray or list
-            Either a numpy array of floats of shape D x 2 describing the
+            Either a numpy array of floats of shape D x 2 describing the Euclidean
             search space or a set of candidates in the form of a list. If a candidate list
             is provided, `ask()` will evaluate the acquisition function on each
             element and return a sorted array of length `n`.
             This is usually desirable for non-Euclidean inputs but can be used either way. If candidates are
-            Euclidean, they should be provided as a list of 1d np.ndarray`s.
+            Euclidean, they should be provided as a list of 1d np.ndarray`s. Inn that case `vectorized = True` will
+            lead to a vectorized acquisition function evaluation.
+            The possibility of a candidate list together with user-defined acquisition functions also means
+            that mixed discrete-continuous spaces can be considered here. The candidates will be directly
+            given to the acquisition function.
         x_out : np.ndarray, optional
             The position indicating where in the output space the acquisition function should be evaluated.
             This array is of shape (No). This is only use the multi-task setting.
@@ -331,6 +341,9 @@ class GPOptimizerBase(GP):
             A Dask Distributed Client instance for distributed
             `acquisition_function` optimization. If None is provided,
             a new :py:class:`distributed.client.Client` instance is constructed for hgdl.
+        batch_size : distributed.client.Client, optional
+            If a candidate set (input set) and a dask client is provided, the acquisition function evaluations
+            will be executed in parallel in batches of this size.
 
         Return
         ------
@@ -339,10 +352,11 @@ class GPOptimizerBase(GP):
             that, only in case of `method` = `hgdl` can be queried for solutions.
         """
 
-        logger.debug("ask() initiated with hyperparameters: {}", self.hyperparameters)
+        logger.debug("ask() initiated with hyperparameters: {}", self.get_hyperparameters())
         logger.debug("optimization method: {}", method)
         logger.debug("input_set:\n{}", input_set)
         logger.debug("acq func: {}", acquisition_function)
+        assert self.gp, "GP not yet initialized; tell() data!"
         if args is not None: self.args = args
         if x_out is None: x_out = self.x_out
 
@@ -381,7 +395,8 @@ class GPOptimizerBase(GP):
             vectorized=vectorized,
             x_out=x_out,
             info=info,
-            dask_client=dask_client)
+            dask_client=dask_client,
+            batch_size=batch_size)
         if n > 1: return {'x': maxima.reshape(-1, self.input_space_dimension), "f_a(x)": func_evals,
                           "opt_obj": opt_obj}
         return {'x': np.array(maxima), "f_a(x)": np.array(func_evals), "opt_obj": opt_obj}
@@ -512,10 +527,13 @@ class GPOptimizerBase(GP):
         if self.gp2Scale_dask_client:
             raise logger.warn('GPOptimizer cannot be pickled with a dask client in gp2Scale_dask_client.')
 
+        if callable(self.noise_function): noise_variances = None
+        else: noise_variances = self.likelihood.V
+
         state = dict(x_data=self.x_data,
                      y_data=self.y_data,
-                     hyperparameters=self.hyperparameters,
-                     noise_variances=self.likelihood.V,
+                     init_hyperparameters=self.get_hyperparameters(),
+                     noise_variances=noise_variances,
                      compute_device=self.compute_device,
                      kernel_function=self.kernel_function,
                      kernel_function_grad=self.kernel_function_grad,
@@ -540,7 +558,7 @@ class GPOptimizerBase(GP):
         y_data = state.pop('y_data')
         noise_variances = state.pop('noise_variances')
         state['gp2Scale_dask_client'] = None
-        # hyperparameters = state.pop('init_hyperparameters')
         self.__dict__.update(state)
+        self._init_hyperparameters = state.pop("init_hyperparameters")
         if x_data is not None and y_data is not None:
             self._initializeGP(x_data, y_data, noise_variances=noise_variances)
