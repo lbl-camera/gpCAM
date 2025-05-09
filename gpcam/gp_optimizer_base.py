@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+from abc import abstractmethod
+
 import numpy as np
 from loguru import logger
 from fvgp import fvGP
