@@ -36,7 +36,6 @@ class GPOptimizerBase(GP):
             ram_economy=False,
             cost_function=None,
             logging=False,
-            multi_task=False,
             args=None,
     ):
         self.cost_function = cost_function
@@ -56,7 +55,6 @@ class GPOptimizerBase(GP):
         self.ram_economy = ram_economy
         self.args = args
         self.logging = logging
-        self.multi_task = multi_task
 
         self.gp = False
         if x_data is not None and y_data is not None:
@@ -101,10 +99,6 @@ class GPOptimizerBase(GP):
             ram_economy=self.ram_economy,
         )
         self.gp = True
-        if self.multi_task:
-            self.input_space_dimension = self.input_space_dim
-        else:
-            self.input_space_dimension = self.index_set_dim
 
     def get_data(self):
         """
@@ -476,12 +470,10 @@ class GPOptimizerBase(GP):
                                                                             high=search_space[:, 1],
                                                                             size=(10, len(search_space)))
         result = list(map(func, x0))
-        if self.multi_task:
-            len_x_out = len(result[0][0])
-            y = np.asarray(list(map(np.hstack, zip(*result)))).reshape(-1, len_x_out)[0:len(result)]
-            v = np.asarray(list(map(np.hstack, zip(*result)))).reshape(-1, len_x_out)[len(result):]
-        else:
-            y, v = map(np.hstack, zip(*result))
+
+        y = self._y_from_optimize_results(result)
+        v = self._v_from_optimize_results(result)
+
         self.tell(x=x0, y=y, noise_variances=v, append=False)
         if x_out is None: x_out = self.x_out
         self.train(hyperparameter_bounds=hyperparameter_bounds)
@@ -530,8 +522,7 @@ class GPOptimizerBase(GP):
                      ram_economy=self.ram_economy,
                      cost_function=self.cost_function,
                      logging=self.logging,
-                     args=self.args,
-                     multi_task=self.multi_task
+                     args=self.args
                      )
         return state
 
@@ -544,3 +535,11 @@ class GPOptimizerBase(GP):
         self.__dict__.update(state)
         if x_data is not None and y_data is not None:
             self._initializeGP(x_data, y_data, noise_variances=noise_variances)
+
+    @abstractmethod
+    def _y_from_optimize_results(self, optimize_results):
+        ...
+
+    @abstractmethod
+    def _v_from_optimize_results(self, optimize_results):
+        ...

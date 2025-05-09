@@ -229,53 +229,15 @@ class GPOptimizer(GPOptimizerBase):
     hyperparameters : np.ndarray
         Current hyperparameters in use.
     """
+    @property
+    def input_space_dimension(self):
+        return self.index_set_dim
 
-    def __init__(
-            self,
-            x_data=None,
-            y_data=None,
-            init_hyperparameters=None,
-            noise_variances=None,
-            compute_device="cpu",
-            kernel_function=None,
-            kernel_function_grad=None,
-            noise_function=None,
-            noise_function_grad=None,
-            prior_mean_function=None,
-            prior_mean_function_grad=None,
-            gp2Scale=False,
-            gp2Scale_dask_client=None,
-            gp2Scale_batch_size=10000,
-            gp2Scale_linalg_mode=None,
-            calc_inv=False,
-            ram_economy=False,
-            cost_function=None,
-            logging=False,
-            args=None
-    ):
+    def _y_from_optimize_results(self, optimize_results):
+        return np.hstack([result[0] for result in optimize_results])
 
-        super().__init__(x_data=x_data,
-                         y_data=y_data,
-                         init_hyperparameters=init_hyperparameters,
-                         noise_variances=noise_variances,
-                         compute_device=compute_device,
-                         kernel_function=kernel_function,
-                         kernel_function_grad=kernel_function_grad,
-                         noise_function=noise_function,
-                         noise_function_grad=noise_function_grad,
-                         prior_mean_function=prior_mean_function,
-                         prior_mean_function_grad=prior_mean_function_grad,
-                         gp2Scale=gp2Scale,
-                         gp2Scale_dask_client=gp2Scale_dask_client,
-                         gp2Scale_batch_size=gp2Scale_batch_size,
-                         gp2Scale_linalg_mode=gp2Scale_linalg_mode,
-                         calc_inv=calc_inv,
-                         ram_economy=ram_economy,
-                         cost_function=cost_function,
-                         logging=logging,
-                         multi_task=False,
-                         args=args)
-
+    def _v_from_optimize_results(self, optimize_results):
+        return np.hstack([result[1] for result in optimize_results])
 
 ######################################################################################
 ######################################################################################
@@ -543,47 +505,14 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
         Current hyperparameters in use.
     """
 
-    def __init__(
-            self,
-            x_data=None,
-            y_data=None,
-            init_hyperparameters=None,
-            noise_variances=None,
-            compute_device="cpu",
-            kernel_function=None,
-            kernel_function_grad=None,
-            noise_function=None,
-            noise_function_grad=None,
-            prior_mean_function=None,
-            prior_mean_function_grad=None,
-            gp2Scale=False,
-            gp2Scale_dask_client=None,
-            gp2Scale_batch_size=10000,
-            gp2Scale_linalg_mode=None,
-            calc_inv=False,
-            ram_economy=False,
-            cost_function=None,
-            logging=False,
-            args=None
-    ):
-        super().__init__(x_data=x_data,
-                         y_data=y_data,
-                         init_hyperparameters=init_hyperparameters,
-                         noise_variances=noise_variances,
-                         compute_device=compute_device,
-                         kernel_function=kernel_function,
-                         kernel_function_grad=kernel_function_grad,
-                         noise_function=noise_function,
-                         noise_function_grad=noise_function_grad,
-                         prior_mean_function=prior_mean_function,
-                         prior_mean_function_grad=prior_mean_function_grad,
-                         gp2Scale=gp2Scale,
-                         gp2Scale_dask_client=gp2Scale_dask_client,
-                         gp2Scale_batch_size=gp2Scale_batch_size,
-                         gp2Scale_linalg_mode=gp2Scale_linalg_mode,
-                         calc_inv=calc_inv,
-                         ram_economy=ram_economy,
-                         cost_function=cost_function,
-                         logging=logging,
-                         multi_task=True,
-                         args=args)
+    @property
+    def input_space_dimension(self):
+        return self.input_space_dim
+
+    def _y_from_optimize_results(self, optimize_results):
+        len_x_out = len(optimize_results[0][0])
+        return np.asarray(list(map(np.hstack, zip(*optimize_results)))).reshape(-1, len_x_out)[0:len(optimize_results)]
+
+    def _v_from_optimize_results(self, optimize_results):
+        len_x_out = len(optimize_results[0][0])
+        return np.asarray(list(map(np.hstack, zip(*optimize_results)))).reshape(-1, len_x_out)[len(optimize_results):]
