@@ -23,52 +23,6 @@ class GPOptimizer(GPOptimizerBase):
     N ... arbitrary integers (N1, N2,...)
 
 
-    All posterior evaluation functions are inherited from :py:class:`fvgp.GP`.
-    These include, but are not limited to:
-
-    :py:meth:`fvgp.GP.posterior_mean`
-
-    :py:meth:`fvgp.GP.posterior_covariance`
-
-    :py:meth:`fvgp.GP.posterior_mean_grad`
-
-    :py:meth:`fvgp.GP.posterior_covariance_grad`
-
-    :py:meth:`fvgp.GP.joint_gp_prior`
-
-    :py:meth:`fvgp.GP.joint_gp_prior_grad`
-
-    :py:meth:`fvgp.GP.gp_entropy`
-
-    :py:meth:`fvgp.GP.gp_entropy_grad`
-
-    :py:meth:`fvgp.GP.gp_kl_div`
-
-    :py:meth:`fvgp.GP.gp_mutual_information`
-
-    :py:meth:`fvgp.GP.gp_total_correlation`
-
-    :py:meth:`fvgp.GP.gp_relative_information_entropy`
-
-    :py:meth:`fvgp.GP.gp_relative_information_entropy_set`
-
-    :py:meth:`fvgp.GP.posterior_probability`
-
-    Methods for validation:
-
-    :py:meth:`fvgp.GP.crps`
-
-    :py:meth:`fvgp.GP.rmse`
-
-    :py:meth:`fvgp.GP.nlpd`
-
-    :py:meth:`fvgp.GP.make_2d_x_pred`
-
-    :py:meth:`fvgp.GP.make_1d_x_pred`
-
-    :py:meth:`fvgp.GP.log_likelihood`
-
-
     Parameters
     ----------
     x_data : np.ndarray or list, optional
@@ -309,54 +263,8 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
 
     [0.2, 0.3,1],[0.9,0.6,1]]
 
-    This has to be understood and taken into account when customizing :doc:`fvgp <fvgp:index>` for multi-task
+    This has to be understood and taken into account when customizing :doc:`gpcam <fvGPOptimizer:index>` for multi-task
     use. The examples will provide deeper insights.
-
-
-    All posterior evaluation functions are inherited from :py:class:`fvgp.GP`.
-    Check there for a full list of capabilities. Methods for validation are also  available.
-    Inherited include, but are not limited to:
-
-    :py:meth:`fvgp.GP.posterior_mean`
-
-    :py:meth:`fvgp.GP.posterior_covariance`
-
-    :py:meth:`fvgp.GP.posterior_mean_grad`
-
-    :py:meth:`fvgp.GP.posterior_covariance_grad`
-
-    :py:meth:`fvgp.GP.joint_gp_prior`
-
-    :py:meth:`fvgp.GP.joint_gp_prior_grad`
-
-    :py:meth:`fvgp.GP.gp_entropy`
-
-    :py:meth:`fvgp.GP.gp_entropy_grad`
-
-    :py:meth:`fvgp.GP.gp_kl_div`
-
-    :py:meth:`fvgp.GP.gp_mutual_information`
-
-    :py:meth:`fvgp.GP.gp_total_correlation`
-
-    :py:meth:`fvgp.GP.gp_relative_information_entropy`
-
-    :py:meth:`fvgp.GP.gp_relative_information_entropy_set`
-
-    :py:meth:`fvgp.GP.posterior_probability`
-
-
-    Other methods:
-
-    :py:meth:`fvgp.GP.crps`
-
-    :py:meth:`fvgp.GP.rmse`
-
-    :py:meth:`fvgp.GP.make_2d_x_pred`
-
-    :py:meth:`fvgp.GP.make_1d_x_pred`
-
-    :py:meth:`fvgp.GP.log_likelihood`
 
 
     Parameters
