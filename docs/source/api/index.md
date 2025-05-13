@@ -1,9 +1,8 @@
 # gpCAM API Levels
 
-The user has two options to deploy gpCAM: by using the AutonomousExperimenter or the gpOptimizer.
-Both come in single-task and multi-task versions. The AutonomousExperimenter is simpler to set up and implements a high-level
-loop, while the GPOptimizer is a thin optimization wrapper around the fvgp package and inherits all of its capabilities, including
-GPs on non-Euclidean input spaces and world-record-holding scaling of exact GPs.
+gpCAM comes with two main libraries: The GPOptimizer, for single task Gaussian processes and Bayesian Optimization, and the fvGPOptimizer
+for the multi-task eqivalent.
+Both are capable of dealing with non-Euclidean input spaces and world-record-holding scaling of exact GPs.
 
 To get to know gpCAM, check out the examples on this website, download the repository and go to "./tests", or visit the project [website](https://gpcam.lbl.gov/).
 
@@ -11,7 +10,6 @@ To get to know gpCAM, check out the examples on this website, download the repos
 Quick Links:
 
 - [Repository](https://github.com/lbl-camera/gpCAM/)
-- [AutonomousExperimenter (GP and fvGP)](autonomous-experimenter.md)
 - [gpOptimizer](gpOptimizer.md) and [fvgpOptimizer](fvgpOptimizer.md)
 - The [fvGP](https://fvgp.readthedocs.io/en/latest/index.html) Package
 - The [HGDL](https://hgdl.readthedocs.io/en/latest/index.html) Package
