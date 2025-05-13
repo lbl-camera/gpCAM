@@ -27,6 +27,7 @@ hidden: true
 maxdepth: 1
 caption: Examples
 ---
+examples/GPOptimizer_Minimal.ipynb
 examples/1dSingleTaskAcqFuncTest.ipynb
 examples/GPOptimizer_SingleTaskTest.ipynb
 examples/GPOptimizer_NonEuclideanInputSpaces.ipynb

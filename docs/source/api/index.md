@@ -10,7 +10,6 @@ To get to know gpCAM, check out the examples on this website, download the repos
 Quick Links:
 
 - [Repository](https://github.com/lbl-camera/gpCAM/)
-- [AutonomousExperimenter (GP and fvGP)](autonomous-experimenter.md)
 - [gpOptimizer](gpOptimizer.md) and [fvgpOptimizer](fvgpOptimizer.md)
 - The [fvGP](https://fvgp.readthedocs.io/en/latest/index.html) Package
 - The [HGDL](https://hgdl.readthedocs.io/en/latest/index.html) Package

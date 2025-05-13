@@ -165,7 +165,7 @@ def find_acquisition_function_maxima(gpo, acquisition_function, *,
                                                       x_out=x_out)
             if np.ndim(func_eval) != 1: func_eval = np.array([func_eval])
     else:
-        raise ValueError("Invalid acquisition function optimization method given.")
+        raise ValueError("Invalid acquisition function optimization method given: ", optimization_method)
     if np.ndim(func_eval) != 1:
         logger.error("f_a(x): ", func_eval)
         logger.error("x: ", opti)
@@ -180,7 +180,7 @@ def find_acquisition_function_maxima(gpo, acquisition_function, *,
 ############################################################
 ############################################################
 def evaluate_acquisition_function(x, *, gpo=None, acquisition_function=None, origin=None, dim=None,
-                                  cost_function=None, x_out=None, ignore_warning=False):
+                                  cost_function=None, x_out=None):
     ##########################################################
     ####this function evaluates a default or a user-defined acquisition function
     ##########################################################

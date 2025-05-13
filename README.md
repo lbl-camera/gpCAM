@@ -19,45 +19,22 @@ gpCAM [(gpcam.lbl.gov)](https://gpcam.lbl.gov/home) is an API and software desig
 
 ## Usage
 
-The following demonstrates a simple usage of the gpCAM API (see [interactive demo](https://colab.research.google.com/drive/1FU4iKW626XiLqluDXQH-gzPYHyCf9N76?usp=sharing)). 
+The following demonstrates a simple usage of the gpCAM API (see [interactive demo](https://drive.google.com/file/d/1901dKz3ZfcWva1tB9o86IQZT6ukGhV9A/view?usp=sharing)). 
 
 ```python
 !pip install gpcam
 
-from gpcam.autonomous_experimenter import AutonomousExperimenterGP
-import numpy as np
+from gpCAM import GPOptimizer
 
-#define an instrument function, this is how the autonomous experimenter interacts with the world.
-def instrument(data):
-    for entry in data:
-        print("I want to know the y_data at: ", entry["x_data"])
-        ##always fill in y_data and noise variances
-        entry["y_data"] = 0.001 * np.linalg.norm(entry["x_data"])**2
-        entry["noise variance"] = 0.01
-        print("I received ",entry["y_data"])
-        print("")
-    return data
+my_gp = GPOptimizer(x_data,y_data,)
+my_gp.train()
 
-##set up your parameter space
-parameters = np.array([[3.0,45.8],
-                       [4.0,47.0]])
+train_at = [10,20,30] #optional
+for i in range(100):
+    new = my_gp.ask(np.array([[0.,1.]]))["x"]
+    my_gp.tell(new, f1(new).reshape(len(new)))
+    if i in train_at: my_gp.train()
 
-##set up some hyperparameters, if you have no idea, set them to 1 and make the training bounds large
-init_hyperparameters = np.array([ 1.,1.,1.])
-hyperparameter_bounds =  np.array([[0.01,100],[0.01,1000.0],[0.01,1000]])
-
-##let's initialize the autonomous experimenter ...
-my_ae = AutonomousExperimenterGP(parameters, init_hyperparameters,
-                                 hyperparameter_bounds,instrument_function = instrument, online=True, calc_inv=True, 
-                                 init_dataset_size=20)
-#...train...
-my_ae.train(max_iter=2)
-
-
-#...and run. That's it. You successfully executed an autonomous experiment.
-st = time.time()
-my_ae.go(N = 100, retrain_globally_at=[], retrain_locally_at=[])
-print("Exec time: ", time.time() - st)
 ```
 
 

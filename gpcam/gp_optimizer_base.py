@@ -382,9 +382,11 @@ class GPOptimizerBase(GP):
             warnings.warn("Method set to hgdl for callable acq. func and n>1.")
             method = "hgdl"
             if dask_client is None:
+                warnings.warn("Initiating dask client for `hgdl`")
                 dask_client = Client()
                 dask_client_provided = True
         if dask_client is None and method == "hgdl":
+            warnings.warn("Initiating dask client for `hgdl`")
             dask_client = Client()
             dask_client_provided = True
 

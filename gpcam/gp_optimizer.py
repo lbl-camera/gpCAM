@@ -60,6 +60,8 @@ class GPOptimizer(GPOptimizerBase):
 
     :py:meth:`fvgp.GP.rmse`
 
+    :py:meth:`fvgp.GP.nlpd`
+
     :py:meth:`fvgp.GP.make_2d_x_pred`
 
     :py:meth:`fvgp.GP.make_1d_x_pred`
