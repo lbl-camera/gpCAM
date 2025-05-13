@@ -6,13 +6,11 @@ from fvgp import GP
 from . import surrogate_model as sm
 import warnings
 import random
+from distributed import Client
 
 
 # TODO (for gpCAM):
-#   mixed continuous-discrete space via cartesian product of random draws from continuous and candidates,
-#                           in this case allow "input_space" and "input srt"/"candidates"
-#   Q: Does the base inherit from gp/fvgp or does the (fv)GPOptimizer still inherit from (fv)gp
-#   Q: Is def name(self,...): return super().train(...) the same as removing the method?
+
 
 class GPOptimizerBase(GP):
     def __init__(
@@ -76,10 +74,10 @@ class GPOptimizerBase(GP):
         """
         if np.ndim(y_data) == 2:
             self.x_out = np.arange(y_data.shape[1])
-            assert self.multi_task, "multi_task off but 2d y_data"
+            assert self.multi_task, "multi_task disabled but 2d y_data"
         elif np.ndim(y_data) == 1:
             self.x_out = None
-            assert self.multi_task is False, "multi_task on but 1d y_data"
+            assert self.multi_task is False, "multi_task enabled but 1d y_data"
         else:
             raise Exception("Wrong format in y_data")
 
@@ -119,13 +117,26 @@ class GPOptimizerBase(GP):
         """
         assert self.gp, "GP not yet initialized; tell() data!"
 
-        return {
-            "input dim": self.input_space_dimension,
-            "x data": self.x_data,
-            "y data": self.y_data,
-            "measurement variances": self.likelihood.V,
-            "hyperparameters": self.hyperparameters,
-            "cost function": self.cost_function}
+        if not self.multi_task:
+            return {
+                "input dim": self.input_space_dimension,
+                "x data": self.x_data,
+                "y data": self.y_data,
+                "measurement variances": self.likelihood.V,
+                "hyperparameters": self.get_hyperparameters(),
+                "cost function": self.cost_function}
+        elif self.multi_task:
+            return {
+                "input dim": self.input_space_dimension,
+                "x data": self.fvgp_x_data,
+                "y data": self.fvgp_y_data,
+                "transformed x data": self.x_data,
+                "transformed y data": self.y_data,
+                "measurement variances": self.likelihood.V,
+                "hyperparameters": self.get_hyperparameters(),
+                "cost function": self.cost_function}
+        else:
+            raise Exception("multi_task not defined")
 
         ############################################################################
 
@@ -356,17 +367,29 @@ class GPOptimizerBase(GP):
         logger.debug("optimization method: {}", method)
         logger.debug("input_set:\n{}", input_set)
         logger.debug("acq func: {}", acquisition_function)
+
         assert self.gp, "GP not yet initialized; tell() data!"
         if args is not None: self.args = args
         if x_out is None: x_out = self.x_out
-
         assert isinstance(vectorized, bool)
+
         if isinstance(input_set, np.ndarray) and np.ndim(input_set) != 2:
             raise Exception("The input_set parameter has to be a 2d np.ndarray or a list.")
+
         #for user-defined acquisition functions, use "hgdl" if n>1
+        dask_client_provided = False
         if n > 1 and callable(acquisition_function):
+            warnings.warn("Method set to hgdl for callable acq. func and n>1.")
             method = "hgdl"
-        if isinstance(input_set, np.ndarray) and n > 1 and method != "hgdl":
+            if dask_client is None:
+                dask_client = Client()
+                dask_client_provided = True
+        if dask_client is None and method == "hgdl":
+            dask_client = Client()
+            dask_client_provided = True
+
+        #if n>1 and Euclidean search and method!='hgdl', then global optimization of total corr or similar
+        if isinstance(input_set, np.ndarray) and n > 1 and method != "hgdl" and not callable(acquisition_function):
             vectorized = False
             method = "global"
             new_optimization_bounds = np.vstack([input_set for i in range(n)])
@@ -375,7 +398,9 @@ class GPOptimizerBase(GP):
                 acquisition_function = "total correlation"
                 warnings.warn("You specified n>1 and method != 'hgdl' in ask(). The acquisition function "
                               "has therefore been changed to 'total correlation'.")
+
         if acquisition_function == "total correlation" or acquisition_function == "relative information entropy":
+            warnings.warn("Set vectorized=False for total corr. or rel. inf. entropy.")
             vectorized = False
 
         maxima, func_evals, opt_obj = sm.find_acquisition_function_maxima(
@@ -399,6 +424,7 @@ class GPOptimizerBase(GP):
             batch_size=batch_size)
         if n > 1: return {'x': maxima.reshape(-1, self.input_space_dimension), "f_a(x)": func_evals,
                           "opt_obj": opt_obj}
+        if dask_client_provided: dask_client.close()
         return {'x': np.array(maxima), "f_a(x)": np.array(func_evals), "opt_obj": opt_obj}
 
     def optimize(self,
@@ -527,13 +553,22 @@ class GPOptimizerBase(GP):
         if self.gp2Scale_dask_client:
             raise logger.warn('GPOptimizer cannot be pickled with a dask client in gp2Scale_dask_client.')
 
-        if callable(self.noise_function): noise_variances = None
-        else: noise_variances = self.likelihood.V
+        if not self.multi_task:
+            x_data = self.x_data
+            y_data = self.y_data
+            v_data = self.noise_variances
+        else:
+            x_data = self.fvgp_x_data
+            y_data = self.fvgp_y_data
+            v_data = self.fvgp_noise_variances
 
-        state = dict(x_data=self.x_data,
-                     y_data=self.y_data,
+        #if callable(self.noise_function): noise_variances = None
+        #else: noise_variances = self.likelihood.V
+
+        state = dict(x_data=x_data,
+                     y_data=y_data,
                      init_hyperparameters=self.get_hyperparameters(),
-                     noise_variances=noise_variances,
+                     noise_variances=v_data,
                      compute_device=self.compute_device,
                      kernel_function=self.kernel_function,
                      kernel_function_grad=self.kernel_function_grad,
@@ -561,4 +596,6 @@ class GPOptimizerBase(GP):
         self.__dict__.update(state)
         self._init_hyperparameters = state.pop("init_hyperparameters")
         if x_data is not None and y_data is not None:
-            self._initializeGP(x_data, y_data, noise_variances=noise_variances)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                self._initializeGP(x_data, y_data, noise_variances=noise_variances)

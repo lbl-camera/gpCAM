@@ -225,8 +225,6 @@ class GPOptimizer(GPOptimizerBase):
         Datapoint values
     noise_variances : np.ndarray
         Datapoint observation variances
-    hyperparameters : np.ndarray
-        Current hyperparameters in use.
     """
 
     def __init__(
@@ -276,17 +274,6 @@ class GPOptimizer(GPOptimizerBase):
                          args=args)
 
 
-######################################################################################
-######################################################################################
-######################################################################################
-######################################################################################
-######################################################################################
-######################################################################################
-######################################################################################
-######################################################################################
-######################################################################################
-######################################################################################
-######################################################################################
 class fvGPOptimizer(GPOptimizerBase, fvGP):
     """
     This class is an optimization extension of the :doc:`fvgp <fvgp:index>`
@@ -538,8 +525,6 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
         Datapoint values as seen by fvgp
     noise_variances : np.ndarray
         Datapoint observation variances.
-    hyperparameters : np.ndarray
-        Current hyperparameters in use.
     """
 
     def __init__(
