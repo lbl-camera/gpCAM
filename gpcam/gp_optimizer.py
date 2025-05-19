@@ -13,8 +13,7 @@ class GPOptimizer(GPOptimizerBase):
     for single-task (scalar-valued) Gaussian Processes.
     Gaussian Processes can be initialized, trained, and conditioned; also
     the posterior can be evaluated and used via acquisition functions,
-    and plugged into optimizers to find their optima. This class inherits all methods from
-    the :py:class:`fvgp.GP` class.
+    and plugged into optimizers to find their optima.
 
     V ... number of input points
 
@@ -236,8 +235,7 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
     package for multi-task (vector-valued) Gaussian Processes.
     Gaussian Processes can be initialized, trained, and conditioned; also
     the posterior can be evaluated and used via acquisition functions,
-    and plugged into optimizers to find their maxima. This class inherits all methods from
-    the :py:class:`fvgp.fvGP` class. Check :doc:`fvgp.readthedocs.io <fvgp:index>` for a full list of capabilities.
+    and plugged into optimizers to find their maxima.
 
     V ... number of input points
 
@@ -263,7 +261,7 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
 
     [0.2, 0.3,1],[0.9,0.6,1]]
 
-    This has to be understood and taken into account when customizing :doc:`gpcam <fvGPOptimizer:index>` for multi-task
+    This has to be understood and taken into account when customizing gpCAM for multi-task
     use. The examples will provide deeper insights.
 
 
