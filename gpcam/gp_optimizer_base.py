@@ -553,7 +553,7 @@ class GPOptimizerBase(GP):
 
     def __getstate__(self):
         if self.gp2Scale_dask_client:
-            raise logger.warn('GPOptimizer cannot be pickled with a dask client in gp2Scale_dask_client.')
+            raise logger.warning('GPOptimizer cannot be pickled with a dask client in gp2Scale_dask_client.')
 
         if not self.multi_task:
             x_data = self.x_data
@@ -563,9 +563,6 @@ class GPOptimizerBase(GP):
             x_data = self.fvgp_x_data
             y_data = self.fvgp_y_data
             v_data = self.fvgp_noise_variances
-
-        #if callable(self.noise_function): noise_variances = None
-        #else: noise_variances = self.likelihood.V
 
         state = dict(x_data=x_data,
                      y_data=y_data,
