@@ -553,7 +553,7 @@ class GPOptimizerBase(GP):
 
     def __getstate__(self):
         if self.gp2Scale_dask_client:
-            raise logger.warning('GPOptimizer cannot be pickled with a dask client in gp2Scale_dask_client.')
+            warnings.warn('GPOptimizer cannot be pickled with a dask client in gp2Scale_dask_client.')
 
         if not self.multi_task:
             x_data = self.x_data
