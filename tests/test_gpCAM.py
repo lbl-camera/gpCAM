@@ -167,6 +167,11 @@ def test_pickle():
     x_data = np.random.uniform(size = (10,3))
     y_data = np.sin(np.linalg.norm(x_data, axis = 1))
 
+    #TEST0
+    #tests empty gp pickling
+    my_gpo = GPOptimizer()
+    pickle.loads(pickle.dumps(my_gpo))
+
     #TEST1
     #initialize the GPOptimizer
     my_gpo = GPOptimizer(x_data, y_data, args = {'a':2.,'b':3.})
