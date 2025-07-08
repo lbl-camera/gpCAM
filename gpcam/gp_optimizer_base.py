@@ -555,19 +555,32 @@ class GPOptimizerBase(GP):
         if self.gp2Scale_dask_client:
             warnings.warn('GPOptimizer cannot be pickled with a dask client in gp2Scale_dask_client.')
 
-        if not self.multi_task:
-            x_data = self.x_data
-            y_data = self.y_data
-            v_data = self.noise_variances
-        else:
-            x_data = self.fvgp_x_data
-            y_data = self.fvgp_y_data
-            v_data = self.fvgp_noise_variances
+        state = dict()
 
-        state = dict(x_data=x_data,
-                     y_data=y_data,
-                     init_hyperparameters=self.get_hyperparameters(),
-                     noise_variances=v_data,
+        # FIXME: x_data etc. should always exist; recommend property
+        # FIXME: use only one attribute name (x_data/fvgp_x_data)
+        # FIXME: use attr or property instead of getter for hyperparameters
+
+        if self.gp:
+            if not self.multi_task:
+                state['x_data'] = self.x_data
+                state['y_data'] = self.y_data
+                state['noise_variances'] = self.noise_variances
+            else:
+                state['x_data'] = self.fvgp_x_data
+                state['y_data'] = self.fvgp_y_data
+                state['noise_variances'] = self.fvgp_noise_variances
+
+            state['init_hyperparameters'] = self.get_hyperparameters()
+        else:
+            state['x_data'] = None
+            state['y_data'] = None
+            state['noise_variances'] = None
+            state['init_hyperparameters'] = None
+
+
+
+        state.update(dict(
                      compute_device=self.compute_device,
                      kernel_function=self.kernel_function,
                      kernel_function_grad=self.kernel_function_grad,
@@ -582,15 +595,21 @@ class GPOptimizerBase(GP):
                      ram_economy=self.ram_economy,
                      cost_function=self.cost_function,
                      logging=self.logging,
-                     args=self.args,
+                     args=self.args or None, # FIXME: None is getting realized to {} somewhere after gp is initialized?
                      multi_task=self.multi_task
-                     )
+                     ))
         return state
 
     def __setstate__(self, state):
         x_data = state.pop('x_data')
         y_data = state.pop('y_data')
         noise_variances = state.pop('noise_variances')
+        if isinstance(x_data, np.ndarray) and not len(x_data):
+            x_data = None
+        if isinstance(y_data, np.ndarray) and not len(y_data):
+            y_data = None
+        if isinstance(noise_variances, np.ndarray) and not len(noise_variances):
+            noise_variances = None
         state['gp2Scale_dask_client'] = None
         self.__dict__.update(state)
         self._init_hyperparameters = state.pop("init_hyperparameters")
