@@ -551,10 +551,7 @@ class GPOptimizerBase(GP):
                 'f(x)': self.y_data[-1],
                 'x': self.x_data[-1]}
 
-    def __getstate__(self):
-        if self.gp2Scale_dask_client:
-            warnings.warn('GPOptimizer cannot be pickled with a dask client in gp2Scale_dask_client.')
-
+    def __getstate__(self):  # Called when the object is pickled
         state = dict()
 
         # FIXME: x_data etc. should always exist; recommend property
@@ -578,8 +575,6 @@ class GPOptimizerBase(GP):
             state['noise_variances'] = None
             state['init_hyperparameters'] = None
 
-
-
         state.update(dict(
                      compute_device=self.compute_device,
                      kernel_function=self.kernel_function,
@@ -595,25 +590,15 @@ class GPOptimizerBase(GP):
                      ram_economy=self.ram_economy,
                      cost_function=self.cost_function,
                      logging=self.logging,
-                     args=self.args or None, # FIXME: None is getting realized to {} somewhere after gp is initialized?
-                     multi_task=self.multi_task
+                     args=self.args or None,  # FIXME: None is getting realized to {} somewhere after gp is initialized?
+                     multi_task=self.multi_task,
+                     gp=self.gp,
                      ))
+        state.update(super().__getstate__())
         return state
 
-    def __setstate__(self, state):
-        x_data = state.pop('x_data')
-        y_data = state.pop('y_data')
-        noise_variances = state.pop('noise_variances')
-        if isinstance(x_data, np.ndarray) and not len(x_data):
-            x_data = None
-        if isinstance(y_data, np.ndarray) and not len(y_data):
-            y_data = None
-        if isinstance(noise_variances, np.ndarray) and not len(noise_variances):
-            noise_variances = None
+    def __setstate__(self, state):  # Called when the object is unpickled
         state['gp2Scale_dask_client'] = None
         self.__dict__.update(state)
-        self._init_hyperparameters = state.pop("init_hyperparameters")
-        if x_data is not None and y_data is not None:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                self._initializeGP(x_data, y_data, noise_variances=noise_variances)
+
+
