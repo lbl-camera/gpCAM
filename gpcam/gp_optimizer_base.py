@@ -262,7 +262,7 @@ class GPOptimizerBase(GP):
             is provided, `ask()` will evaluate the acquisition function on each
             element and return a sorted array of length `n`.
             This is usually desirable for non-Euclidean inputs but can be used either way. If candidates are
-            Euclidean, they should be provided as a list of 1d np.ndarray`s. Inn that case `vectorized = True` will
+            Euclidean, they should be provided as a list of 1d np.ndarrays. In that case `vectorized = True` will
             lead to a vectorized acquisition function evaluation.
             The possibility of a candidate list together with user-defined acquisition functions also means
             that mixed discrete-continuous spaces can be considered here. The candidates will be directly
@@ -381,15 +381,17 @@ class GPOptimizerBase(GP):
         if isinstance(input_set, np.ndarray) and np.ndim(input_set) != 2:
             raise Exception("The input_set parameter has to be a 2d np.ndarray or a list.")
 
-        #for user-defined acquisition functions, use "hgdl" if n>1
+        #for user-defined acquisition functions, use "hgdl" if n>1 and no candidates
         dask_client_provided = False
-        if n > 1 and callable(acquisition_function):
+        if isinstance(input_set, np.ndarray) and n > 1 and callable(acquisition_function):
             warnings.warn("Method set to hgdl for callable acq. func and n>1.")
             method = "hgdl"
             if dask_client is None:
                 warnings.warn("Initiating dask client for `hgdl`")
                 dask_client = Client()
                 dask_client_provided = True
+
+        #if method is hgdl but no client is provided, m ake one
         if dask_client is None and method == "hgdl":
             warnings.warn("Initiating dask client for `hgdl`")
             dask_client = Client()
