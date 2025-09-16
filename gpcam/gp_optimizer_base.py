@@ -55,6 +55,11 @@ class GPOptimizerBase(GP):
         self.args = args
         self.logging = logging
         self.multi_task = multi_task
+        self.x_data = x_data
+        self.y_data = y_data
+        self.x_out = None
+        self.noise_variances = noise_variances
+        self.input_space_dimension = None
 
         self.gp = False
         if x_data is not None and y_data is not None:
@@ -592,6 +597,8 @@ class GPOptimizerBase(GP):
                      logging=self.logging,
                      args=self.args or None,  # FIXME: None is getting realized to {} somewhere after gp is initialized?
                      multi_task=self.multi_task,
+                     x_out=self.x_out,
+                     input_space_dimension=self.input_space_dimension,
                      gp=self.gp,
                      ))
         if self.gp: state.update(super().__getstate__())
