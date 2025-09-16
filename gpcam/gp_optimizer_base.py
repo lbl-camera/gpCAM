@@ -594,7 +594,7 @@ class GPOptimizerBase(GP):
                      multi_task=self.multi_task,
                      gp=self.gp,
                      ))
-        state.update(super().__getstate__())
+        if self.gp: state.update(super().__getstate__())
         return state
 
     def __setstate__(self, state):  # Called when the object is unpickled
