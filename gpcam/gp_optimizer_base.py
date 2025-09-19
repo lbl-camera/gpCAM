@@ -38,7 +38,7 @@ class GPOptimizerBase(GP):
             args=None,
     ):
         self.cost_function = cost_function
-        self._init_hyperparameters = init_hyperparameters
+        self.init_hyperparameters = init_hyperparameters
         self.compute_device = compute_device
         self.kernel_function = kernel_function
         self.kernel_function_grad = kernel_function_grad
@@ -52,14 +52,10 @@ class GPOptimizerBase(GP):
         self.gp2Scale_linalg_mode = gp2Scale_linalg_mode
         self.calc_inv = calc_inv
         self.ram_economy = ram_economy
-        self.args = args
+        self._args = args
         self.logging = logging
         self.multi_task = multi_task
-        self.x_data = x_data
-        self.y_data = y_data
         self.x_out = None
-        self.noise_variances = noise_variances
-        self.input_space_dimension = None
 
         self.gp = False
         if x_data is not None and y_data is not None:
@@ -71,25 +67,46 @@ class GPOptimizerBase(GP):
             logger.enable("gpcam")
             logger.enable("fvgp")
 
+    @property
+    def x_data(self):
+        if self.gp: return super().x_data
+        else: return None
+
+    @property
+    def y_data(self):
+        if self.gp: return super().y_data
+        else: return None
+
+    @property
+    def noise_variances(self):
+        if self.gp: return super().noise_variances
+        else: return None
+
+    @property
+    def args(self):
+        if self.gp: return super().args
+        else: return self._args
+
+    @property
+    def input_space_dimension(self):
+        if self.gp:
+            input_space_dimension = self.input_set_dim
+        else: input_space_dimension = None
+        return input_space_dimension
+
     def _initializeGP(self, x_data, y_data, noise_variances=None):
         """
         Function to initialize a GP object.
         If data is prided at initialization this function is NOT needed.
         It has the same parameters as the initialization of the class.
         """
-        if np.ndim(y_data) == 2:
-            self.x_out = np.arange(y_data.shape[1])
-            assert self.multi_task, "multi_task disabled but 2d y_data"
-        elif np.ndim(y_data) == 1:
-            self.x_out = None
-            assert self.multi_task is False, "multi_task enabled but 1d y_data"
-        else:
-            raise Exception("Wrong format in y_data")
+        if self.multi_task: self.x_out = np.arange(y_data.shape[1])
+        else: self.x_out = None
 
         super().__init__(
             x_data,
             y_data,
-            init_hyperparameters=self._init_hyperparameters,
+            init_hyperparameters=self.init_hyperparameters,
             noise_variances=noise_variances,
             compute_device=self.compute_device,
             kernel_function=self.kernel_function,
@@ -107,10 +124,6 @@ class GPOptimizerBase(GP):
             args=self.args
         )
         self.gp = True
-        if self.multi_task:
-            self.input_space_dimension = self.input_space_dim
-        else:
-            self.input_space_dimension = self.index_set_dim
 
     def get_data(self):
         """
@@ -128,7 +141,7 @@ class GPOptimizerBase(GP):
                 "x data": self.x_data,
                 "y data": self.y_data,
                 "measurement variances": self.likelihood.V,
-                "hyperparameters": self.get_hyperparameters(),
+                "hyperparameters": self.hyperparameters,
                 "cost function": self.cost_function}
         elif self.multi_task:
             return {
@@ -138,7 +151,7 @@ class GPOptimizerBase(GP):
                 "transformed x data": self.x_data,
                 "transformed y data": self.y_data,
                 "measurement variances": self.likelihood.V,
-                "hyperparameters": self.get_hyperparameters(),
+                "hyperparameters": self.hyperparameters,
                 "cost function": self.cost_function}
         else:
             raise Exception("multi_task not defined")
@@ -169,9 +182,9 @@ class GPOptimizerBase(GP):
         ------
         The acquisition function evaluations at all points x : np.ndarray
         """
-        if x_out is None: x_out = self.x_out
-        if args is not None: self.args = args
         assert self.gp, "GP not yet initialized; tell() data!"
+        if x_out is None: x_out = self.x_out
+        if args is not None: self._args = args
 
         if self.cost_function and origin is None:
             warnings.warn("Warning: For the cost function to be active, an origin has to be provided.")
@@ -368,13 +381,13 @@ class GPOptimizerBase(GP):
             that, only in case of `method` = `hgdl` can be queried for solutions.
         """
 
-        logger.debug("ask() initiated with hyperparameters: {}", self.get_hyperparameters())
+        logger.debug("ask() initiated with hyperparameters: {}", self.hyperparameters)
         logger.debug("optimization method: {}", method)
         logger.debug("input_set:\n{}", input_set)
         logger.debug("acq func: {}", acquisition_function)
 
         assert self.gp, "GP not yet initialized; tell() data!"
-        if args is not None: self.args = args
+        if args is not None: self._args = args
         if x_out is None: x_out = self.x_out
         assert isinstance(vectorized, bool)
 
@@ -560,30 +573,13 @@ class GPOptimizerBase(GP):
 
     def __getstate__(self):  # Called when the object is pickled
         state = dict()
-
-        # FIXME: x_data etc. should always exist; recommend property
-        # FIXME: use only one attribute name (x_data/fvgp_x_data)
-        # FIXME: use attr or property instead of getter for hyperparameters
-
-        if self.gp:
-            if not self.multi_task:
-                state['x_data'] = self.x_data
-                state['y_data'] = self.y_data
-                state['noise_variances'] = self.noise_variances
-            else:
-                state['x_data'] = self.fvgp_x_data
-                state['y_data'] = self.fvgp_y_data
-                state['noise_variances'] = self.fvgp_noise_variances
-
-            state['init_hyperparameters'] = self.get_hyperparameters()
-        else:
-            state['x_data'] = None
-            state['y_data'] = None
-            state['noise_variances'] = None
-            state['init_hyperparameters'] = None
-
         state.update(dict(
+                     x_data=self.x_data,
+                     y_data=self.y_data,
+                     noise_variances=self.noise_variances,
                      compute_device=self.compute_device,
+                     init_hyperparameters=self.init_hyperparameters,
+                     _args=self.args,
                      kernel_function=self.kernel_function,
                      kernel_function_grad=self.kernel_function_grad,
                      noise_function=self.noise_function,
@@ -597,7 +593,7 @@ class GPOptimizerBase(GP):
                      ram_economy=self.ram_economy,
                      cost_function=self.cost_function,
                      logging=self.logging,
-                     args=self.args or None,  # FIXME: None is getting realized to {} somewhere after gp is initialized?
+                     args=self.args,
                      multi_task=self.multi_task,
                      x_out=self.x_out,
                      input_space_dimension=self.input_space_dimension,

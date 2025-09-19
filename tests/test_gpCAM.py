@@ -9,6 +9,7 @@ import time
 from gpcam.kernels import *
 from dask.distributed import Client
 from distributed.utils_test import gen_cluster, client, loop, cluster_fixture, loop_in_thread, cleanup
+import copy
 N = 20
 dim = 2
 
@@ -189,7 +190,7 @@ def test_pickle():
     assert np.all(my_gpo.y_data == my_gpo2.y_data)
     assert np.all(my_gpo.likelihood.V == my_gpo2.likelihood.V)
     assert np.all(my_gpo.posterior_mean(np.array([[1.,1,1],[2.,2.,2.]]))["m(x)"] == my_gpo2.posterior_mean(np.array([[1,1,1],[2,2,2]]))["m(x)"])
-    assert np.all(my_gpo.get_hyperparameters() == my_gpo2.get_hyperparameters())
+    assert np.all(my_gpo.hyperparameters == my_gpo2.hyperparameters)
     assert np.all(my_gpo.prior.K == my_gpo2.prior.K)
 
     #TEST2
@@ -215,7 +216,7 @@ def test_pickle():
     assert np.all(my_gpo.y_data == my_gpo2.y_data)
     assert np.all(my_gpo.likelihood.V == my_gpo2.likelihood.V)
     assert np.all(my_gpo.posterior_mean(np.array([[1.,1,1],[2.,2.,2.]]))["m(x)"] == my_gpo2.posterior_mean(np.array([[1,1,1],[2,2,2]]))["m(x)"])
-    assert np.all(my_gpo.get_hyperparameters() == my_gpo2.get_hyperparameters())
+    assert np.all(my_gpo.hyperparameters == my_gpo2.hyperparameters)
     assert np.all(my_gpo.prior.K == my_gpo2.prior.K)
 
     #TEST3
@@ -238,6 +239,41 @@ def test_pickle():
     assert np.all(my_gpo.y_data == my_gpo2.y_data)
     assert np.all(my_gpo.likelihood.V == my_gpo2.likelihood.V)
     assert np.all(my_gpo.posterior_mean(np.array([[1.,1,1],[2.,2.,2.]]))["m(x)"] == my_gpo2.posterior_mean(np.array([[1,1,1],[2,2,2]]))["m(x)"])
-    assert np.all(my_gpo.get_hyperparameters() == my_gpo2.get_hyperparameters())
+    assert np.all(my_gpo.hyperparameters == my_gpo2.hyperparameters)
     assert np.all(my_gpo.prior.K == my_gpo2.prior.K)
+
+    def states_equal(state1, state2):
+        if state1.keys() != state2.keys():
+            return False
+        for k in state1:
+            v1, v2 = state1[k], state2[k]
+            if isinstance(v1, np.ndarray) and isinstance(v2, np.ndarray):
+                if not np.array_equal(v1, v2):
+                    return False
+            else:
+                if v1 != v2:
+                    return False
+        return True
+
+    def compare_state(obj):
+        # Serialize/deserialize
+        dumped = pickle.dumps(obj)
+        restored = pickle.loads(dumped)
+        
+        # Extract states
+        state1 = obj.__getstate__() if hasattr(obj, "__getstate__") else obj.__dict__
+        state2 = restored.__getstate__() if hasattr(restored, "__getstate__") else restored.__dict__
+        
+        # Compare directly
+        return states_equal(state1,state2), state1, state2
+
+
+    my_gpo = GPOptimizer(x_data,y_data,
+            init_hyperparameters = np.ones((4))/10.,
+            )
+    my_gpo.train()
+    my_gpo.tell(x_data, y_data)
+    assert compare_state(my_gpo)
+
+
 

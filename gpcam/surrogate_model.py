@@ -115,8 +115,8 @@ def find_acquisition_function_maxima(gpo, acquisition_function, *,
         func_eval = func_eval[idx]
 
         if len(opti) < number_of_maxima_sought:
-            warnings.warn("An insufficient number of unique optima identified" +
-                          "Try `total correlation` or the use of candidates by using `input set` in ask(). ")
+            warnings.warn("An insufficient number of unique optima identified. " +
+                          "Try `total correlation` or the use of candidates by providing them as a list to ask(). ")
         opti = opti[0:min(len(opti), number_of_maxima_sought)]
         func_eval = func_eval[0:min(len(func_eval), number_of_maxima_sought)]
 

@@ -205,7 +205,6 @@ class GPOptimizer(GPOptimizerBase):
             logging=False,
             args=None
     ):
-
         super().__init__(x_data=x_data,
                          y_data=y_data,
                          init_hyperparameters=init_hyperparameters,
@@ -268,7 +267,7 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
     Parameters
     ----------
     x_data : np.ndarray or list, optional
-        The input point positions. Shape (V x Di), where Di is the :py:attr:`fvgp.fvGP.input_space_dim`.
+        The input point positions. Shape (V x Di), where Di is the :py:attr:`fvgp.fvGP.input_set_dim`.
         For multi-task GPs, the index set dimension = input space dimension + 1.
         If dealing with non-Euclidean inputs
         x_data should be a list, not a numpy array.
