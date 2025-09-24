@@ -87,6 +87,11 @@ class GPOptimizerBase(GP):
         if self.gp: return super().args
         else: return self._args
 
+    @args.setter
+    def args(self, a):
+        if self.gp: super().set_args(a)
+        else: self._args = a
+
     @property
     def input_space_dimension(self):
         if self.gp:
