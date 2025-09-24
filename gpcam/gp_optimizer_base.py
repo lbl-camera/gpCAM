@@ -586,7 +586,7 @@ class GPOptimizerBase(GP):
                      noise_variances=self.noise_variances,
                      compute_device=self.compute_device,
                      init_hyperparameters=self.init_hyperparameters,
-                     _args=self.args,
+                     _args=self._args,
                      kernel_function=self.kernel_function,
                      kernel_function_grad=self.kernel_function_grad,
                      noise_function=self.noise_function,

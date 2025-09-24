@@ -270,7 +270,7 @@ def test_pickle():
 
     my_gpo = GPOptimizer(x_data,y_data,
             init_hyperparameters = np.ones((4))/10.,
-            )
+            args = {"sfdf": 4.})
     my_gpo.train()
     my_gpo.tell(x_data, y_data)
     assert compare_state(my_gpo)
