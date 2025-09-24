@@ -94,6 +94,13 @@ class GPOptimizerBase(GP):
         else: input_space_dimension = None
         return input_space_dimension
 
+    #@property
+    #def hyperparameters(self):
+    #    if self.gp:
+    #        hyperparameters = super().hyperparameters
+    #    else: hyperparameters = self.init_hyperparameters
+    #    return hyperparameters
+
     def _initializeGP(self, x_data, y_data, noise_variances=None):
         """
         Function to initialize a GP object.
@@ -121,7 +128,7 @@ class GPOptimizerBase(GP):
             gp2Scale_linalg_mode=self.gp2Scale_linalg_mode,
             calc_inv=self.calc_inv,
             ram_economy=self.ram_economy,
-            args=self.args
+            args=self._args
         )
         self.gp = True
 
@@ -133,7 +140,7 @@ class GPOptimizerBase(GP):
         ------
         dictionary of class attributes : dict
         """
-        assert self.gp, "GP not yet initialized; tell() data!"
+        if not self.gp: return "GP not yet initialized; tell() data!"
 
         if not self.multi_task:
             return {
