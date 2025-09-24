@@ -89,7 +89,7 @@ class GPOptimizerBase(GP):
 
     @args.setter
     def args(self, a):
-        if self.gp: super().set_args(a)
+        if self.gp: GP.args.fset(self, a)
         else: self._args = a
 
     @property
