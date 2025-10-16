@@ -46,7 +46,6 @@ class GPOptimizerBase(GP):
         self.noise_function_grad = noise_function_grad
         self.prior_mean_function = prior_mean_function
         self.prior_mean_function_grad = prior_mean_function_grad
-        self.gp2Scale = gp2Scale
         self.gp2Scale_dask_client = gp2Scale_dask_client
         self.gp2Scale_batch_size = gp2Scale_batch_size
         self.gp2Scale_linalg_mode = gp2Scale_linalg_mode
@@ -56,16 +55,20 @@ class GPOptimizerBase(GP):
         self.logging = logging
         self.multi_task = multi_task
         self.x_out = None
+        self._gp2Scale = gp2Scale
+
+        if logging is True:
+            logger.enable("gpcam")
+            logger.enable("fvgp")
+        else:
+            logger.disable("gpcam")
+            logger.disable("fvgp")
 
         self.gp = False
         if x_data is not None and y_data is not None:
             self._initializeGP(x_data, y_data, noise_variances=noise_variances)
         else:
             warnings.warn("GP has not been initialized. Call tell() before using any class method.")
-
-        if logging is True:
-            logger.enable("gpcam")
-            logger.enable("fvgp")
 
     @property
     def x_data(self):
@@ -99,13 +102,6 @@ class GPOptimizerBase(GP):
         else: input_space_dimension = None
         return input_space_dimension
 
-    #@property
-    #def hyperparameters(self):
-    #    if self.gp:
-    #        hyperparameters = super().hyperparameters
-    #    else: hyperparameters = self.init_hyperparameters
-    #    return hyperparameters
-
     def _initializeGP(self, x_data, y_data, noise_variances=None):
         """
         Function to initialize a GP object.
@@ -127,7 +123,7 @@ class GPOptimizerBase(GP):
             noise_function_grad=self.noise_function_grad,
             prior_mean_function=self.prior_mean_function,
             prior_mean_function_grad=self.prior_mean_function_grad,
-            gp2Scale=self.gp2Scale,
+            gp2Scale=self._gp2Scale,
             gp2Scale_dask_client=self.gp2Scale_dask_client,
             gp2Scale_batch_size=self.gp2Scale_batch_size,
             gp2Scale_linalg_mode=self.gp2Scale_linalg_mode,
@@ -598,7 +594,7 @@ class GPOptimizerBase(GP):
                      noise_function_grad=self.noise_function_grad,
                      prior_mean_function=self.prior_mean_function,
                      prior_mean_function_grad=self.prior_mean_function_grad,
-                     gp2Scale=self.gp2Scale,
+                     _gp2Scale=self._gp2Scale,
                      gp2Scale_batch_size=self.gp2Scale_batch_size,
                      gp2Scale_linalg_mode=self.gp2Scale_linalg_mode,
                      calc_inv=self.calc_inv,
