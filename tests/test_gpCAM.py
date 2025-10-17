@@ -242,30 +242,25 @@ def test_pickle():
     assert np.all(my_gpo.hyperparameters == my_gpo2.hyperparameters)
     assert np.all(my_gpo.prior.K == my_gpo2.prior.K)
 
-    def states_equal(state1, state2):
-        if state1.keys() != state2.keys():
-            return False
-        for k in state1:
-            v1, v2 = state1[k], state2[k]
-            if isinstance(v1, np.ndarray) and isinstance(v2, np.ndarray):
-                if not np.array_equal(v1, v2):
-                    return False
-            else:
-                if v1 != v2:
-                    return False
-        return True
+    def is_pickle_equal(obj):
+        # Get class and instance attributes before pickling
+        cls = type(obj)
+        before_class = {k: v for k, v in cls.__dict__.items() if not k.startswith('__')}.keys()
+        before_instance = dict(obj.__dict__).keys()
 
-    def compare_state(obj):
-        # Serialize/deserialize
-        dumped = pickle.dumps(obj)
-        restored = pickle.loads(dumped)
-        
-        # Extract states
-        state1 = obj.__getstate__() if hasattr(obj, "__getstate__") else obj.__dict__
-        state2 = restored.__getstate__() if hasattr(restored, "__getstate__") else restored.__dict__
-        
-        # Compare directly
-        return states_equal(state1,state2), state1, state2
+        # Pickle and unpickle
+        obj2 = pickle.loads(pickle.dumps(obj))
+
+        # Get attributes after pickling
+        cls2 = type(obj2)
+        after_class = {k: v for k, v in cls2.__dict__.items() if not k.startswith('__')}.keys()
+        after_instance = dict(obj2.__dict__).keys()
+
+        # Compare everything
+        if before_class != after_class: print(before_class, after_class)
+        if before_instance != after_instance: print(before_instance, after_instance)
+
+        return before_class == after_class and before_instance == after_instance
 
 
     my_gpo = GPOptimizer(x_data,y_data,
@@ -273,7 +268,19 @@ def test_pickle():
             args = {"sfdf": 4.})
     my_gpo.train()
     my_gpo.tell(x_data, y_data)
-    assert compare_state(my_gpo)
+
+
+    assert is_pickle_equal(my_gpo)
+    assert is_pickle_equal(my_gpo.prior)
+    assert is_pickle_equal(my_gpo.likelihood)
+    assert is_pickle_equal(my_gpo.marginal_density)
+    assert is_pickle_equal(my_gpo.trainer)
+    assert is_pickle_equal(my_gpo.posterior)
+    assert is_pickle_equal(my_gpo.data)
+    assert is_pickle_equal(my_gpo.marginal_density.KVlinalg)
+
+
+
 
 
 

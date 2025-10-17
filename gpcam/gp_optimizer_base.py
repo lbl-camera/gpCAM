@@ -46,6 +46,7 @@ class GPOptimizerBase(GP):
         self.noise_function_grad = noise_function_grad
         self.prior_mean_function = prior_mean_function
         self.prior_mean_function_grad = prior_mean_function_grad
+        self._gp2Scale = gp2Scale
         self.gp2Scale_dask_client = gp2Scale_dask_client
         self.gp2Scale_batch_size = gp2Scale_batch_size
         self.gp2Scale_linalg_mode = gp2Scale_linalg_mode
@@ -55,7 +56,6 @@ class GPOptimizerBase(GP):
         self.logging = logging
         self.multi_task = multi_task
         self.x_out = None
-        self._gp2Scale = gp2Scale
 
         if logging is True:
             logger.enable("gpcam")
@@ -582,31 +582,27 @@ class GPOptimizerBase(GP):
     def __getstate__(self):  # Called when the object is pickled
         state = dict()
         state.update(dict(
-                     x_data=self.x_data,
-                     y_data=self.y_data,
-                     noise_variances=self.noise_variances,
-                     compute_device=self.compute_device,
-                     init_hyperparameters=self.init_hyperparameters,
-                     _args=self._args,
-                     kernel_function=self.kernel_function,
-                     kernel_function_grad=self.kernel_function_grad,
-                     noise_function=self.noise_function,
-                     noise_function_grad=self.noise_function_grad,
-                     prior_mean_function=self.prior_mean_function,
-                     prior_mean_function_grad=self.prior_mean_function_grad,
-                     _gp2Scale=self._gp2Scale,
-                     gp2Scale_batch_size=self.gp2Scale_batch_size,
-                     gp2Scale_linalg_mode=self.gp2Scale_linalg_mode,
-                     calc_inv=self.calc_inv,
-                     ram_economy=self.ram_economy,
-                     cost_function=self.cost_function,
-                     logging=self.logging,
-                     args=self.args,
-                     multi_task=self.multi_task,
-                     x_out=self.x_out,
-                     input_space_dimension=self.input_space_dimension,
-                     gp=self.gp,
-                     ))
+            cost_function=self.cost_function,
+            init_hyperparameters=self.init_hyperparameters,
+            compute_device=self.compute_device,
+            kernel_function=self.kernel_function,
+            kernel_function_grad=self.kernel_function_grad,
+            noise_function=self.noise_function,
+            noise_function_grad=self.noise_function_grad,
+            prior_mean_function=self.prior_mean_function,
+            prior_mean_function_grad=self.prior_mean_function_grad,
+            _gp2Scale=self._gp2Scale,
+            gp2Scale_dask_client=None,
+            gp2Scale_batch_size=self.gp2Scale_batch_size,
+            gp2Scale_linalg_mode=self.gp2Scale_linalg_mode,
+            calc_inv=self.calc_inv,
+            ram_economy=self.ram_economy,
+            _args=self._args,
+            logging=self.logging,
+            multi_task=self.multi_task,
+            x_out=self.x_out,
+            gp=self.gp, #True or False (whether initialized, not the object)
+            ))
         if self.gp: state.update(super().__getstate__())
         return state
 
