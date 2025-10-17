@@ -12,7 +12,8 @@ build:
     python: "3.11"
   jobs:
     pre_build:
-      - rm -f docs/source/examples/*
+      - rm -fr docs/source/examples/
+      - mkdir -p docs/source/examples
       - cp examples/*ipynb docs/source/examples/
 
 # Build documentation in the docs/ directory with Sphinx
