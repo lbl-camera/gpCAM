@@ -291,7 +291,7 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
 
     Parameters
     ----------
-    x_data : np.ndarray or list, optional
+    x_data : np.ndarray | list, optional
         The input point positions. Shape (V x Di), where Di is the :py:attr:`fvgp.fvGP.input_set_dim`.
         For multi-task GPs, the index set dimension = input space dimension + 1.
         If dealing with non-Euclidean inputs
@@ -308,7 +308,7 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
         simply considered a separate dimension. If gp2Scale is
         enabled, the default kernel changes to the anisotropic Wendland kernel.
     noise_variances : np.ndarray, optional
-        An numpy array or list defining the uncertainties/noise in the
+        An numpy array defining the uncertainties/noise in the
         `y_data` in form of a point-wise variance. Shape (V, No).
         If `y_data` has np.nan entries, the corresponding
         `noise_variances` have to be np.nan.
@@ -439,7 +439,7 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
         length V describing the costs as floats. The 'score' from
         acquisition_function is divided by this
         returned cost to determine the next measurement point.
-        The default in no-op.
+        The default is no-op.
     logging : bool
         If true, logging is enabled. The default is False.
     args: dict, optional
@@ -463,13 +463,13 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
 
     Attributes
     ----------
-    x_data : np.ndarray or list
+    x_data : np.ndarray | list
         Datapoint positions
     y_data : np.ndarray
         Datapoint values
     noise_variances : np.ndarray
         Datapoint observation variances.
-    fvgp_x_data : np.ndarray or list
+    fvgp_x_data : np.ndarray | list
         Data points from the fvgp point of view.
     fvgp_y_data : np.ndarray
         The data values from the fvgp point of view.

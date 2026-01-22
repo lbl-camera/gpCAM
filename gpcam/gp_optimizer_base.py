@@ -172,7 +172,7 @@ class GPOptimizerBase(GP):
 
         Parameters
         ----------
-        x : np.ndarray or list
+        x : np.ndarray | list
             Point positions at which the acquisition function is evaluated. np.ndarray of shape (N x D) or list.
         x_out : np.ndarray, optional
             Point positions in the output space.
@@ -216,7 +216,7 @@ class GPOptimizerBase(GP):
 
         Parameters
         ----------
-        x : np.ndarray or list
+        x : np.ndarray | list
             Point positions to be communicated to the Gaussian Process; either a np.ndarray of shape (U x D)
             or a list.
         y : np.ndarray
@@ -277,7 +277,7 @@ class GPOptimizerBase(GP):
 
         Parameters
         ----------
-        input_set : np.ndarray or list
+        input_set : np.ndarray | list
             Either a numpy array of floats of shape D x 2 describing the Euclidean
             search space or a set of candidates in the form of a list. If a candidate list
             is provided, `ask()` will evaluate the acquisition function on each
@@ -299,7 +299,7 @@ class GPOptimizerBase(GP):
             The algorithm will try to return n suggestions for
             new measurements. This is either done by method = 'hgdl', or otherwise
             by maximizing the collective information gain (default).
-        acquisition_function : Callable, optional
+        acquisition_function : Callable | str, optional
             The acquisition function accepts as input a numpy array
             of size V x D (such that V is the number of input
             points, and D is the parameter space dimensionality) and
@@ -309,7 +309,7 @@ class GPOptimizerBase(GP):
             In the single-task case (using :py:meth:`gpcam.GPOptimizer)
             the following built-in acquisition functions can be used:
             `ucb`,`lcb`,`maximum`,
-            `minimum`, `variance`,`expected_improvement`,
+            `minimum`, `variance`,`expected improvement`,
             `relative information entropy`,`relative information entropy set`,
             `probability of improvement`, `gradient`,`total correlation`,`target probability`.
             In the multi-task case (using :py:meth:`gpcam.fvGPOptimizer)
@@ -430,7 +430,7 @@ class GPOptimizerBase(GP):
                               "has therefore been changed to 'total correlation'.")
 
         if acquisition_function == "total correlation" or acquisition_function == "relative information entropy":
-            warnings.warn("Set vectorized=False for total corr. or rel. inf. entropy.")
+            warnings.warn("I set vectorized=False for total corr. or rel. inf. entropy.")
             vectorized = False
 
         maxima, func_evals, opt_obj = sm.find_acquisition_function_maxima(
@@ -488,7 +488,7 @@ class GPOptimizerBase(GP):
             `a` is a scalar/vector of function evaluations and `b` is a scalar/vector of noise variances.
             Scalar here applies when the function to be optimized is a scalar valued function.
             Vector here applies when the function to be optimized is a vector valued function.
-        search_space : np.ndarray or list
+        search_space : np.ndarray | list
             In the Euclidean case this should be a 2d np.ndarray of bounds in each direction of the input space.
             In the non-Euclidean case, this should be a list of all candidates.
         x_out : np.ndarray, optional

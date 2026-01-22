@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 import math
-import time
-from codecs import ignore_errors
-from pyexpat.errors import messages
-
 import numpy as np
 from loguru import logger
 from hgdl.hgdl import HGDL
