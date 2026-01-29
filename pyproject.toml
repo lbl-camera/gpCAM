@@ -38,7 +38,15 @@ classifiers = [
 dynamic = ["version"]
 
 [project.optional-dependencies]
-docs = ['sphinx', 'sphinx-immaterial', 'myst-parser', 'myst-nb', 'sphinx-panels', 'autodocs', 'sphinx-hoverxref']
+docs = [
+    "sphinx<9",
+    "sphinx-immaterial",
+    "myst-parser",
+    "myst-nb",
+    "sphinx-panels",
+    "autodocs",
+    "sphinx-hoverxref",
+]
 tests = ['pytest', 'codecov', 'pytest-cov', 'imate', 'torch']
 plotting = ['matplotlib', 'plotly', 'notebook']
 
