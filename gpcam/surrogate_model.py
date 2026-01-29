@@ -266,8 +266,8 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gpo, x_out):
                 b = gpo.args["b"]
             except:
                 raise Exception("Reading the arguments for acq func `target probability` failed.")
-            mean = gpo.posterior_mean(x, x_out=x_out)["m(x)"]
-            cov = gpo.posterior_covariance(x, x_out=x_out)["v(x)"] + 1e-9
+            mean = gpo.posterior_mean(x, x_out=x_out)["m(x)"].reshape(len(x))
+            cov = gpo.posterior_covariance(x, x_out=x_out)["v(x)"].reshape(len(x)) + 1e-9
             result = np.zeros((len(x)))
             for i in range(len(x)):
                 result[i] = 0.5 * (math.erf((b - mean[i]) / np.sqrt(2. * cov[i]))) - math.erf(

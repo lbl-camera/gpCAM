@@ -5,7 +5,7 @@ from .gp_optimizer_base import GPOptimizerBase
 
 
 # TODO (for gpCAM)
-#
+#    see fvgp "gp.py" for TODOs
 
 class GPOptimizer(GPOptimizerBase):
     """
@@ -33,7 +33,9 @@ class GPOptimizer(GPOptimizerBase):
         In this case, both the index set and the input space dim are set to 1.
         If x_data is not provided here the GP will be initiated after `tell()`.
     y_data : np.ndarray, optional
-        The values of the data points. Shape (V).
+        The values of the data points. Shape (V) or (V, N). If shape (V,N) the algorithm will run N independent GPs.
+        This is not to be confused with multi-task learning. In this case, all GPs have to have the same prior
+        mean function.
         If not provided here the GP will be initiated after `tell()`.
     init_hyperparameters : np.ndarray, optional
         Vector of hyperparameters used to initiate the GP.
@@ -48,6 +50,8 @@ class GPOptimizer(GPOptimizerBase):
         will be set to `abs(np.mean(y_data)) / 100.0`. If
         noise covariances are required (correlated noise), make use of the `noise_function`.
         Only provide a noise function OR `noise_variances`, not both.
+        If the shape of `y_data` is (V,N) the noise is still of shape (V), e.g., the outputs
+        must have the same noise in this scenario.
     compute_device : str, optional
         One of `cpu` or `gpu`, determines how linear algebra computations are executed. The default is `cpu`.
         For `gpu`, pytorch or cupy has to be installed manually. For advanced options see `args`.
@@ -58,7 +62,8 @@ class GPOptimizer(GPOptimizerBase):
     kernel_function : Callable, optional
         A symmetric positive definite covariance function (a kernel)
         that calculates the covariance between
-        data points. It is a function of the form k(x1,x2,hyperparameters).
+        data points. It is a function of the form k(x1,x2,hyperparameters, [args]).
+        `args` is optional and is used to make `GPOptimizer.args` available.
         The input `x1` is a N1 x D array of positions, `x2` is a N2 x D
         array of positions, the hyperparameters argument
         is a 1d array of length D+1 for the default kernel and of a different
@@ -72,16 +77,19 @@ class GPOptimizer(GPOptimizerBase):
         It accepts as input `x1` (a N1 x D array of positions),
         `x2` (a N2 x D array of positions) and
         `hyperparameters` (a 1d array of length D+1 for the default kernel).
-        The default is a finite difference calculation.
+        The default is an analytical gradient for the default kernel or a finite difference calculation otherwise.
         If `ram_economy` is True, the function's input is x1, x2, hyperparameters (numpy array), and a direction (int).
         The output is a numpy array of shape (len(hps) x N).
         If `ram_economy` is `False`, the function's input is x1, x2, and hyperparameters.
         The output is a numpy array of shape (len(hyperparameters) x N1 x N2). See `ram_economy`.
     prior_mean_function : Callable, optional
-        A function that evaluates the prior mean at a set of input position. It accepts as input
+        A function f(x, hyperparameters, [args]) that evaluates the prior mean at a set of input position.
+        It accepts as input
         an array of positions (of shape N1 x D) and hyperparameters (a 1d array of length D+1 for the default kernel).
-        The return value is a 1d array of length N1. If None is provided,
-        `fvgp.GP._default_mean_function` is used, which is the average of the `y_data`.
+        Optionally, the third argument `args` can be defined.
+        The return value is a 1d array of length N1.
+        If prior_mean_function is provided, `fvgp.GP._default_mean_function` is used,
+        which is the average of the `y_data`.
     prior_mean_function_grad : Callable, optional
         A function that evaluates the gradient of the `prior_mean_function` at
         a set of input positions with respect to the hyperparameters.
@@ -93,9 +101,10 @@ class GPOptimizer(GPOptimizerBase):
         or a finite-difference approximation
         is used if `prior_mean_function` is provided.
     noise_function : Callable, optional
-        The noise function is a callable f(x,hyperparameters) that returns a
+        The noise function is a callable f(x,hyperparameters, [args]) that returns a
         vector (1d np.ndarray) of len(x), a matrix of shape (length(x),length(x)) or a sparse matrix
         of the same shape.
+        The third argument `args` is optional.
         The input `x` is a numpy array of shape (N x D). The hyperparameter array is the same
         that is communicated to mean and kernel functions.
         Only provide a noise function OR a noise variance vector, not both.
@@ -187,7 +196,8 @@ class GPOptimizer(GPOptimizerBase):
         - "Chol_logdet_compute_device" : str; default = "cpu"/"gpu"
         - "GPU_engine" : str; default = "torch"/"cupy"
 
-        All other keys will be stored and are available as part of the object instance.
+        All other keys will be stored and are available as part of the object instance and
+        in kernel, mean, and noise functions.
 
     Attributes
     ----------
@@ -277,7 +287,7 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
     prior-mean function, noise function, and kernel function definitions, you will
     see that the input `x` is defined over this combined space.
     For example, if your input space is a Euclidean 2d space and your output
-    is labelled [0,1], the input to the mean, kernel, and noise function might be
+    is labelled [0,1], the input to the mean, kernel, and noise functions might be
 
     x =
 
@@ -327,7 +337,8 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
     kernel_function : Callable, optional
         A symmetric positive definite covariance function (a kernel)
         that calculates the covariance between
-        data points. It is a function of the form k(x1,x2,hyperparameters).
+        data points. It is a function of the form k(x1,x2,hyperparameters, [args]).
+        `args` is optional and is used to make `fvgp.gp.args` available.
         The input `x1` a N1 x Di+1 array of positions, `x2` is a N2 x Di+1
         array of positions, the hyperparameters argument
         is a 1d array of length N depending on how many hyperparameters are initialized.
@@ -348,9 +359,11 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
         If `ram_economy` is `False`, the function's input is x1, x2, and hyperparameters.
         The output is a numpy array of shape (len(hyperparameters) x N1 x N2). See `ram_economy`.
     prior_mean_function : Callable, optional
-        A function that evaluates the prior mean at a set of input position. It accepts as input
+        A function f(x, hyperparameters, [args]) that evaluates the prior mean at a set of input position.
+        It accepts as input
         an array of positions (of shape N1 x Di+1) and
-         hyperparameters (a 1d array of length Di+2 for the default kernel).
+        hyperparameters (a 1d array of length Di+2 for the default kernel).
+        Optionally, the third argument `args` can be defined.
         The return value is a 1d array of length N1. If None is provided,
         `fvgp.GP._default_mean_function` is used, which is the average of the `y_data`.
     prior_mean_function_grad : Callable, optional
@@ -364,9 +377,10 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
         or a finite-difference approximation
         is used if `prior_mean_function` is provided.
     noise_function : Callable, optional
-        The noise function is a callable f(x,hyperparameters) that returns a
+        The noise function is a callable f(x,hyperparameters, [args]) that returns a
         vector (1d np.ndarray) of len(x), a matrix of shape (length(x),length(x)) or a sparse matrix
         of the same shape.
+        The third argument `args` is optional.
         The input `x` is a numpy array of shape (N x Di+1). The hyperparameter array is the same
         that is communicated to mean and kernel functions.
         Only provide a noise function OR a noise variance vector, not both.

@@ -63,7 +63,7 @@ def test_basic_1task(client):
     gp.train(hyperparameter_bounds=hps_bounds, method='mcmc', max_iter=3)
     gp.train(hyperparameter_bounds=hps_bounds, method='hgdl', max_iter=3, dask_client=client)
 
-    opt_obj = gp.train_async(hyperparameter_bounds = hps_bounds, dask_client=client)
+    opt_obj = gp.train(hyperparameter_bounds = hps_bounds, dask_client=client, asynchronous = True)
     for i in range(5):
         gp.update_hyperparameters(opt_obj)
         time.sleep(1)
@@ -95,7 +95,7 @@ def test_basic_multi_task(client):
     gp.train(hyperparameter_bounds=hps_bounds, method='mcmc', max_iter=2)
     gp.train(hyperparameter_bounds=hps_bounds, method='hgdl', max_iter=2, dask_client=client)
 
-    opt_obj = gp.train_async(hyperparameter_bounds=hps_bounds, dask_client=client)
+    opt_obj = gp.train(hyperparameter_bounds=hps_bounds, dask_client=client, asynchronous=True)
     for i in range(5):
         gp.update_hyperparameters(opt_obj)
         time.sleep(0.1)
