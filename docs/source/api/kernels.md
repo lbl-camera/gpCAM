@@ -1,6 +1,6 @@
 # Kernels
 
 ```{eval-rst}
-.. automodule:: gpcam.kernels
+.. automodule:: fvgp.kernels
     :members:
 ```
