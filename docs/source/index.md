@@ -18,6 +18,7 @@ api/gpOptimizer.md
 api/fvgpOptimizer.md
 api/gpMCMC.md
 api/logging.md
+api/kernels.md
 ```
 
 
