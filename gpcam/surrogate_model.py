@@ -254,7 +254,7 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gpo, x_out):
             m = gpo.posterior_mean(x)["m(x)"]
             std = np.sqrt(gpo.posterior_covariance(x, variance_only=True)["v(x)"])
             last_best = np.max(gpo.y_data)
-            a = (m - last_best)
+            a = (m - last_best).reshape(len(x))
             a[a < 0.] = 0.
             gamma = a / (std + 1e-9)
             pdf = norm.pdf(gamma)
@@ -303,9 +303,9 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gpo, x_out):
             av_v = np.sum(v, axis=1)
             return -(av_m - 3.0 * np.sqrt(av_v))
         elif acquisition_function == "expected improvement":
-            m = gpo.posterior_mean(x, x_out=x_out)["m(x)"]
+            m = gpo.posterior_mean(x, x_out=x_out)["m(x)"].reshape(len(x), len(x_out))
             m = np.sum(m, axis=1)
-            std = np.sqrt(gpo.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"])
+            std = np.sqrt(gpo.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"]).reshape(len(x), len(x_out))
             std = np.sum(std, axis=1)
             last_best = np.max(gpo.y_data)
             a = (m - last_best)
@@ -349,7 +349,7 @@ def gradient(x, func=None):
     for i in range(len(x)):
         new_point = np.array(x)
         new_point[i] += epsilon
-        grad[i] = (func(new_point)[0] - func(x)[0]) / epsilon
+        grad[i] = (func(new_point) - func(x)) / epsilon
     return grad
 
 
