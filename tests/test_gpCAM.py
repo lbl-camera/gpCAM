@@ -56,14 +56,14 @@ def test_basic_1task(client):
 
     gp.get_data()
     gp.evaluate_acquisition_function(np.array([[0.0,0.6],[0.1,0.2]]))
-    gp.train(hyperparameter_bounds=hps_bounds)
-    gp.train(hyperparameter_bounds=hps_bounds)
+    gp.train(hyperparameter_bounds=hps_bounds, max_iter = 100)
+    gp.train(hyperparameter_bounds=hps_bounds, max_iter = 100)
     gp.train(hyperparameter_bounds=hps_bounds, method='global', max_iter = 2)
     gp.train(hyperparameter_bounds=hps_bounds, method='local', max_iter = 2)
     gp.train(hyperparameter_bounds=hps_bounds, method='mcmc', max_iter=3)
     gp.train(hyperparameter_bounds=hps_bounds, method='hgdl', max_iter=3, dask_client=client)
 
-    opt_obj = gp.train(hyperparameter_bounds = hps_bounds, dask_client=client, asynchronous = True)
+    opt_obj = gp.train(hyperparameter_bounds = hps_bounds, dask_client=client, asynchronous = True, max_iter = 100)
     for i in range(5):
         gp.update_hyperparameters(opt_obj)
         time.sleep(1)
@@ -95,7 +95,7 @@ def test_basic_multi_task(client):
     gp.train(hyperparameter_bounds=hps_bounds, method='mcmc', max_iter=2)
     gp.train(hyperparameter_bounds=hps_bounds, method='hgdl', max_iter=2, dask_client=client)
 
-    opt_obj = gp.train(hyperparameter_bounds=hps_bounds, dask_client=client, asynchronous=True)
+    opt_obj = gp.train(hyperparameter_bounds=hps_bounds, dask_client=client, asynchronous=True, max_iter = 100)
     for i in range(5):
         gp.update_hyperparameters(opt_obj)
         time.sleep(0.1)
@@ -266,7 +266,7 @@ def test_pickle():
     my_gpo = GPOptimizer(x_data,y_data,
             init_hyperparameters = np.ones((4))/10.,
             args = {"sfdf": 4.})
-    my_gpo.train()
+    my_gpo.train(max_iter = 100)
     my_gpo.tell(x_data, y_data)
 
 
