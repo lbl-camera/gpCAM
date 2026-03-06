@@ -46,7 +46,7 @@ This code was developed with help from Ron Pandolfi (LBNL), Mark Risser (LBNL), 
 
 Additional contributions and insights came from across the community, in particular, Kevin Yager, Masafumi Fukuto, and their teams (Brookhaven National Lab).
 
-We acknowledge support from several DOE ASCR, BER, and BES projects, including CAMERA (James Sethian), SPECTRA (Sherry Li), and CASCADE (Bill Collins), as well as support directly from Lawrence Berkeley National Laboratory.
+We acknowledge support from several DOE ASCR, BER, and BES projects, including CAMERA (James Sethian, Jeff Donatelli), SPECTRA (Sherry Li), and CASCADE (Bill Collins), as well as support directly from Lawrence Berkeley National Laboratory.
 
 This package uses the HGDL package of David Perryman and Marcus Noack, which is based on the HGDN algorithm by Noack and Funke.
 
