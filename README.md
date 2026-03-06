@@ -41,8 +41,14 @@ for i in range(100):
 ## Credits
 
 Main Developer: Marcus Noack ([MarcusNoack@lbl.gov](mailto:MarcusNoack@lbl.gov))
-Many people from across the DOE national labs (especially BNL) have given insights
-that led to the code in it's current form.
-See [AUTHORS](AUTHORS.rst) for more details on that.
+
+This code was developed with help from Ron Pandolfi (LBNL), Mark Risser (LBNL), Hengrui Luo (Rice U.), and Vardaan Tekriwal (UCB).
+
+Additional contributions and insights came from across the community, in particular, Kevin Yager, Masafumi Fukuto, and their teams (Brookhaven National Lab).
+
+We acknowledge support from several DOE ASCR, BER, and BES projects, including CAMERA (James Sethian), SPECTRA (Sherry Li), and CASCADE (Bill Collins), as well as support directly from Lawrence Berkeley National Laboratory.
+
+This package uses the HGDL package of David Perryman and Marcus Noack, which is based on the HGDN algorithm by Noack and Funke.
+
 
 
