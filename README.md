@@ -38,6 +38,26 @@ for i in range(100):
 ```
 
 
+## Designing experiments with Claude Code
+
+gpCAM ships with a set of [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skills that guide an AI assistant through designing autonomous experiments — custom kernels, acquisition functions, noise models, and the full ask/tell/train loop. Experimentalists who want smart, autonomous data acquisition without deep knowledge of GP math or the gpCAM API can use these skills to design autonomous experiments.
+
+When you clone this repo, the root `CLAUDE.md` and `skills/` directory are picked up automatically by Claude Code. Available skills:
+
+| Skill | Description |
+|-------|-------------|
+| **experiment-designer** | End-to-end autonomous experiment design. Translates a scientist's description of their measurement into a complete gpCAM script. |
+| **kernel-designer** | Design and compose custom kernel functions that encode domain knowledge (smoothness, periodicity, symmetry, anisotropy). |
+| **acquisition-functions** | Write custom acquisition functions that encode experimental priorities (exploration vs exploitation, multi-objective, constraints). |
+| **prior-mean-functions** | Encode known physics or expected trends as prior mean functions. |
+| **noise-functions** | Model position-dependent or heteroscedastic noise from detector characteristics. |
+| **cost-functions** | Account for motor travel time, settling, directional costs, and zone-based penalties. |
+| **gp2scale-advanced** | Large-scale experiments (>10k points) using sparse kernels and Dask distributed computing. |
+| **multi-task-advanced** | Multi-output / function-valued experiments with `fvGPOptimizer`. |
+
+These skills are also compatible with other agentic platforms (e.g. [OpenClaw](https://openclaw.ai), or any harness that can read `SKILL.md` files) — point your assistant at the `skills/` directory.
+
+
 ## Credits
 
 Main Developer: Marcus Noack ([MarcusNoack@lbl.gov](mailto:MarcusNoack@lbl.gov))
