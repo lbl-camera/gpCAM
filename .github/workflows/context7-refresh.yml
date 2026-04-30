@@ -1,0 +1,16 @@
+name: Refresh Context7 Docs
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rennf93/upsert-context7@v1
+        with:
+          operation: refresh
