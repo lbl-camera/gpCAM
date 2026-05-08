@@ -38,6 +38,16 @@ examples/GPOptimizer_Optimization.ipynb
 ```
 
 
+```{toctree}
+---
+hidden: true
+maxdepth: 1
+caption: AI Agent Integration
+---
+claude-skills.md
+```
+
+
 # gpCAM
 
 ```{div} centered-heading
@@ -105,6 +115,20 @@ Software for the Novice and the Expert
 ```
 
 Simple uncertainty quantification and Bayesian optimization problems can be set up in minutes; the options for customization are endless.
+
+````
+`````
+````` {div} row
+```` {div} col w-200
+![_static/ai-agent-integration.png](_static/ai-agent-integration.png)
+````
+
+```` {div} col
+```{div} h3
+AI Agent Integration
+```
+
+gpCAM ships as a [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin marketplace. AI assistants use the bundled skills to translate plain-English experiment descriptions into runnable gpCAM scripts — no GP expertise required. See [AI Agent Integration](claude-skills.md).
 
 ````
 `````

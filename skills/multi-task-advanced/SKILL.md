@@ -1,3 +1,8 @@
+---
+name: multi-task-advanced
+description: Use for multi-output, vector-valued, or function-valued gpCAM experiments using fvGPOptimizer — useful when a single measurement returns multiple correlated quantities (e.g., spectra, multi-channel detectors).
+---
+
 # Skill: Multi-Task GPs with fvGPOptimizer
 
 Design experiments with vector-valued or function-valued outputs using gpCAM's multi-task GP.

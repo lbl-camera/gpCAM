@@ -1,0 +1,19 @@
+{
+  "name": "gpcam",
+  "owner": {
+    "name": "CAMERA — Lawrence Berkeley National Laboratory",
+    "email": "MarcusNoack@lbl.gov",
+    "url": "https://gpcam.lbl.gov"
+  },
+  "description": "gpCAM Claude Code skills for Gaussian process modeling, Bayesian optimization, and autonomous experiment design.",
+  "plugins": [
+    {
+      "name": "gpcam",
+      "source": ".",
+      "description": "Skills that guide an AI assistant through designing autonomous experiments with gpCAM — kernels, acquisition, prior mean, noise, cost, gp2Scale, and multi-task GPs.",
+      "homepage": "https://gpcam.lbl.gov",
+      "category": "scientific-computing",
+      "keywords": ["gaussian-process", "bayesian-optimization", "autonomous-experiments", "gpcam", "scientific-computing"]
+    }
+  ]
+}

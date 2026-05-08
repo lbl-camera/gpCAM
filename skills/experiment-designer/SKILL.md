@@ -1,3 +1,8 @@
+---
+name: experiment-designer
+description: Use for end-to-end autonomous experiment design with gpCAM. Translates a scientist's description of their measurement into a complete, runnable gpCAM script — useful for replacing raster scans with adaptive sampling, peak-finding, or parameter optimization.
+---
+
 # Skill: gpCAM Experiment Designer
 
 Design complete autonomous experiment scripts using gpCAM. You translate a scientist's description of their measurement into a runnable Python script.

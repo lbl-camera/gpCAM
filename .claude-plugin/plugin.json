@@ -1,0 +1,13 @@
+{
+  "name": "gpcam",
+  "description": "Skills that guide an AI assistant through designing autonomous experiments with gpCAM — custom kernels, acquisition functions, prior means, noise, cost, gp2Scale, and multi-task GPs.",
+  "author": {
+    "name": "CAMERA — Lawrence Berkeley National Laboratory",
+    "email": "MarcusNoack@lbl.gov",
+    "url": "https://gpcam.lbl.gov"
+  },
+  "homepage": "https://gpcam.readthedocs.io",
+  "repository": "https://github.com/lbl-camera/gpCAM",
+  "license": "GPL-3.0",
+  "keywords": ["gaussian-process", "bayesian-optimization", "autonomous-experiments", "gpcam"]
+}

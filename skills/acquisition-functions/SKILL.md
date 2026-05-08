@@ -1,3 +1,8 @@
+---
+name: acquisition-functions
+description: Use when designing custom acquisition functions for gpCAM that encode experimental priorities — exploration vs exploitation balance, multi-objective targets, constrained search regions, cost-aware moves, UCB/LCB, or probability-of-improvement criteria.
+---
+
 # Skill: gpCAM Acquisition Functions
 
 Design custom acquisition functions that control where gpCAM measures next.
