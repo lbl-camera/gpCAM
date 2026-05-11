@@ -1,3 +1,8 @@
+---
+name: kernel-designer
+description: Use when designing or composing custom kernel (covariance) functions for gpCAM that encode domain knowledge — smoothness, periodicity, symmetry, anisotropy, or non-Euclidean input spaces.
+---
+
 # Skill: gpCAM Kernel Designer
 
 Design custom kernel (covariance) functions for gpCAM that encode domain knowledge about the experiment.

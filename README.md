@@ -42,7 +42,20 @@ for i in range(100):
 
 gpCAM ships with a set of [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skills that guide an AI assistant through designing autonomous experiments — custom kernels, acquisition functions, noise models, and the full ask/tell/train loop. Experimentalists who want smart, autonomous data acquisition without deep knowledge of GP math or the gpCAM API can use these skills to design autonomous experiments.
 
-When you clone this repo, the root `CLAUDE.md` and `skills/` directory are picked up automatically by Claude Code. Available skills:
+### Installing the gpCAM marketplace in Claude Code
+
+The repo ships as a Claude Code [plugin marketplace](https://code.claude.com/docs/en/plugin-marketplaces). Inside any Claude Code session, run:
+
+```text
+/plugin marketplace add lbl-camera/gpCAM
+/plugin install gpcam@gpcam
+```
+
+The first command registers this repo as a marketplace; the second installs the `gpcam` plugin from it, which bundles all of the skills below. After install, the skills are available to Claude in any project — no need to clone the repo locally.
+
+To update later, run `/plugin marketplace update gpcam`; to remove, `/plugin uninstall gpcam@gpcam`.
+
+### Available skills
 
 | Skill | Description |
 |-------|-------------|
@@ -55,7 +68,11 @@ When you clone this repo, the root `CLAUDE.md` and `skills/` directory are picke
 | **gp2scale-advanced** | Large-scale experiments (>10k points) using sparse kernels and Dask distributed computing. |
 | **multi-task-advanced** | Multi-output / function-valued experiments with `fvGPOptimizer`. |
 
-These skills are also compatible with other agentic platforms (e.g. [OpenClaw](https://openclaw.ai), or any harness that can read `SKILL.md` files) — point your assistant at the `skills/` directory.
+Once installed, the skills activate automatically when you describe an experiment design problem to Claude, or you can invoke one explicitly (e.g. _"use the experiment-designer skill to set up an adaptive XRD scan"_).
+
+### Other agentic platforms
+
+The skills are also compatible with any harness that reads `SKILL.md` files (e.g. [OpenClaw](https://openclaw.ai)) — clone the repo and point your assistant at the `skills/` directory. When this repo is present in your working directory, Claude Code also picks up the root `CLAUDE.md` and `skills/` directory automatically, so the marketplace install is only needed for use outside the repo.
 
 
 ## Credits

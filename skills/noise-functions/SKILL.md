@@ -1,3 +1,8 @@
+---
+name: noise-functions
+description: Use when modeling position-dependent, heteroscedastic, or otherwise structured noise in gpCAM — e.g., detector characteristics, count-rate-dependent variance, or non-uniform measurement uncertainty.
+---
+
 # Skill: gpCAM Noise Functions
 
 Design custom noise models for experiments with non-uniform or structured noise.

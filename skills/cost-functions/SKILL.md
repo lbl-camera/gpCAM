@@ -1,3 +1,8 @@
+---
+name: cost-functions
+description: Use when modeling the real expense of moving between gpCAM measurement points — motor travel time, settling, directional costs, sample damage, beam time, or zone-based penalties.
+---
+
 # Skill: gpCAM Cost Functions
 
 Design cost functions that account for the real expense of moving between measurement points — motor travel time, sample damage, beam time, etc.

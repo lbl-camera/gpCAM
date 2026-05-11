@@ -1,3 +1,8 @@
+---
+name: gp2scale-advanced
+description: Use for large-scale gpCAM experiments (>10k points up to millions) using sparse compactly-supported kernels and Dask distributed computing for exact GP computation at scale.
+---
+
 # Skill: gp2Scale — Large-Scale GPs
 
 Design experiments with tens of thousands to millions of data points using gpCAM's gp2Scale mode for exact GP computation at scale.

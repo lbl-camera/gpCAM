@@ -1,3 +1,8 @@
+---
+name: prior-mean-functions
+description: Use when encoding known physics, theoretical models, or expected trends as prior mean functions for gpCAM — useful when there's a baseline expectation the GP should regress against rather than a flat zero prior.
+---
+
 # Skill: gpCAM Prior Mean Functions
 
 Design prior mean functions that encode known physics or expected trends.
