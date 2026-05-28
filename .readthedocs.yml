@@ -7,14 +7,17 @@ version: 2
 
 # Set the version of Python and other tools you might need
 build:
-  os: ubuntu-20.04
+  os: ubuntu-22.04
   tools:
     python: "3.11"
   jobs:
     pre_build:
-      - rm -fr docs/source/examples/
+      # Mirror authoritative notebooks from examples/ into docs/source/examples/
+      # so Sphinx finds them.  `docs/source/examples/*.ipynb` is gitignored.
+      # The same copy also runs from docs/source/conf.py for local builds.
       - mkdir -p docs/source/examples
-      - cp examples/*ipynb docs/source/examples/
+      - cp -fv examples/*.ipynb docs/source/examples/
+      - ls -la docs/source/examples/
 
 # Build documentation in the docs/ directory with Sphinx
 sphinx:

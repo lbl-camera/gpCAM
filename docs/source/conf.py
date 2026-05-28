@@ -1,90 +1,93 @@
+import shutil
+from pathlib import Path
+
 from gpcam import __version__
 
-# Configuration file for the Sphinx documentation builder.
-#
-# For the full list of built-in configuration values, see the documentation:
-# https://www.sphinx-doc.org/en/master/usage/configuration.html
+
+def _sync_example_notebooks(app):
+    """Copy every *.ipynb from the repo ``examples/`` dir into
+    ``docs/source/examples/`` so Sphinx can find them.
+
+    ``docs/source/examples/*.ipynb`` is gitignored — the authoritative copies
+    live in ``examples/``.  Running this at every Sphinx build keeps the docs
+    in sync, both locally (``make html``) and on ReadTheDocs (in addition to
+    the pre_build ``cp`` step in ``.readthedocs.yml``).
+
+    We use ``shutil.copy`` (not ``copy2``) so the destination mtime is updated
+    to ``now`` — this guarantees Sphinx's incremental build sees the file as
+    changed and re-renders it instead of using a cached ``.doctree``.
+    """
+    src = Path(app.srcdir).parent.parent / "examples"
+    dst = Path(app.srcdir) / "examples"
+    if not src.is_dir():
+        print(f"[conf.py] WARNING: examples source dir not found: {src}")
+        return
+    dst.mkdir(parents=True, exist_ok=True)
+    copied = []
+    for nb in sorted(src.glob("*.ipynb")):
+        shutil.copy(nb, dst / nb.name)
+        copied.append(nb.name)
+    print(f"[conf.py] Synced {len(copied)} notebook(s) from {src} -> {dst}: {copied}")
+
+
+def setup(app):
+    app.connect("builder-inited", _sync_example_notebooks)
+
 
 # -- Project information -----------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
-
 project = 'gpCAM'
-
 copyright = '2021, Marcus Michael Noack'
 author = 'Marcus Michael Noack'
 version = __version__
-# The full version, including alpha/beta/rc tags
 release = __version__
 
-
 # -- General configuration ---------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
-
-# Add any Sphinx extension module names here, as strings. They can be
-# extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
-# ones.
 extensions = [
     'myst_nb',
-    'sphinx_panels',
+    'sphinx_design',
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
+    'sphinx.ext.viewcode',
     'sphinx.ext.intersphinx',
-    'hoverxref.extension',
-    'sphinx_immaterial'
+    'sphinx_copybutton',
 ]
-#if notebooks should not be executed:
-nb_execution_mode='off'
 
-# MyST extensions
-myst_enable_extensions = ['colon_fence']
+nb_execution_mode = 'off'
 
-# Add any paths that contain templates here, relative to this directory.
+myst_enable_extensions = ['colon_fence', 'dollarmath', 'amsmath']
+
+intersphinx_mapping = {
+    'python': ('https://docs.python.org/3/', None),
+    'numpy': ('https://numpy.org/doc/stable/', None),
+    'scipy': ('https://docs.scipy.org/doc/scipy/', None),
+    'fvgp': ('https://fvgp.readthedocs.io/en/latest/', None),
+    'hgdl': ('https://hgdl.readthedocs.io/en/latest/', None),
+    'dask': ('https://docs.dask.org/en/stable/', None),
+}
+
 templates_path = ['_templates']
 exclude_patterns = []
 
-# hoverxref
-hoverxref_role_types = {
-    'hoverxref': 'modal',
-    'ref': 'modal',  # for hoverxref_auto_ref config
-    'confval': 'tooltip',  # for custom object
-    'mod': 'tooltip',  # for Python Sphinx Domain
-    'class': 'tooltip',  # for Python Sphinx Domain
-}
-hoverxref_auto_ref = True
-hoverxref_intersphinx = ['fvgp', 'hgdl']
-
-# Support links to partnered pacakges
-intersphinx_mapping = {
-    "fvgp": ("https://fvgp.readthedocs.io/en/latest/", None),
-    "hgdl": ("https://hgdl.readthedocs.io/en/latest/", None),
-    "dask": ("https://docs.dask.org/en/stable/", None),
-}
-
-
-
 # -- Options for HTML output -------------------------------------------------
+html_theme = 'pydata_sphinx_theme'
 
-# The theme to use for HTML and HTML Help pages.  See the documentation for
-# a list of builtin themes.
-#
-html_theme = 'sphinx_immaterial'
-
-html_style = 'custom.css'
+html_theme_options = {
+    'logo': {
+        'image_light': '_static/gpCAM_bright_bg.png',
+        'image_dark': '_static/gpCAM_dark_bg.png',
+        'alt_text': 'gpCAM',
+    },
+    'github_url': 'https://github.com/lbl-camera/gpcam',
+    'navbar_start': ['navbar-logo'],
+    'navbar_center': ['navbar-nav'],
+    'navbar_end': ['navbar-icon-links'],
+    'secondary_sidebar_items': ['page-toc'],
+    'footer_start': ['copyright'],
+    'footer_end': [],
+}
 
 html_static_path = ['_static']
+html_css_files = ['custom.css']
 
-html_logo = '_static/gpCAM_dark_bg.png'
-
-html_theme_display_version = True
-
-html_theme_options = dict(
-    repo_url='https://github.com/lbl-camera/gpcam',
-    palette=dict(scheme="slate",
-                 primary="indigo",
-                 accent="green",
-                 ),
-    globaltoc_collapse=False,
-
-)
-
+autodoc_member_order = 'bysource'
 autoclass_content = 'both'
