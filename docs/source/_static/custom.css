@@ -38,3 +38,8 @@
 .text-center {
     text-align: center;
 }
+
+/* Center the gpCAM landing-page title (the page's H1) */
+section#gpcam > h1 {
+    text-align: center;
+}
