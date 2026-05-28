@@ -273,11 +273,11 @@ def test_pickle():
     assert is_pickle_equal(my_gpo)
     assert is_pickle_equal(my_gpo.prior)
     assert is_pickle_equal(my_gpo.likelihood)
-    assert is_pickle_equal(my_gpo.marginal_density)
+    assert is_pickle_equal(my_gpo.marginal_likelihood)
     assert is_pickle_equal(my_gpo.trainer)
     assert is_pickle_equal(my_gpo.posterior)
     assert is_pickle_equal(my_gpo.data)
-    assert is_pickle_equal(my_gpo.marginal_density.KVlinalg)
+    assert is_pickle_equal(my_gpo.marginal_likelihood.kv)
 
 
 

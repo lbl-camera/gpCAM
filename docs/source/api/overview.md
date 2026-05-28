@@ -25,6 +25,21 @@ To get to know gpCAM, check out the [examples](../examples/index.md), download t
 repository and look in `./tests`, or visit the project
 [website](https://gpcam.lbl.gov/).
 
+## New in fvgp 4.8 (gpCAM 8.4)
+
+Because the optimizers inherit from `fvgp.GP`, the following fvgp 4.8 additions are
+available directly on any `GPOptimizer`/`fvGPOptimizer` instance and are listed on the
+[gpOptimizer](gpOptimizer.md) / [fvgpOptimizer](fvgpOptimizer.md) pages:
+
+- **Model-validation metrics** — `mae`, `mape`, `msll`, `interval_score`, `mpiw`, and
+  `coverage_curve` for quantifying predictive accuracy and calibration, plus
+  `plot_observed_vs_predicted` for a quick diagnostic plot.
+- **New kernels** — `bump` and `sle_kernel` (in addition to the existing library), all
+  re-exported through `gpcam.kernels` and documented on the [Kernels](kernels.md) page.
+- **Linear-algebra modes** — the `linalg_mode` argument now accepts `CholInv`/`Inv`
+  (the replacement for the removed `calc_inv` option) and preconditioned sparse solvers
+  such as `sparseCGpre`/`sparseMINRESpre` for large gp2Scale problems.
+
 ## See Also
 
 - [Repository](https://github.com/lbl-camera/gpCAM/)
