@@ -5,7 +5,6 @@
 api/overview.md
 examples/index.md
 claude-skills.md
-common-bugs.md
 ```
 
 # gpCAM
