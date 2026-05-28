@@ -11,6 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: rennf93/upsert-context7@v1
+      - uses: rennf93/upsert-context7@1.1
         with:
           operation: refresh

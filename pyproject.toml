@@ -10,7 +10,7 @@ dependencies = [
     "numpy ~= 2.2.6",
     "dask ~= 2025.5.1",
     "distributed ~= 2025.5.1",
-    "fvgp >= 4.7.9",
+    "fvgp == 4.7.9",
     "loguru",
 ]
 requires-python = ">=3.11"
@@ -39,13 +39,13 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 docs = [
-    "sphinx<9",
-    "sphinx-immaterial",
+    "sphinx",
+    "pydata-sphinx-theme",
     "myst-parser",
     "myst-nb",
-    "sphinx-panels",
-    "autodocs",
-    "sphinx-hoverxref",
+    "sphinx-design",
+    "sphinx-copybutton",
+    "jupytext",
 ]
 tests = ['pytest', 'codecov', 'pytest-cov', 'imate', 'torch']
 plotting = ['matplotlib', 'plotly', 'notebook']

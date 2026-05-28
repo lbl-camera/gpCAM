@@ -1,5 +1,6 @@
-@import 'css/theme.css';
-
+/* ------------------------------------------------------------------ */
+/* Headshot grid used on contributor/team pages                        */
+/* ------------------------------------------------------------------ */
 .headshot-main {
     text-align: center;
 }
@@ -13,7 +14,7 @@
     font-size: 11pt;
 }
 
-.headshot img{
+.headshot img {
     width: 167px;
     margin: 10px;
 }
@@ -23,24 +24,22 @@
     margin: auto;
 }
 
-/* Landing page layout */
-.card-box .col, .card-box img {
-    width: 266px;
-    height: 275px;
-}
-
-.card-box .col {
-    padding: 15px;
-}
-
-.card-box .h3 {
-    font-weight: 700;
-}
-
-.centered-heading p{
+/* ------------------------------------------------------------------ */
+/* Landing page                                                        */
+/* ------------------------------------------------------------------ */
+.centered-heading p {
     font-size: 19pt;
-    color: rgba(127,17,70,1);
+    color: rgba(127, 17, 70, 1);
     font-weight: 700;
     line-height: 1.4;
+    text-align: center;
+}
+
+.text-center {
+    text-align: center;
+}
+
+/* Center the gpCAM landing-page title (the page's H1) */
+section#gpcam > h1 {
     text-align: center;
 }
