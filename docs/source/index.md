@@ -8,6 +8,9 @@ claude-skills.md
 ```
 
 
+# gpCAM
+
+
 ```{div} centered-heading
 Decision-Making under Uncertainty, HPC Uncertainty Quantification, Autonomous Data Acquisition, and Bayesian Optimization.
 ```
