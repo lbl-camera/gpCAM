@@ -38,11 +38,54 @@ for i in range(100):
 ```
 
 
+## Designing experiments with Claude Code
+
+gpCAM ships with a set of [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skills that guide an AI assistant through designing autonomous experiments — custom kernels, acquisition functions, noise models, and the full ask/tell/train loop. Experimentalists who want smart, autonomous data acquisition without deep knowledge of GP math or the gpCAM API can use these skills to design autonomous experiments.
+
+### Installing the gpCAM marketplace in Claude Code
+
+The repo ships as a Claude Code [plugin marketplace](https://code.claude.com/docs/en/plugin-marketplaces). Inside any Claude Code session, run:
+
+```text
+/plugin marketplace add lbl-camera/gpCAM
+/plugin install gpcam@gpcam
+```
+
+The first command registers this repo as a marketplace; the second installs the `gpcam` plugin from it, which bundles all of the skills below. After install, the skills are available to Claude in any project — no need to clone the repo locally.
+
+To update later, run `/plugin marketplace update gpcam`; to remove, `/plugin uninstall gpcam@gpcam`.
+
+### Available skills
+
+| Skill | Description |
+|-------|-------------|
+| **experiment-designer** | End-to-end autonomous experiment design. Translates a scientist's description of their measurement into a complete gpCAM script. |
+| **kernel-designer** | Design and compose custom kernel functions that encode domain knowledge (smoothness, periodicity, symmetry, anisotropy). |
+| **acquisition-functions** | Write custom acquisition functions that encode experimental priorities (exploration vs exploitation, multi-objective, constraints). |
+| **prior-mean-functions** | Encode known physics or expected trends as prior mean functions. |
+| **noise-functions** | Model position-dependent or heteroscedastic noise from detector characteristics. |
+| **cost-functions** | Account for motor travel time, settling, directional costs, and zone-based penalties. |
+| **gp2scale-advanced** | Large-scale experiments (>10k points) using sparse kernels and Dask distributed computing. |
+| **multi-task-advanced** | Multi-output / function-valued experiments with `fvGPOptimizer`. |
+
+Once installed, the skills activate automatically when you describe an experiment design problem to Claude, or you can invoke one explicitly (e.g. _"use the experiment-designer skill to set up an adaptive XRD scan"_).
+
+### Other agentic platforms
+
+The skills are also compatible with any harness that reads `SKILL.md` files (e.g. [OpenClaw](https://openclaw.ai)) — clone the repo and point your assistant at the `skills/` directory. When this repo is present in your working directory, Claude Code also picks up the root `CLAUDE.md` and `skills/` directory automatically, so the marketplace install is only needed for use outside the repo.
+
+
 ## Credits
 
 Main Developer: Marcus Noack ([MarcusNoack@lbl.gov](mailto:MarcusNoack@lbl.gov))
-Many people from across the DOE national labs (especially BNL) have given insights
-that led to the code in it's current form.
-See [AUTHORS](AUTHORS.rst) for more details on that.
+
+This code was developed with help from Ron Pandolfi (LBNL), Mark Risser (LBNL), Hengrui Luo (Rice U.), and Vardaan Tekriwal (UCB).
+
+Additional contributions and insights came from across the community, in particular, Kevin Yager, Masafumi Fukuto, and their teams (Brookhaven National Lab).
+
+We acknowledge support from several DOE ASCR, BER, and BES projects, including CAMERA (James Sethian, Jeff Donatelli), SPECTRA (Sherry Li), and CASCADE (Bill Collins), as well as support directly from Lawrence Berkeley National Laboratory.
+
+This package uses the HGDL package of David Perryman and Marcus Noack, which is based on the HGDN algorithm by Noack and Funke.
+
 
 
