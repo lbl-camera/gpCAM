@@ -70,8 +70,10 @@ instance/
 
 # Sphinx documentation
 docs/_build/
-# Notebooks synced from examples/ at build time (see docs/source/conf.py)
-docs/source/examples/
+# Notebooks synced from examples/ at build time (see docs/source/conf.py).
+# Only the synced notebooks are ignored — the examples/index.md landing page
+# is tracked so the Examples section exists on fresh CI / ReadTheDocs checkouts.
+docs/source/examples/*.ipynb
 
 # PyBuilder
 .pybuilder/
