@@ -27,10 +27,9 @@ class GPOptimizerBase(GP):
             prior_mean_function=None,
             prior_mean_function_grad=None,
             gp2Scale=False,
-            gp2Scale_dask_client=None,
+            dask_client=None,
             gp2Scale_batch_size=10000,
-            gp2Scale_linalg_mode=None,
-            calc_inv=False,
+            linalg_mode=None,
             ram_economy=False,
             cost_function=None,
             logging=False,
@@ -47,10 +46,9 @@ class GPOptimizerBase(GP):
         self.prior_mean_function = prior_mean_function
         self.prior_mean_function_grad = prior_mean_function_grad
         self._gp2Scale = gp2Scale
-        self.gp2Scale_dask_client = gp2Scale_dask_client
+        self._dask_client = dask_client
         self.gp2Scale_batch_size = gp2Scale_batch_size
-        self.gp2Scale_linalg_mode = gp2Scale_linalg_mode
-        self.calc_inv = calc_inv
+        self._linalg_mode = linalg_mode
         self.ram_economy = ram_economy
         self._args = args
         self.logging = logging
@@ -124,10 +122,9 @@ class GPOptimizerBase(GP):
             prior_mean_function=self.prior_mean_function,
             prior_mean_function_grad=self.prior_mean_function_grad,
             gp2Scale=self._gp2Scale,
-            gp2Scale_dask_client=self.gp2Scale_dask_client,
+            dask_client=self._dask_client,
             gp2Scale_batch_size=self.gp2Scale_batch_size,
-            gp2Scale_linalg_mode=self.gp2Scale_linalg_mode,
-            calc_inv=self.calc_inv,
+            linalg_mode=self._linalg_mode,
             ram_economy=self.ram_economy,
             args=self._args
         )
@@ -207,7 +204,7 @@ class GPOptimizerBase(GP):
 
         ############################################################################
 
-    def tell(self, x, y, noise_variances=None, append=True, gp_rank_n_update=None):
+    def tell(self, x, y, noise_variances=None, append=True, rank_n_update=None):
         """
         This function can tell() the gp_optimizer class
         the data that was collected. The data will instantly be used to update the GP data.
@@ -234,16 +231,16 @@ class GPOptimizerBase(GP):
         append : bool, optional
             Indication whether to append to or overwrite the existing dataset. Default = True.
             In the default case, data will be appended.
-        gp_rank_n_update : bool , optional
+        rank_n_update : bool , optional
             Indicates whether the GP marginal should be rank-n updated or recomputed. The default
-            is `gp_rank_n_update=append`, meaning if data is only appended, the rank_n_update will
+            is `rank_n_update=append`, meaning if data is only appended, the rank_n_update will
             be performed.
         """
 
-        if gp_rank_n_update is None: gp_rank_n_update = append
+        if rank_n_update is None: rank_n_update = append
         if self.gp:
             self.update_gp_data(x, y, noise_variances_new=noise_variances,
-                                append=append, gp_rank_n_update=gp_rank_n_update)
+                                append=append, rank_n_update=rank_n_update)
         else:
             self._initializeGP(x, y, noise_variances=noise_variances)
 
@@ -590,10 +587,9 @@ class GPOptimizerBase(GP):
             prior_mean_function=self.prior_mean_function,
             prior_mean_function_grad=self.prior_mean_function_grad,
             _gp2Scale=self._gp2Scale,
-            gp2Scale_dask_client=None,
+            _dask_client=None,
             gp2Scale_batch_size=self.gp2Scale_batch_size,
-            gp2Scale_linalg_mode=self.gp2Scale_linalg_mode,
-            calc_inv=self.calc_inv,
+            _linalg_mode=self._linalg_mode,
             ram_economy=self.ram_economy,
             _args=self._args,
             logging=self.logging,
@@ -605,7 +601,7 @@ class GPOptimizerBase(GP):
         return state
 
     def __setstate__(self, state):  # Called when the object is unpickled
-        state['gp2Scale_dask_client'] = None
+        state['_dask_client'] = None
         self.__dict__.update(state)
 
 

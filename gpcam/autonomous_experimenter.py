@@ -139,20 +139,6 @@ class AutonomousExperimenterGP:
         newly suggested data points will be communicated. The default is False.
     compute_device : str, optional
         One of `cpu` or `gpu`, determines how linear algebra computations are executed. The default is `cpu`.
-    calc_inv : bool, optional
-        If True, the algorithm calculates and stores the inverse of the covariance
-        matrix after each training or update of the dataset or hyperparameters,
-        which makes computing the posterior covariance faster (3-10 times).
-        For larger problems (>2000 data points), the use of inversion should be avoided due
-        to computational instability and costs. The default is
-        False. Note, the training will not use the
-        inverse for stability reasons. Storing the inverse is
-        a good option when the dataset is not too large and the posterior covariance is heavily used.
-        Caution: this option, together with `append=True` in `tell()` will mean that the inverse of
-        the covariance is updated, not recomputed, which can lead to instability.
-        In application where data is appended many times, it is recommended to either turn
-        `calc_inv` off, or to regularly force the recomputation of the inverse via `gp_rank_n_update` in
-        `update_gp_data`.
     training_dask_client : distributed.client.Client, optional
         A Dask Distributed Client instance for distributed training. If None is provided, a new
         `dask.distributed.Client` instance is constructed.
@@ -198,11 +184,10 @@ class AutonomousExperimenterGP:
                  x_data=None, y_data=None, noise_variances=None, dataset=None,
                  communicate_full_dataset=False,
                  compute_device="cpu",
-                 calc_inv=False,
                  training_dask_client=None,
                  acq_func_opt_dask_client=None,
                  gp2Scale=False,
-                 gp2Scale_dask_client=None,
+                 dask_client=None,
                  gp2Scale_batch_size=10000,
                  ram_economy=True,
                  args=None
@@ -337,20 +322,6 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
         newly suggested data points will be communicated. The default is False.
     compute_device : str, optional
         One of `cpu` or `gpu`, determines how linear algebra computations are executed. The default is `cpu`.
-    calc_inv : bool, optional
-        If True, the algorithm calculates and stores the inverse of the covariance
-        matrix after each training or update of the dataset or hyperparameters,
-        which makes computing the posterior covariance faster (3-10 times).
-        For larger problems (>2000 data points), the use of inversion should be avoided due
-        to computational instability and costs. The default is
-        False. Note, the training will not use the
-        inverse for stability reasons. Storing the inverse is
-        a good option when the dataset is not too large and the posterior covariance is heavily used.
-        Caution: this option, together with `append=True` in `tell()` will mean that the inverse of
-        the covariance is updated, not recomputed, which can lead to instability.
-        In application where data is appended many times, it is recommended to either turn
-        `calc_inv` off, or to regularly force the recomputation of the inverse via `gp_rank_n_update` in
-        `update_gp_data`.
     training_dask_client : distributed.client.Client, optional
         A Dask Distributed Client instance for distributed training. If None is provided, a new
         `dask.distributed.Client` instance is constructed.
@@ -396,11 +367,10 @@ class AutonomousExperimenterFvGP(AutonomousExperimenterGP):
                  x_data=None, y_data=None, noise_variances=None, dataset=None,
                  communicate_full_dataset=False,
                  compute_device="cpu",
-                 calc_inv=False,
                  training_dask_client=None,
                  acq_func_opt_dask_client=None,
                  gp2Scale=False,
-                 gp2Scale_dask_client=None,
+                 dask_client=None,
                  gp2Scale_batch_size=10000,
                  ram_economy=True,
                  args=None
