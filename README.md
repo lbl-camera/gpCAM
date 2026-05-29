@@ -6,7 +6,7 @@
 [![Codecov](https://img.shields.io/codecov/c/github/lbl-camera/gpCAM)](https://app.codecov.io/gh/lbl-camera/gpCAM)
 [![PyPI - License](https://img.shields.io/badge/license-GPL%20v3-lightgrey)](https://pypi.org/project/gpcam/)
 [<img src="https://img.shields.io/badge/slack-@gpCAM-purple.svg?logo=slack">](https://gpCAM.slack.com/)
-[![DOI](https://zenodo.org/badge/434768487.svg)](https://zenodo.org/badge/latestdoi/434768487)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5975552.svg)](https://doi.org/10.5281/zenodo.5975552)
 [![Pepy Total Downloads](https://img.shields.io/pepy/dt/gpcam)](https://pepy.tech/project/gpcam)
 [![Downloads](https://static.pepy.tech/badge/gpcam/month)](https://pepy.tech/project/gpcam)
 
