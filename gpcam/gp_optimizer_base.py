@@ -151,7 +151,7 @@ class GPOptimizerBase(GP):
                 "measurement variances": self.likelihood.V,
                 "hyperparameters": self.hyperparameters,
                 "cost function": self.cost_function}
-        elif self.multi_task:
+        else:
             return {
                 "input dim": self.input_space_dimension,
                 "x data": self.fvgp_x_data,
@@ -161,8 +161,6 @@ class GPOptimizerBase(GP):
                 "measurement variances": self.likelihood.V,
                 "hyperparameters": self.hyperparameters,
                 "cost function": self.cost_function}
-        else:
-            raise Exception("multi_task not defined")
 
         ############################################################################
 
@@ -452,9 +450,9 @@ class GPOptimizerBase(GP):
             info=info,
             dask_client=dask_client,
             batch_size=batch_size)
+        if dask_client_provided: dask_client.close()
         if n > 1: return {'x': maxima.reshape(-1, self.input_space_dimension), "f_a(x)": func_evals,
                           "opt_obj": opt_obj}
-        if dask_client_provided: dask_client.close()
         return {'x': np.array(maxima), "f_a(x)": np.array(func_evals), "opt_obj": opt_obj}
 
     def optimize(self,
@@ -541,7 +539,7 @@ class GPOptimizerBase(GP):
         assert isinstance(search_space, np.ndarray) or isinstance(search_space, list)
         assert isinstance(max_iter, int)
 
-        if not x0:
+        if x0 is None:
             if isinstance(search_space, list): x0 = random.sample(search_space, 10)
             if isinstance(search_space, np.ndarray): x0 = np.random.uniform(low=search_space[:, 0],
                                                                             high=search_space[:, 1],

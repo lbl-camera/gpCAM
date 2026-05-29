@@ -106,7 +106,6 @@ def find_acquisition_function_maxima(gpo, acquisition_function, *,
         opti = np.asarray([entry["x"] for entry in res])
         func_eval = np.asarray([entry["f(x)"] for entry in res])
         idx = filter_similar_rows(opti, tol=0.01)
-        print(opti, idx)
         opti = opti[idx]
         func_eval = func_eval[idx]
 
@@ -186,8 +185,10 @@ def evaluate_acquisition_function(x, *, gpo=None, acquisition_function=None, ori
         elif np.ndim(x) > 2:
             raise Exception("Wrong input dim in `x`.")
     elif isinstance(x, list) and isinstance(x[0], np.ndarray):
-        try: x = np.asarray(x).reshape(len(x), dim)
-        finally: x = x
+        try:
+            x = np.asarray(x).reshape(len(x), dim)
+        except Exception:
+            pass
 
     if x_out is not None and np.ndim(x_out) != 1: raise Exception(
         "x_out in evaluate_acquisition_function has to be a 1d numpy array.")
@@ -264,14 +265,14 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gpo, x_out):
             try:
                 a = gpo.args["a"]
                 b = gpo.args["b"]
-            except:
+            except (KeyError, TypeError):
                 raise Exception("Reading the arguments for acq func `target probability` failed.")
             mean = gpo.posterior_mean(x, x_out=x_out)["m(x)"].reshape(len(x))
             cov = gpo.posterior_covariance(x, x_out=x_out)["v(x)"].reshape(len(x)) + 1e-9
             result = np.zeros((len(x)))
             for i in range(len(x)):
-                result[i] = 0.5 * (math.erf((b - mean[i]) / np.sqrt(2. * cov[i]))) - math.erf(
-                    (a - mean[i]) / np.sqrt(2. * cov[i]))
+                result[i] = 0.5 * (math.erf((b - mean[i]) / np.sqrt(2. * cov[i])) - math.erf(
+                    (a - mean[i]) / np.sqrt(2. * cov[i])))
             return result
         else:
             raise Exception("No valid acquisition function string provided. Choose from ", all_acq_func)
@@ -346,10 +347,11 @@ def acq_function_vectorization_wrapper(x, func=None, vectorized=False):
 def gradient(x, func=None):
     epsilon = 1e-6
     grad = np.zeros(len(x))
+    f0 = np.asarray(func(x)).reshape(-1)[0]
     for i in range(len(x)):
-        new_point = np.array(x)
+        new_point = np.array(x, dtype=float)
         new_point[i] += epsilon
-        grad[i] = (func(new_point) - func(x)) / epsilon
+        grad[i] = (np.asarray(func(new_point)).reshape(-1)[0] - f0) / epsilon
     return grad
 
 
