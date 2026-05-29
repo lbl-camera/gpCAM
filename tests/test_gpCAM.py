@@ -40,6 +40,10 @@ def meanf(x, hps):
     #This is a simple mean function but it can be arbitrarily complex using many hyperparameters.
     return np.sin(hps[2] * x[:,0])
 
+def cost_f(origin, x):
+    #module-level so it pickles by reference (used by the serialization test)
+    return np.ones(len(x))
+
 #class TestgpCAM(unittest.TestCase):
 #    """Tests for `gpcam` package."""
 
@@ -278,6 +282,45 @@ def test_pickle():
     assert is_pickle_equal(my_gpo.posterior)
     assert is_pickle_equal(my_gpo.data)
     assert is_pickle_equal(my_gpo.marginal_likelihood.kv)
+
+    #TEST4
+    #gpcam-level config attributes must round-trip by VALUE (not just key presence)
+    def cfg_equal(a, b):
+        if isinstance(a, np.ndarray) or isinstance(b, np.ndarray):
+            return np.array_equal(a, b)
+        return a is b or a == b
+
+    my_gpo = GPOptimizer(x_data, y_data,
+        init_hyperparameters=np.ones((4)) / 10.,
+        compute_device="cpu",
+        linalg_mode="Chol",
+        ram_economy=True,
+        gp2Scale_batch_size=5000,
+        cost_function=cost_f,
+        args={"k": 7.})
+    my_gpo2 = pickle.loads(pickle.dumps(my_gpo))
+    for attr in ["cost_function", "init_hyperparameters", "compute_device",
+                 "kernel_function", "kernel_function_grad",
+                 "noise_function", "noise_function_grad",
+                 "prior_mean_function", "prior_mean_function_grad",
+                 "_gp2Scale", "gp2Scale_batch_size", "_linalg_mode",
+                 "ram_economy", "_args", "logging", "multi_task", "x_out", "gp"]:
+        assert cfg_equal(getattr(my_gpo, attr), getattr(my_gpo2, attr)), attr
+    assert my_gpo2._dask_client is None
+
+    #TEST5
+    #multi-task (fvGPOptimizer) pickling: exercises multi_task=True and x_out
+    x_mt = np.random.uniform(size=(10, 2))
+    y_mt = np.column_stack([np.sin(x_mt[:, 0]), np.cos(x_mt[:, 1])])
+    fv = fvGPOptimizer(x_mt, y_mt, kernel_function=mt_kernel,
+                       init_hyperparameters=np.array([1., 1., 1.]))
+    fv2 = pickle.loads(pickle.dumps(fv))
+    assert fv2.multi_task is True
+    assert np.array_equal(fv.x_out, fv2.x_out)
+    assert np.all(fv.x_data == fv2.x_data)
+    assert np.all(fv.y_data == fv2.y_data)
+    assert np.all(fv.hyperparameters == fv2.hyperparameters)
+    assert is_pickle_equal(fv)
 
 
 
