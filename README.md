@@ -7,7 +7,7 @@
 [![PyPI - License](https://img.shields.io/badge/license-GPL%20v3-lightgrey)](https://pypi.org/project/gpcam/)
 [<img src="https://img.shields.io/badge/slack-@gpCAM-purple.svg?logo=slack">](https://gpCAM.slack.com/)
 [![DOI](https://zenodo.org/badge/434768487.svg)](https://zenodo.org/badge/latestdoi/434768487)
-![Pepy Total Downloads](https://img.shields.io/pepy/dt/gpcam)
+[![Pepy Total Downloads](https://img.shields.io/pepy/dt/gpcam)](https://pepy.tech/project/gpcam)
 [![Downloads](https://static.pepy.tech/badge/gpcam/month)](https://pepy.tech/project/gpcam)
 
 
