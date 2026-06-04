@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "gpcam",
-      "source": ".",
+      "source": "./",
       "description": "Skills that guide an AI assistant through designing autonomous experiments with gpCAM — kernels, acquisition, prior mean, noise, cost, gp2Scale, and multi-task GPs.",
       "homepage": "https://gpcam.lbl.gov",
       "category": "scientific-computing",
