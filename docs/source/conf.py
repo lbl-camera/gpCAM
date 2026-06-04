@@ -71,6 +71,11 @@ exclude_patterns = []
 # -- Options for HTML output -------------------------------------------------
 html_theme = 'pydata_sphinx_theme'
 
+# Force light mode regardless of the visitor's OS preference. pydata-sphinx-theme
+# sets data-theme="light" on <html> when default_mode == "light", and the navbar
+# theme-switcher is excluded via navbar_end so visitors can't toggle to dark.
+html_context = {'default_mode': 'light'}
+
 html_theme_options = {
     'logo': {
         'image_light': '_static/gpCAM_bright_bg.png',

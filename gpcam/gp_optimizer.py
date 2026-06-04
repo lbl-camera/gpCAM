@@ -1,5 +1,7 @@
 #!/usr/bin/env python
+import warnings
 import numpy as np
+from scipy.special import expit, logit
 from fvgp import fvGP
 from .gp_optimizer_base import GPOptimizerBase
 
@@ -687,3 +689,111 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
                          logging=logging,
                          multi_task=True,
                          args=args)
+
+
+class LogGPOptimizer(GPOptimizer):
+    """
+    A single-task :py:class:`GPOptimizer` for strictly positive observations in (0, inf).
+
+    Observations are modeled in log-space (the GP sees ``log(y)``), and posterior
+    predictions are mapped back to the original scale with ``exp`` via
+    :py:meth:`evaluate_posterior`, which guarantees strictly positive predictions and
+    credible intervals. ``exp`` of a Gaussian is lognormal, so the original-scale mean
+    and standard deviation are available in closed form.
+
+    All constructor arguments are identical to :py:class:`GPOptimizer`. Note that the
+    inherited :py:meth:`posterior_mean` / :py:meth:`posterior_covariance` operate in
+    log-space; use :py:meth:`evaluate_posterior` for the original (positive) scale.
+
+    Acquisition functions: :py:meth:`ask` optimizes the GP in log-space. Because ``log``
+    is monotone increasing, ranking acquisitions (``variance``, ``ucb``, ``lcb``,
+    ``maximum``, ``minimum``) still identify the same locations as on the original scale.
+    For ``target probability``, pass bounds already in log-space (``np.log(a)``, ``np.log(b)``).
+    """
+
+    def _prepare(self, y):
+        y = np.asarray(y, dtype=float)
+        if np.any(y <= 0.0):
+            raise ValueError("LogGPOptimizer requires strictly positive observations (y > 0).")
+        return y
+
+    def _forward(self, y):
+        return np.log(y)
+
+    def _inverse(self, z):
+        return np.exp(z)
+
+    def _forward_deriv(self, y):
+        return 1.0 / y
+
+    def _moments(self, mu, var):
+        # exp(Normal(mu, var)) is lognormal
+        mean = np.exp(mu + var / 2.0)
+        std = np.sqrt((np.exp(var) - 1.0) * np.exp(2.0 * mu + var))
+        return mean, std
+
+
+class LogitGPOptimizer(GPOptimizer):
+    """
+    A single-task :py:class:`GPOptimizer` for observations bounded in [0, 1].
+
+    Observations are modeled in logit (log-odds) space (the GP sees ``logit(y)``), and
+    posterior predictions are mapped back with the logistic/sigmoid via
+    :py:meth:`evaluate_posterior`, which guarantees predictions and credible intervals
+    inside (0, 1). Because ``logit(0)`` / ``logit(1)`` are infinite, observations are
+    clipped to ``[eps, 1 - eps]`` (a warning is emitted when clipping occurs). The
+    logistic-normal distribution has no closed-form moments, so the original-scale mean
+    and standard deviation are estimated by Monte-Carlo.
+
+    Parameters
+    ----------
+    eps : float, optional
+        Clipping margin for the open interval; observations are clipped to
+        ``[eps, 1 - eps]`` before the logit transform. The default is 1e-6.
+    n_samples : int, optional
+        Number of Monte-Carlo samples used to estimate the original-scale mean/std in
+        :py:meth:`evaluate_posterior`. The default is 10000.
+
+    Notes
+    -----
+    All other constructor arguments are identical to :py:class:`GPOptimizer`. The
+    inherited :py:meth:`posterior_mean` / :py:meth:`posterior_covariance` operate in
+    logit-space; use :py:meth:`evaluate_posterior` for the original (0, 1) scale. The
+    acquisition-function note for :py:class:`LogGPOptimizer` applies here too (pass
+    ``target probability`` bounds in logit-space).
+    """
+
+    def __init__(self, x_data=None, y_data=None, eps=1e-6, n_samples=10000, **kwargs):
+        self.eps = eps
+        self.n_samples = n_samples
+        super().__init__(x_data=x_data, y_data=y_data, **kwargs)
+
+    def _prepare(self, y):
+        y = np.asarray(y, dtype=float)
+        if np.any(y < self.eps) or np.any(y > 1.0 - self.eps):
+            warnings.warn("LogitGPOptimizer clipped observations to "
+                          f"[{self.eps}, {1.0 - self.eps}] before the logit transform.")
+        return np.clip(y, self.eps, 1.0 - self.eps)
+
+    def _forward(self, y):
+        return logit(y)
+
+    def _inverse(self, z):
+        return expit(z)
+
+    def _forward_deriv(self, y):
+        return 1.0 / (y * (1.0 - y))
+
+    def _moments(self, mu, var):
+        # sigmoid(Normal(mu, var)) is logistic-normal -> no closed form, estimate by MC
+        mu = np.asarray(mu).reshape(-1)
+        sd = np.sqrt(np.asarray(var).reshape(-1))
+        samples = expit(np.random.normal(loc=mu[:, None], scale=sd[:, None],
+                                         size=(mu.shape[0], self.n_samples)))
+        return samples.mean(axis=1), samples.std(axis=1)
+
+    def __getstate__(self):
+        state = super().__getstate__()
+        state["eps"] = self.eps
+        state["n_samples"] = self.n_samples
+        return state

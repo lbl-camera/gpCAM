@@ -7,6 +7,7 @@ from . import surrogate_model as sm
 import warnings
 import random
 from distributed import Client
+from scipy.stats import norm
 
 
 # TODO (for gpCAM):
@@ -106,6 +107,9 @@ class GPOptimizerBase(GP):
         If data is prided at initialization this function is NOT needed.
         It has the same parameters as the initialization of the class.
         """
+        y_prepared = self._prepare(np.asarray(y_data))
+        noise_variances = self._transform_noise_variances(y_prepared, noise_variances)
+        y_data = self._forward(y_prepared)
         if self.multi_task: self.x_out = np.arange(y_data.shape[1])
         else: self.x_out = None
 
@@ -145,6 +149,7 @@ class GPOptimizerBase(GP):
                 "input dim": self.input_space_dimension,
                 "x data": self.x_data,
                 "y data": self.y_data,
+                "original y data": self._inverse(self.y_data),
                 "measurement variances": self.likelihood.V,
                 "hyperparameters": self.hyperparameters,
                 "cost function": self.cost_function}
@@ -160,6 +165,99 @@ class GPOptimizerBase(GP):
                 "cost function": self.cost_function}
 
         ############################################################################
+
+    # ---- Output-transform hooks (identity by default; overridden by transformed optimizers) ----
+    def _prepare(self, y):
+        """Validate/condition original-space observations before the forward transform."""
+        return y
+
+    def _forward(self, y):
+        """Map original-space observations into the GP's modeling space."""
+        return y
+
+    def _inverse(self, z):
+        """Map GP-space values back to the original observation space."""
+        return z
+
+    def _forward_deriv(self, y):
+        """Derivative of the forward transform w.r.t. y (for delta-method noise propagation)."""
+        return 1.0
+
+    def _moments(self, mu, var):
+        """Mean and std in the original space given GP-space mean and variance."""
+        return mu, np.sqrt(var)
+
+    def _samples(self, mu, var, n_samples):
+        """
+        Draw `n_samples` posterior samples in the original space at each evaluation point.
+
+        Default: sample the GP-space Gaussian and push through :py:meth:`_inverse`.
+        Identity transform -> Gaussian samples; Log -> lognormal; Logit -> logistic-normal.
+        Subclasses with an analytic sampler may override.
+        Returns an array of shape ``(n_points, n_samples)``.
+        """
+        mu = np.asarray(mu).reshape(-1)
+        sd = np.sqrt(np.asarray(var).reshape(-1))
+        z = np.random.normal(loc=mu[:, None], scale=sd[:, None],
+                             size=(mu.shape[0], int(n_samples)))
+        return self._inverse(z)
+
+    def _transform_noise_variances(self, y_prepared, noise_variances):
+        """Delta-method transform of observation variances: var_z ~= (g'(y))**2 * var_y."""
+        if noise_variances is None: return None
+        d = self._forward_deriv(y_prepared)
+        return np.asarray(noise_variances) * np.asarray(d) ** 2
+
+    def evaluate_posterior(self, x, x_out=None, level=0.95, return_samples=False, n_samples=10000):
+        """
+        Posterior of the original-space observations at points `x`.
+
+        Unlike :py:meth:`posterior_mean` / :py:meth:`posterior_covariance`, which act in
+        the GP's modeling space, this pushes the Gaussian posterior through the inverse
+        output transform. For the default (identity) transform it simply bundles the
+        Gaussian posterior. For monotone transforms the median and credible bounds map
+        exactly; the mean/std are exact when a closed form exists (e.g. lognormal) and
+        otherwise estimated (see the specific optimizer).
+
+        Parameters
+        ----------
+        x : np.ndarray | list
+            Points at which to evaluate the posterior. np.ndarray of shape (V x D) or list.
+        x_out : np.ndarray, optional
+            Output-space positions; only used in the multi-task setting.
+        level : float, optional
+            Central credible-interval mass in (0, 1). The default is 0.95.
+        return_samples : bool, optional
+            If True, also draw `n_samples` posterior samples in the original space at each
+            point in `x` and include them under the key ``"samples"``. The default is False.
+        n_samples : int, optional
+            Number of samples to draw when ``return_samples=True``. The default is 10000.
+
+        Return
+        ------
+        Posterior summary : dict
+            Keys `"median"`, `"mean"`, `"std"`, `"lower"`, `"upper"`, `"level"`. When
+            ``return_samples=True``, an additional `"samples"` array of shape
+            ``(n_points, n_samples)`` is included, where ``samples[i]`` are the draws at
+            the i-th input point.
+        """
+        assert self.gp, "GP not yet initialized; tell() data!"
+        if x_out is None: x_out = self.x_out
+        mu = np.atleast_1d(np.asarray(self.posterior_mean(x, x_out=x_out)["m(x)"]))
+        var = np.atleast_1d(np.asarray(self.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"]))
+        sd = np.sqrt(var)
+        z = norm.ppf(0.5 + level / 2.0)
+        mean, std = self._moments(mu, var)
+        result = {
+            "median": self._inverse(mu),
+            "mean": mean,
+            "std": std,
+            "lower": self._inverse(mu - z * sd),
+            "upper": self._inverse(mu + z * sd),
+            "level": level}
+        if return_samples:
+            result["samples"] = self._samples(mu, var, n_samples)
+        return result
 
     def evaluate_acquisition_function(self, x, x_out=None, acquisition_function="variance", origin=None, args=None):
         """
@@ -239,7 +337,9 @@ class GPOptimizerBase(GP):
 
         if rank_n_update is None: rank_n_update = append
         if self.gp:
-            self.update_gp_data(x, y, noise_variances_new=noise_variances,
+            y_prepared = self._prepare(np.asarray(y))
+            noise_variances = self._transform_noise_variances(y_prepared, noise_variances)
+            self.update_gp_data(x, self._forward(y_prepared), noise_variances_new=noise_variances,
                                 append=append, rank_n_update=rank_n_update)
         else:
             self._initializeGP(x, y, noise_variances=noise_variances)

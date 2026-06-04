@@ -6,6 +6,7 @@
 
 gpOptimizer.md
 fvgpOptimizer.md
+transformedOptimizers.md
 gpMCMC.md
 kernels.md
 logging.md

@@ -323,6 +323,100 @@ def test_pickle():
     assert is_pickle_equal(fv)
 
 
+def test_transformed_gp():
+    import numpy as np
+    import pickle
+    import warnings as _warnings
+    from scipy.special import expit
+    from gpcam import GPOptimizer, LogGPOptimizer, LogitGPOptimizer
+
+    np.random.seed(42)
+    x = np.random.uniform(0, 1, size=(20, 2))
+    xp = np.array([[0.3, 0.4], [0.7, 0.2]])
+
+    # ---- LogGPOptimizer: (0, inf) ----
+    y_pos = np.exp(np.sin(x[:, 0])) + 0.1
+    log_gp = LogGPOptimizer(x, y_pos)
+    log_gp.tell(x, y_pos)
+    # round-trip
+    assert np.allclose(log_gp._inverse(log_gp._forward(y_pos)), y_pos)
+    # evaluate_posterior shape/keys/ordering
+    ep = log_gp.evaluate_posterior(xp)
+    assert set(ep.keys()) == {"median", "mean", "std", "lower", "upper", "level"}
+    assert np.all(ep["median"] > 0) and np.all(ep["lower"] > 0) and np.all(ep["upper"] > 0)
+    assert np.all(ep["lower"] < ep["median"]) and np.all(ep["median"] < ep["upper"])
+    # median = exp(mu); mean matches the lognormal closed form
+    mu = log_gp.posterior_mean(xp)["m(x)"]
+    var = log_gp.posterior_covariance(xp, variance_only=True)["v(x)"]
+    assert np.allclose(ep["median"], np.exp(mu))
+    assert np.allclose(ep["mean"], np.exp(mu + var / 2.0))
+    # domain validation
+    try:
+        LogGPOptimizer(x, np.array([1.0] * 19 + [0.0]))
+        raise AssertionError("LogGPOptimizer should reject y <= 0")
+    except ValueError:
+        pass
+
+    # ---- LogitGPOptimizer: [0, 1] with boundary clipping ----
+    y_logit = np.clip(0.5 + 0.4 * np.sin(x[:, 0]), 0.0, 1.0)
+    y_logit[0], y_logit[1] = 0.0, 1.0  # force clipping
+    with _warnings.catch_warnings(record=True) as w:
+        _warnings.simplefilter("always")
+        logit_gp = LogitGPOptimizer(x, y_logit, n_samples=2000)
+        logit_gp.tell(x, y_logit)
+    assert any("clipped" in str(wi.message) for wi in w)
+    ep = logit_gp.evaluate_posterior(xp)
+    assert np.all((ep["lower"] > 0) & (ep["upper"] < 1))
+    assert np.all((ep["median"] > 0) & (ep["median"] < 1))
+    assert np.all(ep["lower"] < ep["upper"])
+    # median = sigmoid(mu); MC moments finite
+    mu = logit_gp.posterior_mean(xp)["m(x)"]
+    assert np.allclose(ep["median"], expit(mu))
+    assert np.all(np.isfinite(ep["mean"])) and np.all(np.isfinite(ep["std"]))
+
+    # ---- Identity hooks: GPOptimizer.evaluate_posterior bundles the Gaussian ----
+    g = GPOptimizer(x, np.sin(x[:, 0]))
+    g.tell(x, np.sin(x[:, 0]))
+    ep = g.evaluate_posterior(xp)
+    mu_id = g.posterior_mean(xp)["m(x)"]
+    assert np.allclose(ep["median"], mu_id) and np.allclose(ep["mean"], mu_id)
+
+    # ---- return_samples=True: shape, finiteness, and per-class distribution support ----
+    n_pts = xp.shape[0]
+    n_samp = 4000
+    # identity: samples are real-valued Gaussians
+    ep_id = g.evaluate_posterior(xp, return_samples=True, n_samples=n_samp)
+    assert ep_id["samples"].shape == (n_pts, n_samp)
+    assert np.all(np.isfinite(ep_id["samples"]))
+    # log: samples are strictly positive (lognormal)
+    ep_log_s = log_gp.evaluate_posterior(xp, return_samples=True, n_samples=n_samp)
+    assert ep_log_s["samples"].shape == (n_pts, n_samp)
+    assert np.all(ep_log_s["samples"] > 0)
+    # logit: samples are strictly inside (0, 1) (logistic-normal)
+    ep_logit_s = logit_gp.evaluate_posterior(xp, return_samples=True, n_samples=n_samp)
+    assert ep_logit_s["samples"].shape == (n_pts, n_samp)
+    assert np.all((ep_logit_s["samples"] > 0) & (ep_logit_s["samples"] < 1))
+    # sample mean approximates the reported mean (loose tolerance: 3 std-error)
+    assert np.all(np.abs(ep_logit_s["samples"].mean(axis=1) - ep_logit_s["mean"])
+                  < 3 * ep_logit_s["std"] / np.sqrt(n_samp))
+
+    # ---- Single-point query returns 1-d arrays (regression: posterior_mean used to scalarize) ----
+    ep_single = log_gp.evaluate_posterior(np.array([[0.5, 0.5]]), return_samples=True, n_samples=500)
+    assert ep_single["median"].shape == (1,)
+    assert ep_single["lower"].shape == (1,) and ep_single["upper"].shape == (1,)
+    assert ep_single["samples"].shape == (1, 500)
+    _ = ep_single["median"][0]  # must be indexable
+
+    # ---- Pickling: data + extra Logit attrs survive ----
+    log_gp2 = pickle.loads(pickle.dumps(log_gp))
+    assert np.allclose(log_gp.y_data, log_gp2.y_data)
+    assert np.allclose(log_gp.evaluate_posterior(xp)["median"],
+                       log_gp2.evaluate_posterior(xp)["median"])
+    logit_gp2 = pickle.loads(pickle.dumps(logit_gp))
+    assert logit_gp2.eps == logit_gp.eps
+    assert logit_gp2.n_samples == logit_gp.n_samples
+
+
 
 
 

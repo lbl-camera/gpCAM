@@ -20,6 +20,7 @@ You are helping scientists design autonomous experiments using gpCAM, a Gaussian
 - **Cost functions (travel time)**: `skills/cost-functions/SKILL.md`
 - **Large-scale (>10k points)**: `skills/gp2scale-advanced/SKILL.md`
 - **Multi-task/multi-output**: `skills/multi-task-advanced/SKILL.md`
+- **Constrained observations (y>0 or y∈[0,1])**: `skills/transformed-optimizers-advanced/SKILL.md`
 
 These skills also ship as a Claude Code plugin marketplace (see README.md), so they are available outside this repo once installed.
 

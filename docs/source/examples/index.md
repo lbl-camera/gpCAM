@@ -11,6 +11,7 @@ GPOptimizer_NonEuclideanInputSpaces
 GPOptimizer_gp2ScaleTest
 GPOptimizer_MultiTaskTest
 GPOptimizer_Optimization
+GPOptimizer_LogAndLogit
 ```
 
 The notebooks below walk through common gpCAM use cases.
@@ -23,3 +24,4 @@ Each can be downloaded and run locally after `pip install gpcam`.
 - **[gp2Scale](GPOptimizer_gp2ScaleTest.ipynb)** — large-scale sparse GP with Dask distributed computation
 - **[Multi-task GP](GPOptimizer_MultiTaskTest.ipynb)** — multi-output regression with the `fvGPOptimizer` class
 - **[Function optimization](GPOptimizer_Optimization.ipynb)** — minimizing a known function with the `optimize` loop
+- **[Log and Logit GP optimizers](GPOptimizer_LogAndLogit.ipynb)** — fitting strictly-positive data with `LogGPOptimizer` and bounded `[0, 1]` data with `LogitGPOptimizer`

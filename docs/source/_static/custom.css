@@ -1,3 +1,9 @@
+/* Keep native browser controls (scrollbars, form widgets) in their light
+   variants -- pydata's default_mode="light" handles the rest. */
+:root {
+    color-scheme: light;
+}
+
 /* ------------------------------------------------------------------ */
 /* Headshot grid used on contributor/team pages                        */
 /* ------------------------------------------------------------------ */

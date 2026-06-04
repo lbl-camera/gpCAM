@@ -36,7 +36,7 @@ gpo = GPOptimizer(
     x_data=x_data,
     y_data=y_data,
     gp2Scale=True,
-    gp2Scale_dask_client=client,
+    dask_client=client,
     gp2Scale_batch_size=500,       # typical; tune up for large clusters
     init_hyperparameters=np.array([0.73, 0.0014]),  # signal var, length scale
 )
