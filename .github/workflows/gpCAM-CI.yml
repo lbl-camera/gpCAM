@@ -75,6 +75,5 @@ jobs:
       - name: Github Release
         uses: fnkr/github-action-ghr@v1
         env:
-          GHR_COMPRESS: xz
           GHR_PATH: dist/
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
