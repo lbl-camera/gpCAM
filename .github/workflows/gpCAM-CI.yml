@@ -69,9 +69,11 @@ jobs:
           password: ${{ secrets.PYPI_API_TOKEN }}
           verbose: true
 
+      - name: Package skills
+        run: zip -r dist/gpcam-skills.zip skills
+
       - name: Github Release
         uses: fnkr/github-action-ghr@v1
         env:
-          GHR_COMPRESS: xz
           GHR_PATH: dist/
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
