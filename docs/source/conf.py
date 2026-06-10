@@ -89,6 +89,12 @@ html_theme_options = {
     'secondary_sidebar_items': ['page-toc'],
     'footer_start': ['copyright'],
     'footer_end': [],
+    'announcement': (
+        'gpCAM 8.4.0 is a <strong>beta release</strong> with a few kwarg renames '
+        'from 8.3.x. If you hit issues, pin <code>gpcam==8.3.9</code> &mdash; see '
+        'the <a href="https://github.com/lbl-camera/gpCAM/blob/master/HISTORY.rst">'
+        'migration notes</a>.'
+    ),
 }
 
 html_static_path = ['_static']
