@@ -12,7 +12,7 @@ Use this skill when measurements are guaranteed positive (`y > 0`) or bounded (`
 | Observation type | Optimizer | Example domains |
 |---|---|---|
 | Strictly positive, `y > 0` | `LogGPOptimizer` | Intensities, rates, concentrations, fluxes, lifetimes |
-| Bounded, `y ∈ [0, 1]` | `LogitGPOptimizer` | Yields, probabilities, contrasts, binomial fractions |
+| Bounded, `y ∈ [a, b]` | `LogitGPOptimizer(..., range=(a, b))` | Yields (`[0, 100]%`), probabilities, contrasts, transmittance, normalized intensities |
 | Unconstrained / can be negative | plain `GPOptimizer` | Phase shifts, demeaned signals, temperatures in °C |
 
 Both transformed classes are drop-in replacements for `GPOptimizer` in the single-task scalar case — the constructor, `train`, `ask`, `tell`, `optimize`, kernel / mean / noise hooks, and pickling are inherited unchanged. The transform is invisible to the rest of the workflow.
@@ -45,6 +45,17 @@ post = gpo.evaluate_posterior(x_grid)
 # All entries lie strictly inside (0, 1).
 ```
 
+For observations bounded in an arbitrary closed interval `[a, b]` (yield in `[0, 100]%`,
+transmittance in `[0, 1]`, an angle in `[0, 90]`, …), pass `range=(a, b)`. The data is
+linearly rescaled to `[0, 1]` before the logit transform, posterior outputs are mapped
+back to `[a, b]`, and predictions / credible bands stay strictly inside `(a, b)`:
+
+```python
+gpo = LogitGPOptimizer(x_data, y_data, range=(0.0, 100.0))   # yield in [0, 100]%
+post = gpo.evaluate_posterior(x_grid)
+# post["median"], post["lower"], post["upper"], post["samples"]  -- all in (0, 100).
+```
+
 ## `evaluate_posterior` — the original-scale accessor
 
 The inherited `posterior_mean(x)` / `posterior_covariance(x)` operate in the **transformed** (latent) space. Use `evaluate_posterior(x)` whenever you want the posterior on the **original** scale:
@@ -73,7 +84,8 @@ Distributions are: Gaussian for plain `GPOptimizer`, lognormal for `LogGPOptimiz
 
 ## `LogitGPOptimizer` knobs
 
-- `eps` (default `1e-6`): clipping margin so `logit(0)` / `logit(1)` don't blow up. Increase (e.g. `1e-4`) for noisy boundary data at the cost of small bias; decrease for cleaner data.
+- `range` (default `(0.0, 1.0)`): `(lower, upper)` bounds of the observation domain. Data is linearly rescaled to `[0, 1]` before the logit transform; predictions are mapped back to `[lower, upper]`. Raises `ValueError` if `lower >= upper`.
+- `eps` (default `1e-6`): clipping margin (in the rescaled `[0, 1]` space) so `logit(0)` / `logit(1)` don't blow up. Increase (e.g. `1e-4`) for noisy boundary data at the cost of small bias; decrease for cleaner data.
 - `n_samples` (default `10000`): MC sample count for the closed-form-less mean / std (also the default for `return_samples=True` when no explicit `n_samples` is passed to `evaluate_posterior`). Higher is more accurate but slower.
 
 ## Acquisition functions on transformed data

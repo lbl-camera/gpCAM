@@ -735,65 +735,87 @@ class LogGPOptimizer(GPOptimizer):
 
 class LogitGPOptimizer(GPOptimizer):
     """
-    A single-task :py:class:`GPOptimizer` for observations bounded in [0, 1].
+    A single-task :py:class:`GPOptimizer` for observations bounded in a closed interval
+    ``[lower, upper]`` (default ``[0, 1]``).
 
-    Observations are modeled in logit (log-odds) space (the GP sees ``logit(y)``), and
-    posterior predictions are mapped back with the logistic/sigmoid via
+    Observations are linearly rescaled to ``[0, 1]`` and modeled in logit (log-odds)
+    space (the GP sees ``logit((y - lower) / (upper - lower))``). Posterior predictions
+    are mapped back to ``[lower, upper]`` via the inverse (affine ∘ sigmoid) through
     :py:meth:`evaluate_posterior`, which guarantees predictions and credible intervals
-    inside (0, 1). Because ``logit(0)`` / ``logit(1)`` are infinite, observations are
-    clipped to ``[eps, 1 - eps]`` (a warning is emitted when clipping occurs). The
-    logistic-normal distribution has no closed-form moments, so the original-scale mean
-    and standard deviation are estimated by Monte-Carlo.
+    stay inside ``(lower, upper)``. Because ``logit(0)`` / ``logit(1)`` are infinite,
+    normalized observations are clipped to ``[eps, 1 - eps]`` (a warning is emitted when
+    clipping occurs). The logistic-normal distribution has no closed-form moments, so
+    the original-scale mean and standard deviation are estimated by Monte-Carlo.
 
     Parameters
     ----------
     eps : float, optional
-        Clipping margin for the open interval; observations are clipped to
+        Clipping margin for the open interval; normalized observations are clipped to
         ``[eps, 1 - eps]`` before the logit transform. The default is 1e-6.
     n_samples : int, optional
         Number of Monte-Carlo samples used to estimate the original-scale mean/std in
         :py:meth:`evaluate_posterior`. The default is 10000.
+    range : tuple of float, optional
+        ``(lower, upper)`` bounds of the observation domain. Observations are linearly
+        rescaled to ``[0, 1]`` before the logit transform, and posterior predictions
+        are mapped back to ``[lower, upper]``. The default is ``(0.0, 1.0)``.
 
     Notes
     -----
     All other constructor arguments are identical to :py:class:`GPOptimizer`. The
     inherited :py:meth:`posterior_mean` / :py:meth:`posterior_covariance` operate in
-    logit-space; use :py:meth:`evaluate_posterior` for the original (0, 1) scale. The
-    acquisition-function note for :py:class:`LogGPOptimizer` applies here too (pass
-    ``target probability`` bounds in logit-space).
+    logit-space (on the rescaled ``[0, 1]`` data); use :py:meth:`evaluate_posterior`
+    for the original ``[lower, upper]`` scale. The acquisition-function note for
+    :py:class:`LogGPOptimizer` applies here too (pass ``target probability`` bounds
+    in logit-space, where they refer to the rescaled ``[0, 1]`` data).
     """
 
-    def __init__(self, x_data=None, y_data=None, eps=1e-6, n_samples=10000, **kwargs):
+    def __init__(self, x_data=None, y_data=None, eps=1e-6, n_samples=10000,
+                 range=(0.0, 1.0), **kwargs):
+        lower, upper = float(range[0]), float(range[1])
+        if not lower < upper:
+            raise ValueError(
+                f"LogitGPOptimizer range must have lower < upper; got {range}.")
+        self.range = (lower, upper)
         self.eps = eps
         self.n_samples = n_samples
         super().__init__(x_data=x_data, y_data=y_data, **kwargs)
 
     def _prepare(self, y):
+        a, b = self.range
         y = np.asarray(y, dtype=float)
-        if np.any(y < self.eps) or np.any(y > 1.0 - self.eps):
-            warnings.warn("LogitGPOptimizer clipped observations to "
-                          f"[{self.eps}, {1.0 - self.eps}] before the logit transform.")
-        return np.clip(y, self.eps, 1.0 - self.eps)
+        # Linearly rescale [a, b] -> [0, 1] before clipping to (eps, 1-eps).
+        y_norm = (y - a) / (b - a)
+        if np.any(y_norm < self.eps) or np.any(y_norm > 1.0 - self.eps):
+            warnings.warn(
+                f"LogitGPOptimizer clipped observations near the boundary of "
+                f"range=({a}, {b}) before the logit transform.")
+        return np.clip(y_norm, self.eps, 1.0 - self.eps)
 
-    def _forward(self, y):
-        return logit(y)
+    def _forward(self, y_norm):
+        # `y_norm` is the prepared (rescaled, clipped) value in (eps, 1-eps).
+        return logit(y_norm)
 
     def _inverse(self, z):
-        return expit(z)
+        # Sigmoid maps to (0, 1); affine maps back to (lower, upper).
+        a, b = self.range
+        return a + (b - a) * expit(z)
 
-    def _forward_deriv(self, y):
-        return 1.0 / (y * (1.0 - y))
+    def _forward_deriv(self, y_norm):
+        # Composition g(y) = logit((y - a) / (b - a)) gives
+        #   g'(y) = 1 / ((b - a) * y_norm * (1 - y_norm))
+        a, b = self.range
+        return 1.0 / ((b - a) * y_norm * (1.0 - y_norm))
 
     def _moments(self, mu, var):
-        # sigmoid(Normal(mu, var)) is logistic-normal -> no closed form, estimate by MC
-        mu = np.asarray(mu).reshape(-1)
-        sd = np.sqrt(np.asarray(var).reshape(-1))
-        samples = expit(np.random.normal(loc=mu[:, None], scale=sd[:, None],
-                                         size=(mu.shape[0], self.n_samples)))
+        # Logistic-normal (rescaled to [a, b]) has no closed-form moments; use MC.
+        # `_samples` already pushes through self._inverse, which handles the rescale.
+        samples = self._samples(mu, var, self.n_samples)
         return samples.mean(axis=1), samples.std(axis=1)
 
     def __getstate__(self):
         state = super().__getstate__()
         state["eps"] = self.eps
         state["n_samples"] = self.n_samples
+        state["range"] = self.range
         return state
