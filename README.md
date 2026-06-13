@@ -11,7 +11,7 @@
 [![Downloads](https://static.pepy.tech/badge/gpcam/month)](https://pepy.tech/project/gpcam)
 
 > [!WARNING]
-> **gpCAM 8.4.0 is a beta release.** It targets `fvgp ~= 4.8` and renames a few
+> **gpCAM 8.4.X is a beta release.** It targets `fvgp ~= 4.8` and renames a few
 > constructor kwargs (`gp2Scale_dask_client → dask_client`,
 > `gp2Scale_linalg_mode → linalg_mode`, `gp_rank_n_update → rank_n_update`) and
 > removes `calc_inv` in favor of `linalg_mode="CholInv"`. If you hit issues, pin
