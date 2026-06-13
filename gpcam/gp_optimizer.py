@@ -171,11 +171,39 @@ class GPOptimizer(GPOptimizerBase):
         * ``"sparseSolve"`` — direct sparse solve via scipy.
         * ``"sparseCGpre"`` — preconditioned conjugate-gradient. The preconditioner type
           is selected by ``args["sparse_preconditioner_type"]`` (default ``"ilu"``;
-          also ``"ic"``/``"incomplete_cholesky"``, ``"block_jacobi"``,
-          ``"schwarz"``/``"additive_schwarz"``, or ``"amg"`` (requires pyamg)).
+          also compiled incomplete Cholesky ``"ichol"``/``"ic"``/``"incomplete_cholesky"``,
+          zero-fill ``"ichol0"``, legacy Python IC(0) ``"native_ic"``/``"native_ichol"``,
+          ``"block_jacobi"``, ``"schwarz"``/``"additive_schwarz"``, or ``"amg"``
+          (requires pyamg). The compiled IC options require the optional ``ilupp`` package.
         * ``"sparseMINRESpre"`` — preconditioned MINRES; same preconditioner choices.
         * ``"sparseCGpre_<type>"`` / ``"sparseMINRESpre_<type>"`` — shortcut that sets
           ``args["sparse_preconditioner_type"]`` to ``<type>`` (e.g. ``"sparseCGpre_amg"``).
+
+        **Preconditioner aliases (incomplete Cholesky):**
+
+        The IC family has a compiled fast path and a pure-Python legacy path. The
+        names in this list are the canonical backends that ``sparse_preconditioner_type``
+        resolves to internally; the items after "aliases:" all map to the same backend.
+
+        * ``"ichol"`` — thresholded incomplete Cholesky via the optional
+          ``ilupp`` package (fast). **Aliases:** ``"ic"``, ``"incomplete_cholesky"``.
+          Tunable through ``sparse_preconditioner_ichol_fill_in`` and
+          ``sparse_preconditioner_ichol_threshold``.
+        * ``"ichol0"`` — zero-fill incomplete Cholesky via ``ilupp`` (cheap to build,
+          weaker as a preconditioner). No aliases.
+        * ``"native_incomplete_cholesky"`` — pure-Python IC(0); slower, intended as
+          a legacy/debugging fallback that always works without optional deps.
+          **Aliases:** ``"native_ic"``, ``"native_ichol"``,
+          ``"legacy_ic"``, ``"legacy_ichol"``,
+          ``"legacy_incomplete_cholesky"``. (``"native_"`` and ``"legacy_"`` are
+          interchangeable — "native" means built-in to fvGP, "legacy" reminds you
+          this is the original pre-``ilupp`` path.)
+
+        The two ``ilupp`` backends (``"ichol"``/``"ichol0"``) raise a clear
+        ``ImportError`` with install instructions if ``ilupp`` is missing
+        (``pip install ilupp``). All three IC backends honor the shared
+        ``sparse_preconditioner_shift`` / ``_shift_growth`` / ``_shift_attempts``
+        diagonal-shift-retry knobs (see the ``args`` section below).
 
         **Custom solver (any GP):**
 
@@ -244,8 +272,8 @@ class GPOptimizer(GPOptimizerBase):
         - "sparse_krylov_warm_start" : True/False; default = False — feed the
           previous training iteration's ``KVinvY`` as ``x0`` to the next solve
         - "sparse_preconditioner_type" : str; default = "ilu". One of "ilu",
-          "ic"/"ichol"/"incomplete_cholesky", "block_jacobi", "schwarz"/
-          "additive_schwarz", "amg" (requires pyamg)
+          "ichol"/"ic"/"incomplete_cholesky", "ichol0", "native_ic"/"native_ichol",
+          "block_jacobi", "schwarz"/"additive_schwarz", "amg" (requires pyamg)
         - "sparse_preconditioner_refresh_interval" : int; default = 1 —
           reuse the cached preconditioner for up to N consecutive solves
           before rebuilding. ``set_KV`` always force-refreshes.
@@ -255,11 +283,15 @@ class GPOptimizer(GPOptimizerBase):
           additive Schwarz
         - "sparse_preconditioner_drop_tol" / "sparse_preconditioner_fill_factor"
           — forwarded to scipy ``spilu`` for "ilu"
+        - "sparse_preconditioner_ichol_fill_in" / "sparse_preconditioner_ichol_threshold"
+          — forwarded to ``ilupp`` thresholded IC for "ichol"
         - "sparse_preconditioner_amg_*" — forwarded to pyamg
           (``max_levels``, ``max_coarse``, ``strength``, ``cycle``, etc.)
-        - "sparse_preconditioner_shift" / "_growth" / "_attempts" — diagonal
-          shift retry knobs for "ic" / "block_jacobi" / "additive_schwarz" when
-          a local Cholesky encounters a non-PD block
+        - "sparse_preconditioner_shift" / "sparse_preconditioner_shift_growth" /
+          "sparse_preconditioner_shift_attempts" — diagonal shift retry knobs
+          (defaults: 0.0 / 10.0 / 5). Applies to "ichol" and "ichol0" (compiled),
+          "native_ic"/"native_ichol" (legacy), "block_jacobi", and
+          "additive_schwarz" when a local factorization encounters a non-PD pivot
 
         Cholesky compute-device routing:
 
@@ -523,11 +555,39 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
         * ``"sparseSolve"`` — direct sparse solve via scipy.
         * ``"sparseCGpre"`` — preconditioned conjugate-gradient. The preconditioner type
           is selected by ``args["sparse_preconditioner_type"]`` (default ``"ilu"``;
-          also ``"ic"``/``"incomplete_cholesky"``, ``"block_jacobi"``,
-          ``"schwarz"``/``"additive_schwarz"``, or ``"amg"`` (requires pyamg)).
+          also compiled incomplete Cholesky ``"ichol"``/``"ic"``/``"incomplete_cholesky"``,
+          zero-fill ``"ichol0"``, legacy Python IC(0) ``"native_ic"``/``"native_ichol"``,
+          ``"block_jacobi"``, ``"schwarz"``/``"additive_schwarz"``, or ``"amg"``
+          (requires pyamg). The compiled IC options require the optional ``ilupp`` package.
         * ``"sparseMINRESpre"`` — preconditioned MINRES; same preconditioner choices.
         * ``"sparseCGpre_<type>"`` / ``"sparseMINRESpre_<type>"`` — shortcut that sets
           ``args["sparse_preconditioner_type"]`` to ``<type>`` (e.g. ``"sparseCGpre_amg"``).
+
+        **Preconditioner aliases (incomplete Cholesky):**
+
+        The IC family has a compiled fast path and a pure-Python legacy path. The
+        names in this list are the canonical backends that ``sparse_preconditioner_type``
+        resolves to internally; the items after "aliases:" all map to the same backend.
+
+        * ``"ichol"`` — thresholded incomplete Cholesky via the optional
+          ``ilupp`` package (fast). **Aliases:** ``"ic"``, ``"incomplete_cholesky"``.
+          Tunable through ``sparse_preconditioner_ichol_fill_in`` and
+          ``sparse_preconditioner_ichol_threshold``.
+        * ``"ichol0"`` — zero-fill incomplete Cholesky via ``ilupp`` (cheap to build,
+          weaker as a preconditioner). No aliases.
+        * ``"native_incomplete_cholesky"`` — pure-Python IC(0); slower, intended as
+          a legacy/debugging fallback that always works without optional deps.
+          **Aliases:** ``"native_ic"``, ``"native_ichol"``,
+          ``"legacy_ic"``, ``"legacy_ichol"``,
+          ``"legacy_incomplete_cholesky"``. (``"native_"`` and ``"legacy_"`` are
+          interchangeable — "native" means built-in to fvGP, "legacy" reminds you
+          this is the original pre-``ilupp`` path.)
+
+        The two ``ilupp`` backends (``"ichol"``/``"ichol0"``) raise a clear
+        ``ImportError`` with install instructions if ``ilupp`` is missing
+        (``pip install ilupp``). All three IC backends honor the shared
+        ``sparse_preconditioner_shift`` / ``_shift_growth`` / ``_shift_attempts``
+        diagonal-shift-retry knobs (see the ``args`` section below).
 
         **Custom solver (any GP):**
 
@@ -596,8 +656,8 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
         - "sparse_krylov_warm_start" : True/False; default = False — feed the
           previous training iteration's ``KVinvY`` as ``x0`` to the next solve
         - "sparse_preconditioner_type" : str; default = "ilu". One of "ilu",
-          "ic"/"ichol"/"incomplete_cholesky", "block_jacobi", "schwarz"/
-          "additive_schwarz", "amg" (requires pyamg)
+          "ichol"/"ic"/"incomplete_cholesky", "ichol0", "native_ic"/"native_ichol",
+          "block_jacobi", "schwarz"/"additive_schwarz", "amg" (requires pyamg)
         - "sparse_preconditioner_refresh_interval" : int; default = 1 —
           reuse the cached preconditioner for up to N consecutive solves
           before rebuilding. ``set_KV`` always force-refreshes.
@@ -607,11 +667,15 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
           additive Schwarz
         - "sparse_preconditioner_drop_tol" / "sparse_preconditioner_fill_factor"
           — forwarded to scipy ``spilu`` for "ilu"
+        - "sparse_preconditioner_ichol_fill_in" / "sparse_preconditioner_ichol_threshold"
+          — forwarded to ``ilupp`` thresholded IC for "ichol"
         - "sparse_preconditioner_amg_*" — forwarded to pyamg
           (``max_levels``, ``max_coarse``, ``strength``, ``cycle``, etc.)
-        - "sparse_preconditioner_shift" / "_growth" / "_attempts" — diagonal
-          shift retry knobs for "ic" / "block_jacobi" / "additive_schwarz" when
-          a local Cholesky encounters a non-PD block
+        - "sparse_preconditioner_shift" / "sparse_preconditioner_shift_growth" /
+          "sparse_preconditioner_shift_attempts" — diagonal shift retry knobs
+          (defaults: 0.0 / 10.0 / 5). Applies to "ichol" and "ichol0" (compiled),
+          "native_ic"/"native_ichol" (legacy), "block_jacobi", and
+          "additive_schwarz" when a local factorization encounters a non-PD pivot
 
         Cholesky compute-device routing:
 
