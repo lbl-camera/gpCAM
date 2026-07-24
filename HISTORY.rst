@@ -2,6 +2,23 @@
 History
 =======
 
+8.4.2 — 2026-07-24
+------------------
+
+Documentation / Claude Code skills release (no library code changes; the
+installed wheel is identical to 8.4.1).
+
+* Corrected and expanded the bundled Claude Code skill set (kernels, prior
+  means, noise, acquisition, cost, multi-task, gp2Scale, transformed
+  optimizers, experiment designer). Fixes include the deep-kernel recipe now
+  actually loading the network weights, a consistent ``K = 1 + D`` hyperparameter
+  index convention (kernel → mean → noise), the documented ``prior_mean_function``
+  constructor keyword, and removal of a few APIs that never existed.
+* Added two new skills: ``uncertainty-calibration`` (scoring rules, coverage
+  curves, over/under-confidence diagnosis) and ``troubleshooting`` (error-message
+  to cause/fix decision tree).
+* Every code recipe in the skills is verified to run against fvgp 4.8.1.
+
 8.4.0 (beta) — 2026
 -------------------
 
