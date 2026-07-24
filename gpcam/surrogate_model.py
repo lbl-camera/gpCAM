@@ -215,7 +215,8 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gpo, x_out):
     if x_out is None:
         all_acq_func = ["variance", "relative information entropy", "relative information entropy set",
                         "ucb", "lcb", "maximum", "minimum", "gradient", "expected improvement",
-                        "probability of improvement", "target probability", "total correlation"]
+                        "probability of improvement", "target probability", "total correlation",
+                        "knowledge gradient", "noisy expected improvement"]
         if acquisition_function == "variance":
             res = np.sqrt(gpo.posterior_covariance(x, variance_only=True)["v(x)"])
             return res
@@ -261,6 +262,10 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gpo, x_out):
             pdf = norm.pdf(gamma)
             cdf = norm.cdf(gamma)
             return std * (gamma * cdf + pdf)
+        elif acquisition_function == "knowledge gradient":
+            return knowledge_gradient(x, gpo, x_out=None)
+        elif acquisition_function == "noisy expected improvement":
+            return noisy_expected_improvement(x, gpo, x_out=None)
         elif acquisition_function == "target probability":
             try:
                 a = gpo.args["a"]
@@ -279,7 +284,8 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gpo, x_out):
 
     else:
         all_acq_func = ["variance", "relative information entropy", "relative information entropy set",
-                        "ucb", "lcb", "expected improvement", "total correlation"]
+                        "ucb", "lcb", "expected improvement", "total correlation",
+                        "knowledge gradient", "noisy expected improvement"]
         if acquisition_function == "variance":
             res = gpo.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"]
             return np.sum(res, axis=1)
@@ -315,8 +321,208 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gpo, x_out):
             pdf = norm.pdf(gamma)
             cdf = norm.cdf(gamma)
             return std * (gamma * cdf + pdf)
+        elif acquisition_function == "knowledge gradient":
+            return knowledge_gradient(x, gpo, x_out=x_out)
+        elif acquisition_function == "noisy expected improvement":
+            return noisy_expected_improvement(x, gpo, x_out=x_out)
         else:
             raise Exception("No valid acquisition function string provided. Choose from ", all_acq_func)
+
+
+##########################################################################
+# Knowledge gradient and noisy expected improvement
+#
+# Both are lookahead acquisition functions that reason about the posterior of the
+# *objective* rather than the raw (noisy) observations, which is why they need the
+# cross-covariance between candidates and reference points, not just point-wise
+# variance. For multi-task GPs (``x_out is not None``) both operate on the
+# task-summed objective g(x) = sum_t f(x, t), matching how the built-in multi-task
+# ``expected improvement`` / ``ucb`` scalarize the outputs.
+##########################################################################
+def _acq_arg(gpo, key, default):
+    """Read an optional acquisition setting from ``gpo.args`` (a dict or None)."""
+    a = getattr(gpo, "args", None)
+    if isinstance(a, dict) and key in a and a[key] is not None:
+        return a[key]
+    return default
+
+
+def _reference_points(gpo, x_out, cap, rng):
+    """Input-space data points used as the reference/fantasy set.
+
+    For multi-task GPs ``gpo.x_data`` lives in the product (input x task) space, so
+    the unique input points come from ``get_data()['x data']``. Capped (subsampled)
+    for scalability; the subsample is stable within one ``ask()`` because the rng is
+    seeded.
+    """
+    if x_out is None:
+        xr = np.asarray(gpo.x_data, dtype=float)
+    else:
+        xr = np.asarray(gpo.get_data()["x data"], dtype=float)
+    if len(xr) > cap:
+        xr = xr[rng.choice(len(xr), size=cap, replace=False)]
+    return xr
+
+
+def _assumed_observation_noise(gpo, x_out):
+    """Assumed observation-noise variance for the (scalarized) objective.
+
+    Uses the mean of the measurement variances. For the task-summed multi-task
+    objective the noise of the sum is approximated as ``len(x_out)`` times that mean.
+    """
+    try:
+        v = np.asarray(gpo.get_data()["measurement variances"], dtype=float)
+        base = float(np.mean(v)) if v.size else 1e-6
+    except Exception:
+        base = 1e-6
+    if not np.isfinite(base) or base <= 0.0:
+        base = 1e-6
+    if x_out is not None:
+        base *= len(x_out)
+    return base
+
+
+def _scalarized_blocks(gpo, x_ref, x_cand, x_out):
+    """Posterior mean and covariance of the (task-summed) objective on [x_ref; x_cand].
+
+    Returns
+    -------
+    mu_ref   : (M,)   posterior mean at reference points
+    cov_ref  : (M, M) posterior covariance among reference points
+    mu_cand  : (N,)   posterior mean at candidates
+    var_cand : (N,)   posterior variance at candidates
+    cross    : (M, N) posterior covariance between reference points and candidates
+    """
+    M, N = len(x_ref), len(x_cand)
+    stack = np.vstack([x_ref, x_cand])
+    mean = np.asarray(gpo.posterior_mean(stack, x_out=x_out)["m(x)"])
+    S_flat = np.asarray(gpo.posterior_covariance(stack, x_out=x_out)["S_flat"])
+    if x_out is None:
+        mu = mean.reshape(-1)
+        cov = S_flat
+    else:
+        # Flat product-space ordering is task-major (k = point + Npts*task), so the
+        # (Npts*T, Npts*T) covariance is a T x T grid of (Npts, Npts) blocks; summing
+        # the task blocks gives Cov(sum_t f(.,t), sum_t' f(.,t')). See the v.reshape(
+        # ..., order='F') convention in fvgp.posterior_covariance.
+        T, P = len(x_out), M + N
+        mu = mean.reshape(P, T).sum(axis=1)
+        cov = S_flat.reshape(T, P, T, P).sum(axis=(0, 2))
+    cov = 0.5 * (cov + cov.T)
+    mu_ref, mu_cand = mu[:M], mu[M:]
+    cov_ref = cov[:M, :M]
+    cross = cov[:M, M:]
+    var_cand = np.clip(np.diag(cov)[M:], 0.0, None)
+    return mu_ref, cov_ref, mu_cand, var_cand, cross
+
+
+def _expected_max_of_affine(a, b):
+    """Exact ``E[max_i (a_i + b_i Z)]`` for a standard normal ``Z``.
+
+    Computed by intersecting the lines ``a_i + b_i z`` to find the upper envelope,
+    then integrating each dominant segment against the normal density. This is the
+    core of the correlated knowledge-gradient computation
+    (Frazier, Powell & Dayanik 2009).
+    """
+    a = np.asarray(a, dtype=float)
+    b = np.asarray(b, dtype=float)
+    order = np.lexsort((a, b))          # by slope b, ties broken by intercept a
+    a, b = a[order], b[order]
+    keep = np.concatenate([b[1:] != b[:-1], [True]])   # dedupe equal slopes, keep max a
+    a, b = a[keep], b[keep]
+    n = len(a)
+    if n == 1:
+        return float(a[0])
+    idx = [0]
+    z = [-np.inf]                       # z[k] = left breakpoint of dominant line idx[k]
+    for i in range(1, n):
+        while True:
+            j = idx[-1]
+            zi = (a[j] - a[i]) / (b[i] - b[j])   # crossing of line j and line i (b[i]>b[j])
+            if len(idx) > 1 and zi <= z[-1]:
+                idx.pop(); z.pop()               # line j never reaches the envelope
+            else:
+                break
+        idx.append(i); z.append(zi)
+    a, b = a[idx], b[idx]
+    zl = np.array(z)
+    zr = np.concatenate([zl[1:], [np.inf]])
+    # On (zl_k, zr_k) line k is the max; E[(a_k+b_k Z)1{zl<Z<zr}] uses
+    # E[Z 1{alpha<Z<beta}] = phi(alpha) - phi(beta).
+    return float(np.sum(a * (norm.cdf(zr) - norm.cdf(zl))
+                        + b * (norm.pdf(zl) - norm.pdf(zr))))
+
+
+def _jitter_cholesky(cov):
+    """Cholesky factor of ``cov`` with adaptive jitter; eigen-floor as last resort."""
+    cov = 0.5 * (cov + cov.T)
+    n = len(cov)
+    jit = 1e-9 * (np.trace(cov) / max(n, 1) + 1e-12)
+    for _ in range(8):
+        try:
+            return np.linalg.cholesky(cov + jit * np.eye(n))
+        except np.linalg.LinAlgError:
+            jit *= 10.0
+    w, Q = np.linalg.eigh(cov)
+    return Q @ np.diag(np.sqrt(np.clip(w, 1e-12, None)))
+
+
+def knowledge_gradient(x, gpo, x_out=None):
+    """Knowledge-gradient acquisition (maximized).
+
+    KG(x) is the expected increase in the maximum of the posterior mean after a
+    (fantasized) measurement at ``x``, over the reference set of data points plus
+    ``x`` itself (the KGCP scheme, Scott, Frazier & Powell 2011). Returns a 1d array
+    of one non-negative score per row of ``x``.
+
+    Optional ``gpo.args`` keys: ``kg_reference_set_size`` (default 100),
+    ``kg_seed`` (default 0).
+    """
+    x = np.atleast_2d(np.asarray(x, dtype=float))
+    cap = int(_acq_arg(gpo, "kg_reference_set_size", 100))
+    rng = np.random.default_rng(int(_acq_arg(gpo, "kg_seed", 0)))
+    x_ref = _reference_points(gpo, x_out, cap, rng)
+    mu_ref, _cov_ref, mu_cand, var_cand, cross = _scalarized_blocks(gpo, x_ref, x, x_out)
+    noise = _assumed_observation_noise(gpo, x_out)
+    base_ref = np.max(mu_ref)
+    out = np.empty(len(x))
+    for j in range(len(x)):
+        denom = np.sqrt(max(var_cand[j] + noise, 1e-12))
+        a = np.append(mu_ref, mu_cand[j])                    # intercepts: current mean
+        b = np.append(cross[:, j], var_cand[j]) / denom      # slopes: predictive update
+        out[j] = _expected_max_of_affine(a, b) - max(base_ref, mu_cand[j])
+    out[out < 0.0] = 0.0                                      # KG is non-negative in theory
+    return out
+
+
+def noisy_expected_improvement(x, gpo, x_out=None):
+    """Noisy expected-improvement acquisition (maximized).
+
+    Standard EI treats the incumbent (best value so far) as known, which is wrong
+    under observation noise. Noisy-EI (Letham et al. 2019) averages EI over the
+    posterior distribution of the incumbent: the best value across Monte-Carlo
+    samples of the objective at the observed points. Returns a 1d array of one
+    non-negative score per row of ``x``. Common random numbers (a seeded rng) keep
+    the score smooth across candidate evaluations.
+
+    Optional ``gpo.args`` keys: ``nei_samples`` (default 128),
+    ``nei_reference_set_size`` (default 100), ``nei_seed`` (default 0).
+    """
+    x = np.atleast_2d(np.asarray(x, dtype=float))
+    n_samples = int(_acq_arg(gpo, "nei_samples", 128))
+    cap = int(_acq_arg(gpo, "nei_reference_set_size", 100))
+    rng = np.random.default_rng(int(_acq_arg(gpo, "nei_seed", 0)))
+    x_ref = _reference_points(gpo, x_out, cap, rng)
+    mu_ref, cov_ref, mu_cand, var_cand, _cross = _scalarized_blocks(gpo, x_ref, x, x_out)
+    L = _jitter_cholesky(cov_ref)
+    Z = rng.standard_normal((len(mu_ref), n_samples))
+    f_ref = mu_ref[:, None] + L @ Z                          # (M, K) incumbent samples
+    y_star = np.max(f_ref, axis=0)                           # (K,) sampled incumbents
+    std = np.sqrt(np.maximum(var_cand, 1e-12))               # (N,)
+    d = mu_cand[:, None] - y_star[None, :]                   # (N, K)
+    gamma = d / std[:, None]
+    ei = std[:, None] * (gamma * norm.cdf(gamma) + norm.pdf(gamma))
+    return np.mean(ei, axis=1)
 
 
 def differential_evolution(func,

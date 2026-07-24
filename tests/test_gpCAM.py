@@ -104,9 +104,11 @@ def test_basic_multi_task(client):
         gp.update_hyperparameters(opt_obj)
         time.sleep(0.1)
     gp.stop_training(opt_obj)
-    acquisition_functions = ["variance","relative information entropy","relative information entropy set","total correlation", "ucb", "expected improvement"]
+    acquisition_functions = ["variance","relative information entropy","relative information entropy set","total correlation", "ucb", "expected improvement", "knowledge gradient", "noisy expected improvement"]
     for acq_func in acquisition_functions:
         gp.evaluate_acquisition_function(np.array([[0.0,0.6],[0.1,0.2]]), np.array([0,1]), acquisition_function = acq_func)
+    gp.ask(index_set_bounds, np.array([0,1]), acquisition_function="knowledge gradient", max_iter = 2)
+    gp.ask(index_set_bounds, np.array([0,1]), acquisition_function="noisy expected improvement", max_iter = 2)
     gp.ask(index_set_bounds,np.array([0.,1.]), max_iter = 2)
     gp.ask(index_set_bounds, max_iter = 2)
 
@@ -158,10 +160,24 @@ def test_acq_funcs(client):
     r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="gradient", method = "local")
     r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 5, acquisition_function="variance", method = "hgdl", dask_client=client)
     r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="target probability", method = "local")
+    r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="knowledge gradient")
+    r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="noisy expected improvement")
 
     r = my_gpo.ask([np.array([0.,1.,.5])], n = 1, acquisition_function="target probability", vectorized = False)
     r = my_gpo.ask([np.array([0.,1.,.5])], n = 1, acquisition_function="variance", vectorized = False)
     r = my_gpo.ask([np.array([0.,1.,.5])], n = 1, acquisition_function="ucb", vectorized = False)
+
+    # knowledge gradient and noisy expected improvement return one non-negative
+    # score per candidate (like expected improvement)
+    grid = np.random.uniform(size=(12, 3))
+    for acq in ["knowledge gradient", "noisy expected improvement"]:
+        v = my_gpo.evaluate_acquisition_function(grid, acquisition_function=acq)
+        assert v.shape == (12,)
+        assert np.all(np.isfinite(v)) and np.all(v >= -1e-9)
+    r = my_gpo.ask([np.array([0.,1.,.5]), np.array([0.5,0.5,0.5])], n = 1,
+                   acquisition_function="knowledge gradient", vectorized = False)
+    r = my_gpo.ask([np.array([0.,1.,.5]), np.array([0.5,0.5,0.5])], n = 1,
+                   acquisition_function="noisy expected improvement", vectorized = False)
 
 def test_pickle():
     import numpy as np
