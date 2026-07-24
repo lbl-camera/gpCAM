@@ -1,9 +1,14 @@
 ---
 name: multi-task-advanced
 description: Use for multi-output, vector-valued, or function-valued gpCAM experiments using fvGPOptimizer — useful when a single measurement returns multiple correlated quantities (e.g., spectra, multi-channel detectors).
+gpcam_version: "8.4.x"
+fvgp_version: "4.8.x"
+last_verified: "2026-07-23 (gpCAM dadeb65)"
 ---
 
 # Skill: Multi-Task GPs with fvGPOptimizer
+
+*Verified against gpCAM 8.4.x / fvgp 4.8.x — last checked 2026-07-23 (gpCAM `dadeb65`).*
 
 Design experiments with vector-valued or function-valued outputs using gpCAM's multi-task GP.
 
@@ -38,18 +43,20 @@ y_data = np.random.randn(100, 5)             # 5 outputs per point
 gpo = fvGPOptimizer(x_data, y_data)
 gpo.train(max_iter=20)
 
-# Custom kernel path — supply init_hyperparameters and hp bounds as with GPOptimizer:
+# Custom kernel path — supply init_hyperparameters and hp bounds as with GPOptimizer.
+# The layout below matches `multi_task_kernel` in "Multi-Task Kernel Design" below:
+# D + 2 hyperparameters for D input dimensions.
 gpo = fvGPOptimizer(
     x_data=x_data,
     y_data=y_data,
     init_hyperparameters=np.ones(4) / 10.0,
-    kernel_function=my_multi_task_kernel,
+    kernel_function=multi_task_kernel,
 )
 gpo.train(hyperparameter_bounds=np.array([
-    [0.01, 10.0],  # signal variance
-    [0.01, 10.0],  # length scale dim 0
-    [0.01, 10.0],  # length scale dim 1
-    [0.01, 10.0],  # length scale for task dimension
+    [0.01, 100.0],  # hps[0] signal variance
+    [0.01, 10.0],   # hps[1] length scale dim 0
+    [0.01, 10.0],   # hps[2] length scale dim 1
+    [0.0, 1.0],     # hps[3] task correlation  (index D+1, D=2)
 ]))
 ```
 
@@ -72,12 +79,26 @@ gpo.ask(parameter_bounds, x_out=np.array([0, 1]), n=4,
 
 ### One-shot optimize
 
-For simple black-box vector-valued optimization, `optimize()` replaces the manual loop:
+For simple black-box vector-valued optimization, `optimize()` replaces the manual loop.
+
+**The shape contract is asymmetric and is the easiest thing to get wrong.**
+`optimize()` calls `func` with a **single point of shape `(D,)`** during initial
+sampling (via `map`), then with **shape `(1, D)`** inside the loop. For multi-task the
+return shape must follow suit: a **1-D vector of length T** for a single point, and
+**`(n, T)`** for a batch. Returning `(1, T)` for the single-point case fails with
+`AssertionError: updated x and y do not have the same lengths`.
+
 ```python
-def f(x):                      # x shape (N, D)
-    y = np.column_stack([...])  # shape (N, T)
-    noise = np.full(y.shape, 0.01)
-    return y, noise
+def f(x):
+    """
+    Single point (D,)  -> returns (T,)  values and (T,)  noise
+    Batch      (n, D)  -> returns (n,T) values and (n,T) noise
+    """
+    single = np.ndim(x) == 1
+    xa = np.atleast_2d(x)
+    y = np.column_stack([np.sin(xa[:, 0]), np.cos(xa[:, 0])])   # (n, T)
+    v = np.full(y.shape, 0.01)
+    return (y[0], v[0]) if single else (y, v)
 
 result = fvGPOptimizer().optimize(
     func=f,
@@ -87,33 +108,67 @@ result = fvGPOptimizer().optimize(
 )
 ```
 
+If you would rather not reason about this, use the explicit ask/tell loop instead —
+there you control every call and `tell()` takes a plain `(n, D)` / `(n, T)` pair.
+
 ## Multi-Task Kernel Design
 
 The kernel receives inputs with the task index as the last column. You need to model both within-task and between-task correlations:
 
 ```python
-from gpcam.kernels import matern_kernel_diff1, get_distance_matrix
+from gpcam.kernels import matern_kernel_diff1, get_anisotropic_distance_matrix
 
 def multi_task_kernel(x1, x2, hps):
     """
-    x1, x2: shape (N, D+1) where last column is task index
-    hps[0]: signal variance
-    hps[1:D+1]: input space length scales
-    hps[D+1]: task correlation strength
+    ARD over the input dimensions, plus a task-correlation term.
+
+    x1, x2: shape (N, D+1), where the last column is the task index.
+
+    hps[0]     : signal variance
+    hps[1:D+1] : input-space length scales (one per input dimension)
+    hps[D+1]   : task correlation strength, in [0, 1]
+
+    Total: D + 2 hyperparameters.
     """
-    # Spatial kernel (input dimensions only)
-    d_spatial = get_distance_matrix(x1[:, :-1], x2[:, :-1])
-    k_spatial = matern_kernel_diff1(d_spatial, hps[1])
-    
-    # Task kernel (last dimension)
-    task1 = x1[:, -1]
-    task2 = x2[:, -1]
-    # Simple: same task = 1, different task = correlation
-    same_task = np.equal.outer(task1, task2).astype(float)
-    k_task = same_task + hps[2] * (1 - same_task)
-    
+    D = x1.shape[1] - 1                 # strip the task column
+
+    # Spatial kernel — ARD over the input dimensions only
+    d_spatial = get_anisotropic_distance_matrix(x1[:, :D], x2[:, :D], hps[1:D+1])
+    k_spatial = matern_kernel_diff1(d_spatial, 1.0)
+
+    # Task kernel — same task = 1, different task = hps[D+1]
+    same_task = np.equal.outer(x1[:, -1], x2[:, -1]).astype(float)
+    k_task = same_task + hps[D+1] * (1.0 - same_task)
+
     return hps[0] * k_spatial * k_task
 ```
+
+The task-correlation hyperparameter must be bounded to `[0, 1]`. Values above 1 make
+the task block non-PSD; negative values are representable but rarely what you want
+and make the matrix indefinite for more than two tasks.
+
+Matching bounds for the D = 2, 5-task example above:
+
+```python
+D = 2
+hp_bounds = np.array(
+    [[0.01, 100.0]] +           # hps[0]   signal variance
+    [[0.01, 10.0]] * D +        # hps[1:3] length scales, one per input dim
+    [[0.0, 1.0]]                # hps[3]   task correlation  <- index D+1
+)
+gpo = fvGPOptimizer(x_data, y_data,
+                    init_hyperparameters=np.ones(D + 2),
+                    kernel_function=multi_task_kernel)
+gpo.train(hyperparameter_bounds=hp_bounds)
+
+assert len(gpo.hyperparameters) == len(hp_bounds)
+```
+
+Note that `hps[D+1]` is the task index **only because** the kernel reads `D` length
+scales. If you simplify to a single isotropic length scale, the task correlation moves
+to `hps[2]` and the bounds array shrinks accordingly — keep the docstring, the code,
+and the bounds in agreement, or you will train a hyperparameter that does nothing
+while reading a length scale as a task correlation.
 
 ## Important Notes
 
