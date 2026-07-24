@@ -406,12 +406,14 @@ class GPOptimizerBase(GP):
             `ucb`,`lcb`,`maximum`,
             `minimum`, `variance`,`expected improvement`,
             `relative information entropy`,`relative information entropy set`,
-            `probability of improvement`, `gradient`,`total correlation`,`target probability`.
+            `probability of improvement`, `gradient`,`total correlation`,`target probability`,
+            `knowledge gradient`, and `noisy expected improvement`.
             In the multi-task case (using :py:meth:`gpcam.fvGPOptimizer)
             the following built-in acquisition functions can be used:
             `variance`, `relative information entropy`,
             `relative information entropy set`, `total correlation`, `ucb`, `lcb`,
-            and `expected improvement`.
+            `expected improvement`, `knowledge gradient`, and
+            `noisy expected improvement`.
             In the multi-task case, it is highly recommended to
             deploy a user-defined acquisition function due to the intricate relationship
             of posterior distributions at different points in the output space.
@@ -435,6 +437,15 @@ class GPOptimizerBase(GP):
             total correlation: extension of mutual information to more than 2 random variables;
             target probability: probability of a target. This needs a dictionary
             args = {'a': lower bound, 'b': upper bound} to be defined.
+            knowledge gradient: the expected increase in the maximum of the posterior
+            mean after a fantasized measurement (KGCP scheme over the data points plus
+            the candidate). For multi-task GPs it acts on the task-summed objective.
+            Tunable via args = {'kg_reference_set_size': int, 'kg_seed': int}.
+            noisy expected improvement: expected improvement averaged over the
+            posterior of the incumbent (best observed value), which makes it robust to
+            observation noise (Letham et al. 2019). For multi-task GPs it acts on the
+            task-summed objective. Tunable via
+            args = {'nei_samples': int, 'nei_reference_set_size': int, 'nei_seed': int}.
         method : str, optional
             A string defining the method used to find the maximum
             of the acquisition function. Choose from `global`,

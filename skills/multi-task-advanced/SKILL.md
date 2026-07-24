@@ -172,7 +172,7 @@ while reading a length scale as a task correlation.
 
 ## Important Notes
 
-1. **Multi-task acquisition**: Use `"relative information entropy set"` / `"relative information entropy"` / `"variance"` / `"total correlation"` for batch acquisition across tasks. Pass `x_out=...` to the `ask()` call. Custom callables are supported and often advisable when you care about a specific task or combination.
+1. **Multi-task acquisition**: Use `"relative information entropy set"` / `"relative information entropy"` / `"variance"` / `"total correlation"` for batch acquisition across tasks. For optimization, `"expected improvement"`, `"knowledge gradient"`, and `"noisy expected improvement"` all work multi-task — they act on the **task-summed** objective `sum_t f(x, t)` (`"noisy expected improvement"` is the one to reach for when measurements are noisy). Pass `x_out=...` to the `ask()` call. Custom callables are supported and often advisable when you care about a specific task or combination rather than the plain sum.
 2. **Missing task observations**: `y_data` can have `np.nan` entries (e.g., task 1 wasn't measured at some x); the corresponding `noise_variances` entry **must also** be `np.nan`. The GP just ignores those entries — no imputation needed.
 3. **Default kernel**: `fvGPOptimizer(x, y)` with no kernel uses a built-in deep kernel that learns its own hyperparameters and doesn't require bounds. If you supply a custom `kernel_function`, you become responsible for the full `init_hyperparameters` + `hyperparameter_bounds` layout.
 4. **Deep kernel via NN warping**: For harder multi-task structure, `from gpcam.deep_kernel_network import Network` gives you an MLP you parametrize from `hps` — see the `kernel-designer` skill for the pattern.

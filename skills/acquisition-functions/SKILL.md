@@ -83,11 +83,62 @@ Pass these as strings to `gpo.ask(acquisition_function=...)`:
 | Relative Information Entropy | `"relative information entropy"` | Information-theoretic exploration |
 | Relative Information Entropy Set | `"relative information entropy set"` | Batch acquisition |
 | Total Correlation | `"total correlation"` | Batch acquisition |
+| Knowledge Gradient | `"knowledge gradient"` | Optimization; lookahead, one-step-optimal, robust to noise |
+| Noisy Expected Improvement | `"noisy expected improvement"` | Optimization when observations are noisy |
 
 To sanity-check any built-in or custom acquisition on a grid of candidates without calling `ask()`:
 ```python
 scores = gpo.evaluate_acquisition_function(x_grid, acquisition_function="ucb")
 ```
+
+### Knowledge gradient and noisy expected improvement
+
+Both are optimization acquisitions (find the maximum) that reason about the posterior
+of the underlying **function** rather than the raw noisy observations. They are the
+right choice over plain `"expected improvement"` when measurements are noisy, and
+they work for both single-task and multi-task GPs.
+
+```python
+# Single-task
+gpo.ask(bounds, acquisition_function="knowledge gradient")
+gpo.ask(bounds, acquisition_function="noisy expected improvement")
+
+# Multi-task — both act on the task-summed objective sum_t f(x, t),
+# matching the built-in multi-task "expected improvement" / "ucb"
+gpo.ask(bounds, x_out=np.array([0, 1, 2]),
+        acquisition_function="knowledge gradient")
+```
+
+- **Knowledge gradient (KG)** — the expected increase in the maximum of the posterior
+  *mean* after a hypothetical measurement at the candidate (KGCP scheme: the reference
+  set is the data points plus the candidate). It is a one-step-optimal, lookahead
+  criterion: it values a measurement by how much it is expected to improve your best
+  decision, so it keeps exploring even when simple EI has gone to zero. KG is ~0 on
+  top of existing data and largest where a measurement would most raise the achievable
+  maximum.
+- **Noisy expected improvement (NEI)** — expected improvement averaged over the
+  posterior of the incumbent (the best value so far). Plain EI treats the incumbent as
+  known exactly, which is wrong under observation noise; NEI integrates over it
+  (Monte-Carlo over posterior samples of the objective at the observed points, with
+  common random numbers so the score is smooth for the optimizer).
+
+Both accept optional tuning through the constructor `args` dict:
+
+```python
+gpo = GPOptimizer(x_data, y_data, args={
+    "kg_reference_set_size": 100,   # cap on reference points (subsampled if larger)
+    "kg_seed": 0,                   # seed for the reference-set subsample
+    "nei_samples": 128,             # Monte-Carlo incumbent samples for NEI
+    "nei_reference_set_size": 100,
+    "nei_seed": 0,                  # seed -> common random numbers, smooth objective
+})
+```
+
+Cost note: both build a joint posterior over the reference set plus candidates on each
+evaluation, so they are heavier than `"variance"` or `"ucb"`. Keep
+`*_reference_set_size` modest (the default 100 subsamples the data) for large datasets.
+Use `method="global"` (the default); the `"local"` finite-difference optimizer is weak
+on their flat score surfaces, exactly as with plain EI.
 
 ## Custom Acquisition Recipes
 

@@ -138,6 +138,8 @@ Sign convention to keep straight: acquisition functions are written to be **maxi
 
 Built-in acquisition strings are dispatched in `evaluate_gp_acquisition_function`, with **separate single-task vs multi-task branches** (`x_out is not None`) that do *not* support the same set — e.g. `"maximum"`, `"minimum"`, `"gradient"`, `"probability of improvement"`, and `"target probability"` exist only on the single-task branch. `"target probability"` requires `args={'a': lower, 'b': upper}`.
 
+`"knowledge gradient"` (KGCP) and `"noisy expected improvement"` (Monte-Carlo NEI) are lookahead optimization acquisitions available on **both** branches; the multi-task form scalarizes to the task-summed objective `sum_t f(x,t)`, like the multi-task EI/UCB. Both live as standalone functions in `surrogate_model.py` (`knowledge_gradient`, `noisy_expected_improvement`) with helpers (`_expected_max_of_affine` — the exact correlated-KG line integral; `_scalarized_blocks` — reference/candidate posterior blocks from `"S_flat"`, task-major `k = point + Npts*task` ordering). They need the cross-covariance between candidates and reference points, so unlike the point-wise acquisitions they call the full (non-`variance_only`) `posterior_covariance`. Tunable via `args` keys `kg_reference_set_size`/`kg_seed` and `nei_samples`/`nei_reference_set_size`/`nei_seed`.
+
 `ask()` returns `{'x': ..., 'f_a(x)': ..., 'opt_obj': ...}`. Non-Euclidean / mixed spaces are supported by passing `input_set` as a **list of candidates** instead of a bounds array.
 
 ### Pickling

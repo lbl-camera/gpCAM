@@ -47,7 +47,7 @@ Based on their answers, decide:
 |--------|----------|
 | **Optimizer class** | Pick by the support of the observations: `GPOptimizer` for unconstrained or negative-allowed `y`; `LogGPOptimizer` if `y > 0` (intensities, rates, concentrations); `LogitGPOptimizer` if `y ∈ [0, 1]` (yields, fractions, probabilities). A plain GP on positive-only or bounded data can predict invalid values — see `transformed-optimizers-advanced` skill. |
 | **Kernel** | Default Matérn-3/2 ARD is good for most cases. Use periodic kernel if periodicity is known. Use Matérn-1/2 for rough/discontinuous data, Matérn-5/2 or SE for very smooth. See `kernel-designer` skill for custom kernels. |
-| **Acquisition function** | `'variance'` for exploration/mapping. `'expected improvement'` or `'ucb'` for optimization (UCB exposes a tunable exploration/exploitation tradeoff via `beta`). Custom callable for multi-objective or constraints. See `acquisition-functions` skill. |
+| **Acquisition function** | `'variance'` for exploration/mapping. `'expected improvement'` or `'ucb'` for optimization (UCB exposes a tunable exploration/exploitation tradeoff via `beta`). For **noisy** measurements prefer `'noisy expected improvement'` (EI robust to observation noise) or `'knowledge gradient'` (lookahead, keeps exploring when EI stalls); both also work multi-task. Custom callable for multi-objective or constraints. See `acquisition-functions` skill. |
 | **Prior mean** | Default is a **constant equal to `mean(y_data)`** — not zero. Away from data the posterior reverts to that constant. Override with `prior_mean_function=` only if they have a physical model. See `prior-mean-functions` skill. |
 | **Noise model** | Use `noise_variances` if noise is known and uniform. Use `noise_function` if noise varies. See `noise-functions` skill. |
 | **Training strategy** | `method='global'` for first training, `method='local'` for re-training during the loop. Other options: `"mcmc"` (Bayesian — returns posterior samples over hyperparameters), `"adam"` (stochastic-gradient, fast, works well for high-dimensional hyperparameter vectors like deep kernels), `"hgdl"` (distributed local+global hybrid — needs a `dask_client`). |
@@ -218,6 +218,8 @@ hp_bounds = np.array(
 # ============================================================
 acquisition_function = "variance"  # Options: "variance", "expected improvement",
                                    #          "ucb", "relative information entropy",
+                                   #          "knowledge gradient" (lookahead, noise-robust),
+                                   #          "noisy expected improvement" (EI under noise),
                                    #          or a callable
 
 # ============================================================
