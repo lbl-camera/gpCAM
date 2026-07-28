@@ -1,9 +1,14 @@
 ---
 name: experiment-designer
 description: Use for end-to-end autonomous experiment design with gpCAM. Translates a scientist's description of their measurement into a complete, runnable gpCAM script — useful for replacing raster scans with adaptive sampling, peak-finding, or parameter optimization.
+gpcam_version: "8.4.x"
+fvgp_version: "4.8.x"
+last_verified: "2026-07-23 (gpCAM dadeb65)"
 ---
 
 # Skill: gpCAM Experiment Designer
+
+*Verified against gpCAM 8.4.x / fvgp 4.8.x — last checked 2026-07-23 (gpCAM `dadeb65`).*
 
 Design complete autonomous experiment scripts using gpCAM. You translate a scientist's description of their measurement into a runnable Python script.
 
@@ -52,13 +57,14 @@ Based on their answers, decide:
 |--------|----------|
 | **Optimizer class** | Pick by the support of the observations: `GPOptimizer` for unconstrained or negative-allowed `y`; `LogGPOptimizer` if `y > 0` (intensities, rates, concentrations); `LogitGPOptimizer` if `y ∈ [0, 1]` (yields, fractions, probabilities). A plain GP on positive-only or bounded data can predict invalid values — see `transformed-optimizers-advanced` skill. |
 | **Kernel** | Default Matérn-3/2 ARD is good for most cases. Use periodic kernel if periodicity is known. Use Matérn-1/2 for rough/discontinuous data, Matérn-5/2 or SE for very smooth. See `kernel-designer` skill for custom kernels. |
-| **Acquisition function** | **Do not pick this one on your own — read the `acquisition-functions` skill and confirm the choice with the scientist.** It's the argument that decides where the instrument actually goes, and the built-ins have gpCAM-specific behavior that surprises people (EI is maximization-only and degenerates to pure exploration early in a run; `ask(n>1)` silently overrides string acquisitions). `'variance'` is the safe starting point when mapping. Do **not** default to `'expected improvement'`. |
-| **Prior mean** | Zero (default) unless they have a physical model. See `prior-mean-functions` skill. |
+| **Acquisition function** | **Do not pick this one on your own — read the `acquisition-functions` skill and confirm the choice with the scientist.** It's the argument that decides where the instrument actually goes, and several built-ins have gpCAM-specific behavior that surprises people (plain EI is maximization-only and degenerates to pure exploration early in a run; `ask(n>1)` silently overrides string acquisitions). Starting points, all subject to confirmation: `'variance'` for exploration/mapping; `'ucb'` for maximization (`beta` fixed at 3.0 — write a callable to tune it); `'lcb'` for **minimization**; `'noisy expected improvement'` when measurements are noisy, or `'knowledge gradient'` for lookahead that keeps exploring when EI stalls — both also work multi-task; `'gradient'` or a radical-gradient callable to map where the signal changes; a custom callable for multi-objective or constraints. Do **not** default to `'expected improvement'`. |
+| **Prior mean** | Default is a **constant equal to `mean(y_data)`** — not zero. Away from data the posterior reverts to that constant. Override with `prior_mean_function=` only if they have a physical model. See `prior-mean-functions` skill. |
 | **Noise model** | Use `noise_variances` if noise is known and uniform. Use `noise_function` if noise varies. See `noise-functions` skill. |
 | **Training strategy** | `method='global'` for first training, `method='local'` for re-training during the loop. Other options: `"mcmc"` (Bayesian — returns posterior samples over hyperparameters), `"adam"` (stochastic-gradient, fast, works well for high-dimensional hyperparameter vectors like deep kernels), `"hgdl"` (distributed local+global hybrid — needs a `dask_client`). |
 | **linalg_mode** | Leave at the default (`None`) — gpCAM picks `"Chol"` automatically. For frequent posterior-covariance calls on small datasets (<5 000 points), set `linalg_mode="CholInv"` to store the inverse for a 3-10× speedup. For sparse / gp2Scale problems, see the `gp2scale-advanced` skill. |
 | **Number of initial points** | Rule of thumb: 5-10× the input dimensionality for initial random sampling. |
-| **Validation** | `gpo.rmse(x_test, y_true)` and `gpo.crps(x_test, y_true)` give RMSE and continuous ranked probability score on a held-out grid — call these after training to sanity-check the fit. |
+| **Input scaling** | gpCAM does **not** normalize inputs internally. With mixed units (mm, °C, volts) each dimension keeps its own scale, so per-dimension length-scale bounds must be derived from that dimension's own range — which the template below does. See "Input Scaling" below. |
+| **Validation** | `gpo.rmse`, `gpo.crps`, `gpo.nlpd`, and `gpo.coverage_curve` on a held-out set. Do not ship an error bar without checking calibration — see the `uncertainty-calibration` skill. |
 
 ### Step 3: Generate the Script
 
@@ -71,7 +77,13 @@ import numpy as np
 from gpcam import GPOptimizer
 
 def f(x):
-    # x is shape (N, D); return (y, noise_variance) with matching shapes
+    """
+    optimize() calls this with a SINGLE point of shape (D,) during its initial
+    sampling, and with shape (1, D) inside the loop. `np.atleast_2d` handles both.
+
+    Returns (y, noise_variances), each of length len(x).
+    """
+    x = np.atleast_2d(x)
     y = np.sin(x[:, 0]) * np.cos(x[:, 1])
     return y, np.full(len(x), 0.01)
 
@@ -81,9 +93,26 @@ result = gpo.optimize(
     search_space=np.array([[0., 1.], [0., 1.]]),
     max_iter=50,
 )
+# result: {'trace f(x)', 'trace x', 'f(x)', 'x'} — the traces plus the last point
 ```
 
-`optimize()` handles initial sampling, training schedule, the ask/tell loop, and termination. Use it when the scientist has a simulator or instrument wrapper they can hand gpCAM as a Python function. For fvGP/multi-task, pass `x_out=np.array([...])`.
+**The shape contract is the thing to get right.** `optimize()` evaluates `func` with
+`map(func, x0)` during initial sampling, so each call receives one point as a **1-D
+array of shape `(D,)`** — not a batch. Inside the loop it passes `ask()`'s output,
+shape `(1, D)`. A function written only for `(N, D)` input crashes on the first call
+with `IndexError: too many indices for array`. Starting the body with
+`x = np.atleast_2d(x)` makes it work in both cases.
+
+`optimize()` handles initial sampling (10 random points), the training schedule
+(`train_at=(10, 20, 50, 100, 200)` by default), the ask/tell loop, and termination.
+Note `acq_func='lcb'` is the default, which **minimizes** `func` — pass
+`acq_func='ucb'` to maximize. Other useful arguments: `hyperparameter_bounds=`
+(required for any custom kernel/mean/noise), `callback=f(x_data, y_data)` called every
+iteration, and `break_condition=f(x_data, y_data)` returning `True` to stop early.
+
+Use it when the scientist has a simulator or instrument wrapper they can hand gpCAM as
+a Python function. For fvGP/multi-task, pass `x_out=np.array([...])` and note the
+return shape differs — see the `multi-task-advanced` skill.
 
 #### B. Full template (adaptive loop)
 
@@ -158,16 +187,40 @@ def measure(x):
 kernel_function = None  # None = default ARD Matérn-3/2
 
 # ============================================================
+# 3b. PRIOR MEAN (optional customization)
+# ============================================================
+# Default: a constant equal to mean(y_data) — NOT zero. Away from data the
+# posterior reverts to that constant. Override only with a real physical model.
+# Mean hyperparameters start at index K = 1 + D (after the default kernel's).
+#
+# D_ = parameter_bounds.shape[0]
+# def my_mean(x, hps):
+#     K = 1 + D_                      # derive it; never hardcode 3
+#     return hps[K] + x @ hps[K+1:K+1+D_]     # linear trend
+# ...and add one bounds row per mean hyperparameter in section 4.
+
+prior_mean_function = None  # None = constant mean(y_data)
+
+# ============================================================
 # 4. HYPERPARAMETER BOUNDS
 # ============================================================
-# For the default kernel: [signal_variance, length_scale_dim1, ..., length_scale_dimD]
+# Layout convention: KERNEL first, then MEAN, then NOISE. The ranges each
+# callable reads must be disjoint.
+#
+# hps[0]     = signal variance   (kernel)
+# hps[1:D+1] = length scales     (kernel)
+# hps[D+1:]  = mean, then noise hyperparameters, if you add any
+#
 # Rule of thumb:
 #   signal_variance bounds: [0.01, 10 * std(y)]  (estimated after initial data)
-#   length_scale bounds:    [0.01, 10 * range(x_dim)]
+#   length_scale bounds:    [0.01, 10 * range(x_dim)]   <- per dimension, so
+#                           mixed units are handled without rescaling inputs
 D = parameter_bounds.shape[0]
 hp_bounds = np.array(
     [[0.001, 100.0]] +                                          # signal variance
     [[0.01, 10.0 * (b[1] - b[0])] for b in parameter_bounds]   # length scales
+    # + [[-10.0, 10.0]] ...                                    # mean hps, if any
+    # + [[0.001, 10.0]]                                        # noise hps, if any
 )
 
 # ============================================================
@@ -178,12 +231,15 @@ hp_bounds = np.array(
 #   "variance"  -> map the space evenly (safe default)
 #   "ucb"       -> find the maximum (beta fixed at 3.0)
 #   "lcb"       -> find the MINIMUM (the maximization acquisitions fail silently here)
+#   "noisy expected improvement" -> find the maximum when measurements are noisy
+#   "knowledge gradient"         -> lookahead; keeps exploring when EI has stalled
 #   "gradient" / radical_gradient callable -> map where the signal changes
 #   "target probability" + args={'a':lo,'b':hi} -> hit a target output value
-#   "total correlation" -> batch (n > 1)
+#   "total correlation" / "relative information entropy set" -> batch (n > 1)
 #   "expected improvement" -> only to refine an already-located maximum on low-noise
-#                             sequential single-task data; see the caveats in the
-#                             acquisition-functions skill before choosing it
+#                             sequential data; prefer "noisy expected improvement"
+#                             under noise. See the caveats in the acquisition-functions
+#                             skill before choosing plain EI.
 acquisition_function = "variance"  # REASON: <why this one, in the scientist's terms>
 
 # ============================================================
@@ -208,8 +264,15 @@ def run():
         y_data=y_init,
         noise_variances=noise_init if noise_init.any() else None,
         kernel_function=kernel_function,
+        prior_mean_function=prior_mean_function,
         # linalg_mode=None lets gpCAM pick Cholesky; for many posterior_covariance
         # calls on a small dataset (<5 000 points) use linalg_mode="CholInv".
+    )
+    
+    # Cheap guard against the most common bug: bounds not matching the number of
+    # hyperparameters the kernel/mean/noise functions actually read.
+    assert len(gpo.hyperparameters) == len(hp_bounds), (
+        f"{len(hp_bounds)} bounds rows but {len(gpo.hyperparameters)} hyperparameters"
     )
     
     # --- Initial training ---
@@ -267,10 +330,12 @@ if __name__ == "__main__":
 
 This is critical and often the source of bugs:
 
-- The hyperparameter vector is shared across kernel, mean, and noise functions
-- For the default kernel with D input dimensions: `hps[0]` = signal variance, `hps[1:D+1]` = length scales
-- If you add a custom noise function that uses hyperparameters, those come AFTER the kernel hyperparameters
-- If you add a prior mean function that uses hyperparameters, document which indices it uses
+- The hyperparameter vector is shared across kernel, mean, and noise functions, and the index ranges each one reads **must be disjoint**. fvGP assumes a hyperparameter belonging to the mean has zero kernel derivative and vice versa, so an overlap corrupts the training gradients as well as the model.
+- **Standard ordering: kernel, then mean, then noise.** Every gpCAM skill uses this layout.
+- For the default kernel with D input dimensions: `hps[0]` = signal variance, `hps[1:D+1]` = length scales. So custom mean/noise hyperparameters start at `K = 1 + D`.
+- **Derive `K = 1 + D`; never hardcode it.** `K = 3` is correct only for 2-D input. In 1-D it aliases a length scale; in 3-D two components silently share a hyperparameter.
+- **Never read `hps[-1]` in a prior mean function** — the end of the vector belongs to the noise function.
+- Assert `len(gpo.hyperparameters) == len(hp_bounds)` after construction; it catches most layout mistakes for one line.
 - **Always document the hyperparameter layout** in a comment at the top of the script
 - **Always set bounds for ALL hyperparameters** — the bounds array must match the total hyperparameter count
 
@@ -284,7 +349,8 @@ Example with custom noise:
 # Total: D + 2 hyperparameters
 
 def my_noise(x, hps):
-    return np.full(len(x), hps[D+1]**2)
+    K = 1 + x.shape[1]              # = D + 1; derived, not hardcoded
+    return np.full(len(x), hps[K]**2)
 
 hp_bounds = np.array(
     [[0.001, 100.0]] +                                        # signal variance
@@ -300,7 +366,102 @@ hp_bounds = np.array(
 - **Async ask**: `method="hgdlAsync"` starts a background search for the next point; the result dict contains an `opt_obj` you can `kill_client()` once you've used the suggestion.
 - **Checkpointing**: `GPOptimizer` instances are picklable — `pickle.dumps(gpo)` before a long run lets you reload state later.
 - **Info measures**: `gpo.gp_mutual_information(x_test)` and `gpo.gp_total_correlation(x_test)` report information content at a candidate set.
-- **User-function arguments**: `GPOptimizer(..., args={"a": 1.5, "b": 2.0})` plumbs a dict through to custom kernel/mean/noise/cost functions (they receive it as an extra argument when they declare it).
+
+### User-function arguments (`args`)
+
+`GPOptimizer(..., args={"a": 1.5})` plumbs a dict to **kernel, prior mean, and noise
+functions only**. Dispatch is by **parameter count** (`inspect.signature`), not by
+name — declare one extra positional parameter and gpCAM passes the dict; omit it and
+it doesn't. The parameter name is yours to choose.
+
+| Callable | Without `args` | With `args` |
+|---|---|---|
+| Kernel | `f(x1, x2, hps)` | `f(x1, x2, hps, args)` |
+| Prior mean | `f(x, hps)` | `f(x, hps, args)` |
+| Noise | `f(x, hps)` | `f(x, hps, args)` |
+| **Cost** | `f(origin, x)` | **not supported** — see below |
+| **Acquisition** | `f(x, gp_obj)` | **not supported** — see below |
+
+```python
+def my_kernel(x1, x2, hps, args):        # 4 params -> gets args
+    return hps[0] * matern_kernel_diff1(
+        get_anisotropic_distance_matrix(x1, x2, hps[1:]), args["nu_scale"])
+
+def my_mean(x, hps, args):               # 3 params -> gets args
+    return np.full(len(x), args["baseline"])
+
+def my_noise(x, hps, args):              # 3 params -> gets args
+    return np.full(len(x), args["floor"] + hps[K]**2)
+
+gpo = GPOptimizer(x_data, y_data, args={"nu_scale": 1.0, "baseline": 3.0, "floor": 1e-4},
+                  kernel_function=my_kernel, prior_mean_function=my_mean,
+                  noise_function=my_noise)
+```
+
+**Cost and acquisition functions never receive `args`.** gpCAM calls them as exactly
+`cost_function(origin, x)` and `acquisition_function(x, gp_obj)`. A cost function
+written as `f(origin, x, arguments=None)` will run, but `arguments` stays `None`
+forever. Bind their parameters with a closure or `functools.partial` instead.
+
+Wrong signature → `Exception("No valid kernel function signature")` (or the mean /
+noise equivalent) at construction, so mistakes here fail loudly rather than silently.
+
+`gpo.set_args(new_dict)` updates the dict later, but does **not** invalidate the
+cached covariance — follow it with `gpo.set_hyperparameters(gpo.hyperparameters)` to
+force the callables to re-run.
+
+### Input Scaling
+
+gpCAM does not rescale `x_data`. The default ARD kernel learns one length scale per
+dimension, so unequal units are handled *if the bounds allow it* — a dimension
+spanning 0-1000 V needs a length-scale upper bound near 1000, not near 1. The
+template's `[[0.01, 10.0 * (b[1] - b[0])] for b in parameter_bounds]` does this
+automatically; keep that derivation if you change the bounds.
+
+If you prefer to normalize, scale inputs to the unit cube yourself before constructing
+the GP and remember to map `ask()` results back:
+
+```python
+lo, hi = parameter_bounds[:, 0], parameter_bounds[:, 1]
+to_unit = lambda X: (X - lo) / (hi - lo)
+from_unit = lambda U: U * (hi - lo) + lo
+
+gpo = GPOptimizer(to_unit(x_raw), y_data)
+next_x = from_unit(gpo.ask(np.array([[0., 1.]] * D))["x"])   # back to physical units
+```
+Normalizing makes a single shared length-scale bound (`[0.01, 10.0]`) valid for every
+dimension, which is convenient with custom isotropic kernels. It is optional — the
+default ARD kernel does not require it.
+
+### Convergence and Termination
+
+`optimize()` exposes only `max_iter`; the full template gives you the loop, so put the
+stopping rule there. gpCAM has no built-in convergence criterion — a fixed budget is
+the honest default when measurements are the scarce resource. Useful signals:
+
+```python
+history = []
+for i in range(N_ITERATIONS):
+    result = gpo.ask(input_set=parameter_bounds, acquisition_function=acquisition_function)
+    next_x, acq_value = result["x"], result["f_a(x)"]
+    history.append(float(np.max(acq_value)))
+    ...
+    # (a) Acquisition floor — for "variance", this is a real uncertainty target
+    #     in the units of y**2, so it can be set from the measurement precision.
+    if acquisition_function == "variance" and history[-1] < TARGET_VARIANCE:
+        print(f"Converged: posterior variance below {TARGET_VARIANCE}"); break
+
+    # (b) Stalled improvement — no better observation in the last P iterations
+    if len(gpo.y_data) > PATIENCE and np.argmax(gpo.y_data) < len(gpo.y_data) - PATIENCE:
+        print("Stalled: no improvement in the last PATIENCE measurements"); break
+```
+
+Distinguishing converged from stalled is the point: a **falling** acquisition trace
+means the model is genuinely running out of things to learn; a **flat but high** trace
+usually means the hyperparameters are stale (retrain more often) or the length scales
+have collapsed so every point looks equally uninformative. Plot `history` before
+trusting either stopping rule, and check `coverage_curve` — an overconfident model
+reports low variance everywhere and will stop early for the wrong reason.
 
 ## Reference
 

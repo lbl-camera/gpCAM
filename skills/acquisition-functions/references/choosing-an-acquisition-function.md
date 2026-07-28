@@ -18,16 +18,21 @@ landscape that happens to contain the peak? And roughly how noisy is a single
 measurement?"*
 
 - Single best point, low noise → `"ucb"`
-- Single best point, noisy → `"ucb"` (its `+3σ` term is robust to a noisy incumbent in
-  a way EI is not)
+- Single best point, **noisy** → `"noisy expected improvement"` (integrates over the
+  posterior of the incumbent instead of trusting the largest noisy reading), or `"ucb"`
+  if acquisition evaluation cost matters more than statistical correctness
+- The loop has stalled — it keeps re-measuring near the same point → `"knowledge gradient"`
 - Landscape → `"variance"`, then switch to `"ucb"` once the posterior settles
 - They already know roughly where the peak is and want it refined → `"expected improvement"`
+  (low noise) or `"noisy expected improvement"`
 
-**Why not EI by default.** Two reasons specific to gpCAM. Its EI anchors to
+**Why not plain EI by default.** Two reasons specific to gpCAM. Its EI anchors to
 `np.max(y_data)` — the largest *noisy observation*, not the posterior mean — so on
-noisy data it locks onto a spike. And until the posterior mean somewhere exceeds that
-incumbent, gpCAM's EI is algebraically `0.3989 · σ(x)`, i.e. identical in ranking to
-`"variance"`. Early in a run it is not exploiting at all.
+noisy data it locks onto a spike; this is exactly what NEI was added to fix. And until
+the posterior mean somewhere exceeds that incumbent, gpCAM's EI is algebraically
+`0.3989 · σ(x)`, i.e. identical in ranking to `"variance"`
+([#55](https://github.com/lbl-camera/gpCAM/issues/55)). Early in a run it is not
+exploiting at all.
 
 ```python
 # Explore first, then exploit — a good default for peak finding.
@@ -134,9 +139,10 @@ next_x = gpo.ask(input_set=parameter_bounds,
 ## 6. Minimization — "find the conditions that minimize my background"
 
 **This is where a reflexive EI recommendation is outright wrong.** gpCAM's
-`"expected improvement"`, `"probability of improvement"`, `"ucb"`, and `"maximum"` all
-hardcode `np.max(gpo.y_data)` or the raw posterior mean, so they hunt maxima with no
-error raised.
+`"expected improvement"`, `"probability of improvement"`, `"ucb"`, `"maximum"`,
+`"knowledge gradient"`, and `"noisy expected improvement"` all hardcode a maximum —
+`np.max(gpo.y_data)`, `np.max(mu_ref)`, or the raw posterior mean — so they hunt maxima
+with no error raised. There is no minimizing KG or NEI.
 
 - Built-in → `"lcb"` (β fixed at 3.0)
 - Need a tunable β, or EI semantics → write the callable
@@ -188,23 +194,37 @@ result = gpo.ask(input_set=parameter_bounds, n=5,
 
 ## 8. Multi-task — "each measurement returns a spectrum"
 
-Use `fvGPOptimizer` with `x_out`. Recommend `"relative information entropy set"` or
-`"variance"`.
+Use `fvGPOptimizer` with `x_out`.
 
-**Do not recommend EI here.** The `x_out` branch (`surrogate_model.py:306`) sums the
-posterior mean across tasks and sums the standard deviations across tasks, then compares
-that sum against `np.max(gpo.y_data)` of a scalar. The quantities are not comparable and
-the result is not expected improvement of anything.
+**Ask back:** *"Are you mapping all the channels, or optimizing something derived from
+them?"*
+
+- Mapping / exploring → `"relative information entropy set"` or `"variance"`
+- Optimizing → `"knowledge gradient"` or `"noisy expected improvement"`
+
+**Do not recommend plain EI here.** The `x_out` branch (`surrogate_model.py:319`) sums
+the posterior mean across tasks and sums the standard deviations across tasks, then
+compares that sum against `np.max(gpo.y_data)` of a scalar. Summed std is not the std
+of the sum — that needs the cross-task covariance — so the result is not expected
+improvement of anything. KG and NEI scalarize the same task-summed objective
+`g(x) = Σ_t f(x, t)` but build the joint posterior properly (`_scalarized_blocks`).
 
 ```python
+# Exploring all channels
 next_x = gpo.ask(input_set=parameter_bounds,
                  x_out=np.arange(n_tasks),
                  acquisition_function="relative information entropy set",
                  vectorized=True)["x"]
+
+# Optimizing the task-summed objective sum_t f(x, t)
+next_x = gpo.ask(input_set=parameter_bounds,
+                 x_out=np.arange(n_tasks),
+                 acquisition_function="knowledge gradient")["x"]
 ```
 
-If the scientist genuinely wants to optimize one channel of the spectrum, that is a
-single-task problem on a derived scalar — extract it in `measure()` and use archetype 1.
+If the scientist wants to optimize *one specific channel* rather than the task sum,
+that is a single-task problem on a derived scalar — extract it in `measure()` and use
+archetype 1.
 
 ---
 
@@ -238,10 +258,13 @@ fitting cost parameters from observed timings.
 |---|---|---|
 | Map the space | `"variance"` | EI, UCB |
 | Map changes / transitions | `radical_gradient` or `"gradient"` | `"maximum"` |
-| Find the max | `"ucb"` | — |
+| Find the max, low noise | `"ucb"` | — |
+| Find the max, noisy | `"noisy expected improvement"` | plain EI (anchors to a noise spike) |
+| Find the max, loop has stalled | `"knowledge gradient"` | `"maximum"` |
 | Refine a known max | `"expected improvement"` | — |
-| Find the min | `"lcb"` | EI, PI, UCB, `"maximum"` |
+| Find the min | `"lcb"` | EI, PI, UCB, KG, NEI, `"maximum"` |
 | Hit a target value | `"target probability"` | EI |
 | Find a level set | `threshold_finder` | EI |
 | Batch | `"total correlation"`, `"relative information entropy set"` | any other string (silently overridden) |
-| Multi-task | `"relative information entropy set"`, `"variance"` | EI |
+| Multi-task, exploring | `"relative information entropy set"`, `"variance"` | plain EI |
+| Multi-task, optimizing | `"knowledge gradient"`, `"noisy expected improvement"` | plain EI |

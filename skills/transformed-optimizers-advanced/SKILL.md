@@ -1,9 +1,14 @@
 ---
 name: transformed-optimizers-advanced
 description: Use when observations are constrained — strictly positive (intensities, rates, concentrations) or bounded in [0, 1] (fractions, probabilities). LogGPOptimizer and LogitGPOptimizer fit a GP on transformed observations and push the posterior back through the inverse link, so predictions and credible intervals stay inside the constrained range. Includes how to get raw posterior samples for histograms.
+gpcam_version: "8.4.x"
+fvgp_version: "4.8.x"
+last_verified: "2026-07-23 (gpCAM dadeb65)"
 ---
 
 # Skill: Transformed-Output GP Optimizers
+
+*Verified against gpCAM 8.4.x / fvgp 4.8.x — last checked 2026-07-23 (gpCAM `dadeb65`).*
 
 Use this skill when measurements are guaranteed positive (`y > 0`) or bounded (`y ∈ [0, 1]`). A plain GP doesn't know about these constraints and will happily predict negative intensities or probabilities outside `[0, 1]`. The transformed optimizers fit the GP in an unconstrained "link" space (log or logit) and push the Gaussian posterior back through the inverse link via `evaluate_posterior(x)`, so the original-scale predictions and credible intervals are guaranteed to respect the constraint.
 
@@ -12,7 +17,7 @@ Use this skill when measurements are guaranteed positive (`y > 0`) or bounded (`
 | Observation type | Optimizer | Example domains |
 |---|---|---|
 | Strictly positive, `y > 0` | `LogGPOptimizer` | Intensities, rates, concentrations, fluxes, lifetimes |
-| Bounded, `y ∈ [0, 1]` | `LogitGPOptimizer` | Yields, probabilities, contrasts, binomial fractions |
+| Bounded, `y ∈ [a, b]` | `LogitGPOptimizer(..., range=(a, b))` | Yields (`[0, 100]%`), probabilities, contrasts, transmittance, normalized intensities |
 | Unconstrained / can be negative | plain `GPOptimizer` | Phase shifts, demeaned signals, temperatures in °C |
 
 Both transformed classes are drop-in replacements for `GPOptimizer` in the single-task scalar case — the constructor, `train`, `ask`, `tell`, `optimize`, kernel / mean / noise hooks, and pickling are inherited unchanged. The transform is invisible to the rest of the workflow.
@@ -45,6 +50,17 @@ post = gpo.evaluate_posterior(x_grid)
 # All entries lie strictly inside (0, 1).
 ```
 
+For observations bounded in an arbitrary closed interval `[a, b]` (yield in `[0, 100]%`,
+transmittance in `[0, 1]`, an angle in `[0, 90]`, …), pass `range=(a, b)`. The data is
+linearly rescaled to `[0, 1]` before the logit transform, posterior outputs are mapped
+back to `[a, b]`, and predictions / credible bands stay strictly inside `(a, b)`:
+
+```python
+gpo = LogitGPOptimizer(x_data, y_data, range=(0.0, 100.0))   # yield in [0, 100]%
+post = gpo.evaluate_posterior(x_grid)
+# post["median"], post["lower"], post["upper"], post["samples"]  -- all in (0, 100).
+```
+
 ## `evaluate_posterior` — the original-scale accessor
 
 The inherited `posterior_mean(x)` / `posterior_covariance(x)` operate in the **transformed** (latent) space. Use `evaluate_posterior(x)` whenever you want the posterior on the **original** scale:
@@ -73,7 +89,8 @@ Distributions are: Gaussian for plain `GPOptimizer`, lognormal for `LogGPOptimiz
 
 ## `LogitGPOptimizer` knobs
 
-- `eps` (default `1e-6`): clipping margin so `logit(0)` / `logit(1)` don't blow up. Increase (e.g. `1e-4`) for noisy boundary data at the cost of small bias; decrease for cleaner data.
+- `range` (default `(0.0, 1.0)`): `(lower, upper)` bounds of the observation domain. Data is linearly rescaled to `[0, 1]` before the logit transform; predictions are mapped back to `[lower, upper]`. Raises `ValueError` if `lower >= upper`.
+- `eps` (default `1e-6`): clipping margin (in the rescaled `[0, 1]` space) so `logit(0)` / `logit(1)` don't blow up. Increase (e.g. `1e-4`) for noisy boundary data at the cost of small bias; decrease for cleaner data.
 - `n_samples` (default `10000`): MC sample count for the closed-form-less mean / std (also the default for `return_samples=True` when no explicit `n_samples` is passed to `evaluate_posterior`). Higher is more accurate but slower.
 
 ## Acquisition functions on transformed data
@@ -84,6 +101,46 @@ Two cases that need care:
 
 - **`"target probability"`**: pass already-transformed bounds. For `LogGPOptimizer`, use `args={"a": np.log(a), "b": np.log(b)}`. For `LogitGPOptimizer`, use `args={"a": scipy.special.logit(a), "b": scipy.special.logit(b)}`.
 - **`"expected improvement"` / `"probability of improvement"`**: these compare against the best observed transformed value, which is also the best original value, so semantics carry over. The score *magnitude* differs from a plain GP fit but the *ranking* is consistent.
+
+### Writing custom acquisition functions against a transformed optimizer
+
+**Write them in latent space.** The rule that makes this safe:
+
+> `gpo.posterior_mean()`, `gpo.posterior_covariance()`, `gpo.x_data`, and `gpo.y_data`
+> are **all in the latent (transformed) space** and are therefore mutually consistent.
+
+So the recipes in the `acquisition-functions` skill — including
+`expected_improvement_minimize` and `probability_of_improvement`, which take
+`np.min(gpo.y_data)` / `np.max(gpo.y_data)` as the incumbent — work **unchanged** on
+`LogGPOptimizer` and `LogitGPOptimizer`. Both sides of the comparison are log/logit
+values; there is no unit mismatch.
+
+Two things do need care:
+
+1. **Never mix in `get_data()["original y data"]`.** That key is on the original
+   scale. Comparing it against `posterior_mean()` is a silent units bug — precisely
+   the mismatch that using `gpo.y_data` avoids.
+2. **Transform every absolute constant you hardcode.** A threshold, target value, or
+   forbidden output level written as a literal is interpreted in latent space:
+
+   ```python
+   def threshold_finder(x, gpo):
+       threshold = np.log(0.5)        # LogGPOptimizer: transform the physical 0.5
+       mean = gpo.posterior_mean(x)["m(x)"]
+       std = np.sqrt(np.maximum(gpo.posterior_covariance(x, variance_only=True)["v(x)"], 1e-10))
+       eps = 0.01 * np.std(gpo.y_data) + 1e-12
+       return std / (np.abs(mean - threshold) + eps)
+   ```
+
+   Constraints on **inputs** (`x`) need no transformation — only the output space is
+   transformed.
+
+If you would rather reason on the original scale, call `gpo.evaluate_posterior(x)`
+inside the acquisition function and use `post["mean"]` / `post["std"]`. This is
+correct but noticeably slower for `LogitGPOptimizer`, where the moments are
+Monte-Carlo estimates — and an acquisition function is evaluated many times per
+`ask()`. Prefer latent space unless the score genuinely depends on original-scale
+units (e.g. an absolute cost in counts).
 
 ## What `get_data()` returns
 

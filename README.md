@@ -10,6 +10,14 @@
 [![Pepy Total Downloads](https://img.shields.io/pepy/dt/gpcam)](https://pepy.tech/project/gpcam)
 [![Downloads](https://static.pepy.tech/badge/gpcam/month)](https://pepy.tech/project/gpcam)
 
+> [!WARNING]
+> **gpCAM 8.4.X is a beta release.** It targets `fvgp ~= 4.8` and renames a few
+> constructor kwargs (`gp2Scale_dask_client → dask_client`,
+> `gp2Scale_linalg_mode → linalg_mode`, `gp_rank_n_update → rank_n_update`) and
+> removes `calc_inv` in favor of `linalg_mode="CholInv"`. If you hit issues, pin
+> `gpcam==8.3.9` while you report — 8.3.9 remains the stable line. Full migration
+> notes are in [HISTORY.rst](HISTORY.rst).
+
 
 
 [comment]: <> ([![Maintainability]&#40;https://api.codeclimate.com/v1/badges/29b04c3f69e2b515dac6/maintainability&#41;]&#40;https://codeclimate.com/github/lbl-camera/gpCAM/maintainability&#41;)
@@ -67,6 +75,8 @@ To update later, run `/plugin marketplace update gpcam`; to remove, `/plugin uni
 | **prior-mean-functions** | Encode known physics or expected trends as prior mean functions. |
 | **noise-functions** | Model position-dependent or heteroscedastic noise from detector characteristics. |
 | **cost-functions** | Account for motor travel time, settling, directional costs, and zone-based penalties. |
+| **uncertainty-calibration** | Validate that the posterior's error bars are trustworthy — scoring rules (NLPD, CRPS, MSLL), coverage/calibration curves, and what to do when the model is over- or under-confident. |
+| **troubleshooting** | Map a gpCAM error message to its cause and fix — non-positive-definite covariance, bounds mismatches, NaNs, Dask hangs, pickling, and silent failures. |
 | **gp2scale-advanced** | Large-scale experiments (>10k points) using sparse kernels and Dask distributed computing. |
 | **multi-task-advanced** | Multi-output / function-valued experiments with `fvGPOptimizer`. |
 | **transformed-optimizers-advanced** | Constrained observations: `LogGPOptimizer` for `y > 0` and `LogitGPOptimizer` for `y ∈ [0, 1]` — predictions and credible intervals stay inside the constrained range. |

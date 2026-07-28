@@ -80,6 +80,12 @@ skill explicitly:
 * - **cost-functions**
   - Account for motor travel time, settling, directional costs, sample
     damage, beam time, and zone-based penalties.
+* - **uncertainty-calibration**
+  - Validate that the error bars mean what they claim — RMSE, CRPS, NLPD,
+    and coverage curves on held-out data.
+* - **troubleshooting**
+  - Diagnose errors and silent misbehavior: singular matrices, shape
+    contracts, hyperparameter-index bugs, Dask startup problems.
 * - **gp2scale-advanced**
   - Large-scale experiments (>10k points up to millions) using sparse,
     compactly-supported kernels and Dask distributed computing.

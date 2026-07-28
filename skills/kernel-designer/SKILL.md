@@ -1,9 +1,14 @@
 ---
 name: kernel-designer
 description: Use when designing or composing custom kernel (covariance) functions for gpCAM that encode domain knowledge — smoothness, periodicity, symmetry, anisotropy, or non-Euclidean input spaces.
+gpcam_version: "8.4.x"
+fvgp_version: "4.8.x"
+last_verified: "2026-07-23 (gpCAM dadeb65)"
 ---
 
 # Skill: gpCAM Kernel Designer
+
+*Verified against gpCAM 8.4.x / fvgp 4.8.x — last checked 2026-07-23 (gpCAM `dadeb65`).*
 
 Design custom kernel (covariance) functions for gpCAM that encode domain knowledge about the experiment.
 
@@ -78,8 +83,14 @@ def anisotropic_matern(x1, x2, hps):
 ### Periodic Kernel
 For data with known periodicity (e.g., angular measurements, crystal lattice):
 ```python
-def periodic_kernel(x1, x2, hps):
+def periodic_kernel_1d(x1, x2, hps):
     """
+    1-D INPUTS ONLY. Reads x[:, 0] and ignores every other column, so on
+    D > 1 inputs the covariance is constant along the remaining axes — the
+    matrix becomes rank-deficient and Cholesky will fail or the posterior
+    will be degenerate. For D > 1, use `periodic_plus_smooth` below, which
+    multiplies the periodic factor by a Matérn factor over the other dims.
+
     hps[0]: signal variance
     hps[1]: length scale
     hps[2]: period
@@ -114,6 +125,10 @@ Captures both coarse and fine structure:
 ```python
 def multi_scale_kernel(x1, x2, hps):
     """
+    ISOTROPIC — uses a single Euclidean distance, so all input dimensions share
+    the same length scale. For per-dimension length scales, build each component
+    with `get_anisotropic_distance_matrix` as in `anisotropic_matern` above.
+
     hps[0]: variance of coarse component
     hps[1]: length scale of coarse component
     hps[2]: variance of fine component
@@ -145,13 +160,90 @@ def symmetric_kernel_x(x1, x2, hps):
 Separable per dimension — each dimension contributes independently:
 ```python
 def l1_kernel(x1, x2, hps):
-    """Product of per-dimension exponential kernels (L1 distance)."""
+    """
+    SEPARABLE and ANISOTROPIC — a product of independent per-dimension
+    exponential kernels, so dimension i has its own length scale hps[1 + i].
+    Requires D + 1 hyperparameters. Rougher than Matérn-3/2 in every direction.
+    """
     k = hps[0] * np.ones((len(x1), len(x2)))
     for i in range(x1.shape[1]):
         d_i = np.abs(np.subtract.outer(x1[:, i], x2[:, i]))
         k *= np.exp(-d_i / hps[1 + i])
     return k
 ```
+
+### Non-Stationary Kernels (varying amplitude or length scale)
+
+A stationary kernel assumes the covariance depends only on `x1 - x2`, so the signal
+amplitude and smoothness are the same everywhere. Real experiments often violate
+this — a sample is featureless in one corner and structured in another. Two
+practical constructions:
+
+**(a) Varying amplitude.** `non_stat_kernel(x1, x2, x0, w, l)` builds `g(x1) g(x2)ᵀ`
+from radial basis functions at locations `x0` with weights `w` (one per basis
+location) and scalar width `l`. On its own it is low-rank and degenerate — and when
+the learned amplitude `g(x)` passes through zero at some points, those rows of the
+covariance vanish and Cholesky fails with `array must not contain infs or NaNs`. Two
+things are therefore mandatory: **multiply by a stationary kernel**, and **add a
+small constant floor** so the amplitude never collapses the matrix:
+
+```python
+from gpcam.kernels import non_stat_kernel, get_anisotropic_distance_matrix, matern_kernel_diff1
+
+# Basis-function locations: a coarse grid over the input space. Fixed, not learned.
+X0 = np.array([[2.0], [5.0], [8.0]])
+NB = len(X0)
+
+def varying_amplitude_kernel(x1, x2, hps):
+    """
+    Amplitude varies over the input space; smoothness does not.
+
+    hps[0]          = basis width l (scalar, > 0)
+    hps[1:1+NB]     = basis weights w, one per basis location (may be negative)
+    hps[1+NB:]      = D stationary length scales
+    Total: 1 + NB + D hyperparameters
+    """
+    floor = 1e-2      # keeps the amplitude term full-rank when g(x) crosses zero
+    # NOTE the argument order: non_stat_kernel(x1, x2, x0, w, l) — weights, then width.
+    k_amp = non_stat_kernel(x1, x2, X0, hps[1:1 + NB], hps[0]) + floor
+    d = get_anisotropic_distance_matrix(x1, x2, hps[1 + NB:])
+    return k_amp * matern_kernel_diff1(d, 1.0)
+```
+
+Watch the argument order — `non_stat_kernel(x1, x2, x0, w, l)` takes the **weight
+vector before the scalar width**, which is easy to reverse. The `floor` term is not
+cosmetic: without it, training wanders into weight vectors that zero out `g(x)` at a
+data point and the run dies mid-optimization. More basis functions means more
+flexibility and more hyperparameters — start with 3-5 and only add more if the fit
+demands it.
+
+**(b) Varying length scale (Gibbs kernel).** Smoothness itself changes across the
+space — sharp features in one region, smooth background in another. The prefactor
+below is what keeps it PSD; do not drop it:
+
+```python
+def gibbs_kernel_1d(x1, x2, hps):
+    """
+    1-D Gibbs kernel with a linearly varying length scale l(x) = a + b*|x|.
+
+    hps[0] = a, base length scale     (> 0)
+    hps[1] = b, growth rate           (>= 0; b = 0 recovers a stationary SE kernel)
+    hps[2] = signal variance
+    Total: 3 hyperparameters
+    """
+    a, b, sv = hps[0], hps[1], hps[2]
+    l1 = a + b * np.abs(x1[:, 0])
+    l2 = a + b * np.abs(x2[:, 0])
+    L1, L2 = np.meshgrid(l1, l2, indexing="ij")
+    prefactor = np.sqrt(2.0 * L1 * L2 / (L1**2 + L2**2))   # required for PSD
+    d2 = np.subtract.outer(x1[:, 0], x2[:, 0])**2
+    return sv * prefactor * np.exp(-d2 / (L1**2 + L2**2))
+```
+
+Keep `a` bounded away from zero (e.g. `[0.05, 5.0]`) — a length scale that collapses
+toward zero is the most common cause of singular covariance matrices in
+non-stationary models. Any `l(x)` that stays strictly positive works in place of the
+linear form; for D > 1 use a per-dimension `l_i(x)` and take the product.
 
 ### Non-Euclidean Input Spaces (strings, graphs, categorical)
 
@@ -182,8 +274,11 @@ gp.train(hyperparameter_bounds=np.array([[1e-3, 100.], [1e-3, 100.]]))
 # Predict on new objects:
 gp.posterior_mean(["full"])["m(x)"]
 
-# Ask which of a candidate set to measure next:
-gp.ask(["who", "could", "it", "be"], n=4)
+# Ask which of a candidate set to measure next.
+# Keep n well below len(candidates) — asking for as many points as the set
+# contains just returns the whole set and selects nothing.
+candidates = ["who", "could", "it", "be", "hello", "there", "gpcam", "rules"]
+gp.ask(candidates, n=2)
 ```
 
 Notes:
@@ -193,27 +288,75 @@ Notes:
 
 ### Deep Kernel (NN-warped input space)
 
-For hard multi-task structure or learned metrics, warp the input through a small neural net and then apply a stationary kernel in the warped space. `gpcam.deep_kernel_network.Network` gives you an MLP whose weights you read out of `hps`:
+For hard multi-task structure or learned metrics, warp the input through a small neural net and then apply a stationary kernel in the warped space. `gpcam.deep_kernel_network.Network` gives you an MLP whose weights you read out of `hps`.
+
+**You must call `set_weights` / `set_biases` inside the kernel.** If you skip that step the network keeps its randomly initialized weights, `hps[2:]` have no effect on the covariance, and training silently optimizes over a flat likelihood — you get a fixed random feature map that looks trained but is not.
+
+`Network(dim, layer_width)` has three `nn.Linear` layers, so the parameter block is:
+
+| Slice | Shape | Count |
+|---|---|---|
+| `w1` (layer1 weight) | `(layer_width, dim)` | `layer_width * dim` |
+| `w2` (layer2 weight) | `(layer_width, layer_width)` | `layer_width ** 2` |
+| `w3` (layer3 weight) | `(dim, layer_width)` | `dim * layer_width` |
+| `b1`, `b2` (biases) | `(layer_width,)` each | `2 * layer_width` |
+| `b3` (layer3 bias) | `(dim,)` | `dim` |
+
+which sums to `n.number_of_hps == 2*dim*layer_width + layer_width**2 + 2*layer_width + dim`.
 
 ```python
+import numpy as np
+from gpcam import GPOptimizer
 from gpcam.deep_kernel_network import Network
 from gpcam.kernels import get_distance_matrix, matern_kernel_diff1
 
-iset_dim = 3
-layer_width = 5
-n = Network(iset_dim, layer_width)
-# n.number_of_hps tells you how many NN hyperparameters to reserve.
+ISET_DIM = 3
+LAYER_WIDTH = 5
+n = Network(ISET_DIM, LAYER_WIDTH)
+N_NN = n.number_of_hps        # number of NN hyperparameters to reserve
+
+def _load_network(nn_hps, dim=ISET_DIM, w=LAYER_WIDTH):
+    """Unpack a flat hyperparameter slice into the network's weights and biases."""
+    i = 0
+    w1 = nn_hps[i:i + w * dim].reshape(w, dim);   i += w * dim
+    w2 = nn_hps[i:i + w * w].reshape(w, w);       i += w * w
+    w3 = nn_hps[i:i + dim * w].reshape(dim, w);   i += dim * w
+    b1 = nn_hps[i:i + w];                         i += w
+    b2 = nn_hps[i:i + w];                         i += w
+    b3 = nn_hps[i:i + dim];                       i += dim
+    assert i == len(nn_hps), f"expected {len(nn_hps)} NN hps, consumed {i}"
+    n.set_weights(w1, w2, w3)
+    n.set_biases(b1, b2, b3)
 
 def deep_kernel(x1, x2, hps):
-    signal_var, length_scale = hps[0], hps[1]
-    # unpack the remaining hps into n.set_weights / n.set_biases (layout: see manual)
-    x1_nn = n.forward(x1)
-    x2_nn = n.forward(x2)
-    d = get_distance_matrix(x1_nn, x2_nn)
-    return signal_var * matern_kernel_diff1(d, length_scale)
+    """
+    hps[0]  = signal variance
+    hps[1]  = length scale (in the warped space)
+    hps[2:] = NN weights and biases (length n.number_of_hps)
+    """
+    _load_network(hps[2:])            # <-- REQUIRED; without it hps[2:] do nothing
+    d = get_distance_matrix(n.forward(x1), n.forward(x2))
+    return hps[0] * matern_kernel_diff1(d, hps[1])
+
+# Total hyperparameters: 2 + N_NN
+init_hps = np.concatenate([[1.0, 1.0], np.random.randn(N_NN) * 0.5])
+hp_bounds = np.array([[0.01, 10.0], [0.01, 10.0]] + [[-2.0, 2.0]] * N_NN)
+
+gp = GPOptimizer(x_data, y_data, init_hyperparameters=init_hps,
+                 kernel_function=deep_kernel)
+gp.train(hyperparameter_bounds=hp_bounds, method="global", max_iter=100)
 ```
 
-Hyperparameter layout: `hps[0]=signal_var`, `hps[1]=length_scale`, `hps[2:]` = flattened NN weights+biases in the order `Network` expects. Use `method="mcmc"` or `method="adam"` for training; `global`/`local` don't scale well to NN-sized hyperparameter vectors.
+Sanity check that the unpacking is live — evaluate the kernel at two different NN hyperparameter draws and confirm the matrices differ:
+
+```python
+a = np.concatenate([[1., 1.], np.random.randn(N_NN)])
+b = np.concatenate([[1., 1.], np.random.randn(N_NN)])
+assert not np.allclose(deep_kernel(x1, x2, a), deep_kernel(x1, x2, b)), \
+    "NN hyperparameters are not reaching the kernel"
+```
+
+Training notes: `method="mcmc"` or `method="adam"` scale better than `global`/`local` to NN-sized hyperparameter vectors. Bounds on NN weights should be symmetric around zero (e.g. `[-2, 2]`) — weights are not scale parameters and must be allowed to go negative.
 
 ## Smoothness Guide
 

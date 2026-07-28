@@ -171,11 +171,39 @@ class GPOptimizer(GPOptimizerBase):
         * ``"sparseSolve"`` — direct sparse solve via scipy.
         * ``"sparseCGpre"`` — preconditioned conjugate-gradient. The preconditioner type
           is selected by ``args["sparse_preconditioner_type"]`` (default ``"ilu"``;
-          also ``"ic"``/``"incomplete_cholesky"``, ``"block_jacobi"``,
-          ``"schwarz"``/``"additive_schwarz"``, or ``"amg"`` (requires pyamg)).
+          also compiled incomplete Cholesky ``"ichol"``/``"ic"``/``"incomplete_cholesky"``,
+          zero-fill ``"ichol0"``, legacy Python IC(0) ``"native_ic"``/``"native_ichol"``,
+          ``"block_jacobi"``, ``"schwarz"``/``"additive_schwarz"``, or ``"amg"``
+          (requires pyamg). The compiled IC options require the optional ``ilupp`` package.
         * ``"sparseMINRESpre"`` — preconditioned MINRES; same preconditioner choices.
         * ``"sparseCGpre_<type>"`` / ``"sparseMINRESpre_<type>"`` — shortcut that sets
           ``args["sparse_preconditioner_type"]`` to ``<type>`` (e.g. ``"sparseCGpre_amg"``).
+
+        **Preconditioner aliases (incomplete Cholesky):**
+
+        The IC family has a compiled fast path and a pure-Python legacy path. The
+        names in this list are the canonical backends that ``sparse_preconditioner_type``
+        resolves to internally; the items after "aliases:" all map to the same backend.
+
+        * ``"ichol"`` — thresholded incomplete Cholesky via the optional
+          ``ilupp`` package (fast). **Aliases:** ``"ic"``, ``"incomplete_cholesky"``.
+          Tunable through ``sparse_preconditioner_ichol_fill_in`` and
+          ``sparse_preconditioner_ichol_threshold``.
+        * ``"ichol0"`` — zero-fill incomplete Cholesky via ``ilupp`` (cheap to build,
+          weaker as a preconditioner). No aliases.
+        * ``"native_incomplete_cholesky"`` — pure-Python IC(0); slower, intended as
+          a legacy/debugging fallback that always works without optional deps.
+          **Aliases:** ``"native_ic"``, ``"native_ichol"``,
+          ``"legacy_ic"``, ``"legacy_ichol"``,
+          ``"legacy_incomplete_cholesky"``. (``"native_"`` and ``"legacy_"`` are
+          interchangeable — "native" means built-in to fvGP, "legacy" reminds you
+          this is the original pre-``ilupp`` path.)
+
+        The two ``ilupp`` backends (``"ichol"``/``"ichol0"``) raise a clear
+        ``ImportError`` with install instructions if ``ilupp`` is missing
+        (``pip install ilupp``). All three IC backends honor the shared
+        ``sparse_preconditioner_shift`` / ``_shift_growth`` / ``_shift_attempts``
+        diagonal-shift-retry knobs (see the ``args`` section below).
 
         **Custom solver (any GP):**
 
@@ -244,8 +272,8 @@ class GPOptimizer(GPOptimizerBase):
         - "sparse_krylov_warm_start" : True/False; default = False — feed the
           previous training iteration's ``KVinvY`` as ``x0`` to the next solve
         - "sparse_preconditioner_type" : str; default = "ilu". One of "ilu",
-          "ic"/"ichol"/"incomplete_cholesky", "block_jacobi", "schwarz"/
-          "additive_schwarz", "amg" (requires pyamg)
+          "ichol"/"ic"/"incomplete_cholesky", "ichol0", "native_ic"/"native_ichol",
+          "block_jacobi", "schwarz"/"additive_schwarz", "amg" (requires pyamg)
         - "sparse_preconditioner_refresh_interval" : int; default = 1 —
           reuse the cached preconditioner for up to N consecutive solves
           before rebuilding. ``set_KV`` always force-refreshes.
@@ -255,11 +283,15 @@ class GPOptimizer(GPOptimizerBase):
           additive Schwarz
         - "sparse_preconditioner_drop_tol" / "sparse_preconditioner_fill_factor"
           — forwarded to scipy ``spilu`` for "ilu"
+        - "sparse_preconditioner_ichol_fill_in" / "sparse_preconditioner_ichol_threshold"
+          — forwarded to ``ilupp`` thresholded IC for "ichol"
         - "sparse_preconditioner_amg_*" — forwarded to pyamg
           (``max_levels``, ``max_coarse``, ``strength``, ``cycle``, etc.)
-        - "sparse_preconditioner_shift" / "_growth" / "_attempts" — diagonal
-          shift retry knobs for "ic" / "block_jacobi" / "additive_schwarz" when
-          a local Cholesky encounters a non-PD block
+        - "sparse_preconditioner_shift" / "sparse_preconditioner_shift_growth" /
+          "sparse_preconditioner_shift_attempts" — diagonal shift retry knobs
+          (defaults: 0.0 / 10.0 / 5). Applies to "ichol" and "ichol0" (compiled),
+          "native_ic"/"native_ichol" (legacy), "block_jacobi", and
+          "additive_schwarz" when a local factorization encounters a non-PD pivot
 
         Cholesky compute-device routing:
 
@@ -523,11 +555,39 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
         * ``"sparseSolve"`` — direct sparse solve via scipy.
         * ``"sparseCGpre"`` — preconditioned conjugate-gradient. The preconditioner type
           is selected by ``args["sparse_preconditioner_type"]`` (default ``"ilu"``;
-          also ``"ic"``/``"incomplete_cholesky"``, ``"block_jacobi"``,
-          ``"schwarz"``/``"additive_schwarz"``, or ``"amg"`` (requires pyamg)).
+          also compiled incomplete Cholesky ``"ichol"``/``"ic"``/``"incomplete_cholesky"``,
+          zero-fill ``"ichol0"``, legacy Python IC(0) ``"native_ic"``/``"native_ichol"``,
+          ``"block_jacobi"``, ``"schwarz"``/``"additive_schwarz"``, or ``"amg"``
+          (requires pyamg). The compiled IC options require the optional ``ilupp`` package.
         * ``"sparseMINRESpre"`` — preconditioned MINRES; same preconditioner choices.
         * ``"sparseCGpre_<type>"`` / ``"sparseMINRESpre_<type>"`` — shortcut that sets
           ``args["sparse_preconditioner_type"]`` to ``<type>`` (e.g. ``"sparseCGpre_amg"``).
+
+        **Preconditioner aliases (incomplete Cholesky):**
+
+        The IC family has a compiled fast path and a pure-Python legacy path. The
+        names in this list are the canonical backends that ``sparse_preconditioner_type``
+        resolves to internally; the items after "aliases:" all map to the same backend.
+
+        * ``"ichol"`` — thresholded incomplete Cholesky via the optional
+          ``ilupp`` package (fast). **Aliases:** ``"ic"``, ``"incomplete_cholesky"``.
+          Tunable through ``sparse_preconditioner_ichol_fill_in`` and
+          ``sparse_preconditioner_ichol_threshold``.
+        * ``"ichol0"`` — zero-fill incomplete Cholesky via ``ilupp`` (cheap to build,
+          weaker as a preconditioner). No aliases.
+        * ``"native_incomplete_cholesky"`` — pure-Python IC(0); slower, intended as
+          a legacy/debugging fallback that always works without optional deps.
+          **Aliases:** ``"native_ic"``, ``"native_ichol"``,
+          ``"legacy_ic"``, ``"legacy_ichol"``,
+          ``"legacy_incomplete_cholesky"``. (``"native_"`` and ``"legacy_"`` are
+          interchangeable — "native" means built-in to fvGP, "legacy" reminds you
+          this is the original pre-``ilupp`` path.)
+
+        The two ``ilupp`` backends (``"ichol"``/``"ichol0"``) raise a clear
+        ``ImportError`` with install instructions if ``ilupp`` is missing
+        (``pip install ilupp``). All three IC backends honor the shared
+        ``sparse_preconditioner_shift`` / ``_shift_growth`` / ``_shift_attempts``
+        diagonal-shift-retry knobs (see the ``args`` section below).
 
         **Custom solver (any GP):**
 
@@ -596,8 +656,8 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
         - "sparse_krylov_warm_start" : True/False; default = False — feed the
           previous training iteration's ``KVinvY`` as ``x0`` to the next solve
         - "sparse_preconditioner_type" : str; default = "ilu". One of "ilu",
-          "ic"/"ichol"/"incomplete_cholesky", "block_jacobi", "schwarz"/
-          "additive_schwarz", "amg" (requires pyamg)
+          "ichol"/"ic"/"incomplete_cholesky", "ichol0", "native_ic"/"native_ichol",
+          "block_jacobi", "schwarz"/"additive_schwarz", "amg" (requires pyamg)
         - "sparse_preconditioner_refresh_interval" : int; default = 1 —
           reuse the cached preconditioner for up to N consecutive solves
           before rebuilding. ``set_KV`` always force-refreshes.
@@ -607,11 +667,15 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
           additive Schwarz
         - "sparse_preconditioner_drop_tol" / "sparse_preconditioner_fill_factor"
           — forwarded to scipy ``spilu`` for "ilu"
+        - "sparse_preconditioner_ichol_fill_in" / "sparse_preconditioner_ichol_threshold"
+          — forwarded to ``ilupp`` thresholded IC for "ichol"
         - "sparse_preconditioner_amg_*" — forwarded to pyamg
           (``max_levels``, ``max_coarse``, ``strength``, ``cycle``, etc.)
-        - "sparse_preconditioner_shift" / "_growth" / "_attempts" — diagonal
-          shift retry knobs for "ic" / "block_jacobi" / "additive_schwarz" when
-          a local Cholesky encounters a non-PD block
+        - "sparse_preconditioner_shift" / "sparse_preconditioner_shift_growth" /
+          "sparse_preconditioner_shift_attempts" — diagonal shift retry knobs
+          (defaults: 0.0 / 10.0 / 5). Applies to "ichol" and "ichol0" (compiled),
+          "native_ic"/"native_ichol" (legacy), "block_jacobi", and
+          "additive_schwarz" when a local factorization encounters a non-PD pivot
 
         Cholesky compute-device routing:
 
@@ -735,65 +799,87 @@ class LogGPOptimizer(GPOptimizer):
 
 class LogitGPOptimizer(GPOptimizer):
     """
-    A single-task :py:class:`GPOptimizer` for observations bounded in [0, 1].
+    A single-task :py:class:`GPOptimizer` for observations bounded in a closed interval
+    ``[lower, upper]`` (default ``[0, 1]``).
 
-    Observations are modeled in logit (log-odds) space (the GP sees ``logit(y)``), and
-    posterior predictions are mapped back with the logistic/sigmoid via
+    Observations are linearly rescaled to ``[0, 1]`` and modeled in logit (log-odds)
+    space (the GP sees ``logit((y - lower) / (upper - lower))``). Posterior predictions
+    are mapped back to ``[lower, upper]`` via the inverse (affine ∘ sigmoid) through
     :py:meth:`evaluate_posterior`, which guarantees predictions and credible intervals
-    inside (0, 1). Because ``logit(0)`` / ``logit(1)`` are infinite, observations are
-    clipped to ``[eps, 1 - eps]`` (a warning is emitted when clipping occurs). The
-    logistic-normal distribution has no closed-form moments, so the original-scale mean
-    and standard deviation are estimated by Monte-Carlo.
+    stay inside ``(lower, upper)``. Because ``logit(0)`` / ``logit(1)`` are infinite,
+    normalized observations are clipped to ``[eps, 1 - eps]`` (a warning is emitted when
+    clipping occurs). The logistic-normal distribution has no closed-form moments, so
+    the original-scale mean and standard deviation are estimated by Monte-Carlo.
 
     Parameters
     ----------
     eps : float, optional
-        Clipping margin for the open interval; observations are clipped to
+        Clipping margin for the open interval; normalized observations are clipped to
         ``[eps, 1 - eps]`` before the logit transform. The default is 1e-6.
     n_samples : int, optional
         Number of Monte-Carlo samples used to estimate the original-scale mean/std in
         :py:meth:`evaluate_posterior`. The default is 10000.
+    range : tuple of float, optional
+        ``(lower, upper)`` bounds of the observation domain. Observations are linearly
+        rescaled to ``[0, 1]`` before the logit transform, and posterior predictions
+        are mapped back to ``[lower, upper]``. The default is ``(0.0, 1.0)``.
 
     Notes
     -----
     All other constructor arguments are identical to :py:class:`GPOptimizer`. The
     inherited :py:meth:`posterior_mean` / :py:meth:`posterior_covariance` operate in
-    logit-space; use :py:meth:`evaluate_posterior` for the original (0, 1) scale. The
-    acquisition-function note for :py:class:`LogGPOptimizer` applies here too (pass
-    ``target probability`` bounds in logit-space).
+    logit-space (on the rescaled ``[0, 1]`` data); use :py:meth:`evaluate_posterior`
+    for the original ``[lower, upper]`` scale. The acquisition-function note for
+    :py:class:`LogGPOptimizer` applies here too (pass ``target probability`` bounds
+    in logit-space, where they refer to the rescaled ``[0, 1]`` data).
     """
 
-    def __init__(self, x_data=None, y_data=None, eps=1e-6, n_samples=10000, **kwargs):
+    def __init__(self, x_data=None, y_data=None, eps=1e-6, n_samples=10000,
+                 range=(0.0, 1.0), **kwargs):
+        lower, upper = float(range[0]), float(range[1])
+        if not lower < upper:
+            raise ValueError(
+                f"LogitGPOptimizer range must have lower < upper; got {range}.")
+        self.range = (lower, upper)
         self.eps = eps
         self.n_samples = n_samples
         super().__init__(x_data=x_data, y_data=y_data, **kwargs)
 
     def _prepare(self, y):
+        a, b = self.range
         y = np.asarray(y, dtype=float)
-        if np.any(y < self.eps) or np.any(y > 1.0 - self.eps):
-            warnings.warn("LogitGPOptimizer clipped observations to "
-                          f"[{self.eps}, {1.0 - self.eps}] before the logit transform.")
-        return np.clip(y, self.eps, 1.0 - self.eps)
+        # Linearly rescale [a, b] -> [0, 1] before clipping to (eps, 1-eps).
+        y_norm = (y - a) / (b - a)
+        if np.any(y_norm < self.eps) or np.any(y_norm > 1.0 - self.eps):
+            warnings.warn(
+                f"LogitGPOptimizer clipped observations near the boundary of "
+                f"range=({a}, {b}) before the logit transform.")
+        return np.clip(y_norm, self.eps, 1.0 - self.eps)
 
-    def _forward(self, y):
-        return logit(y)
+    def _forward(self, y_norm):
+        # `y_norm` is the prepared (rescaled, clipped) value in (eps, 1-eps).
+        return logit(y_norm)
 
     def _inverse(self, z):
-        return expit(z)
+        # Sigmoid maps to (0, 1); affine maps back to (lower, upper).
+        a, b = self.range
+        return a + (b - a) * expit(z)
 
-    def _forward_deriv(self, y):
-        return 1.0 / (y * (1.0 - y))
+    def _forward_deriv(self, y_norm):
+        # Composition g(y) = logit((y - a) / (b - a)) gives
+        #   g'(y) = 1 / ((b - a) * y_norm * (1 - y_norm))
+        a, b = self.range
+        return 1.0 / ((b - a) * y_norm * (1.0 - y_norm))
 
     def _moments(self, mu, var):
-        # sigmoid(Normal(mu, var)) is logistic-normal -> no closed form, estimate by MC
-        mu = np.asarray(mu).reshape(-1)
-        sd = np.sqrt(np.asarray(var).reshape(-1))
-        samples = expit(np.random.normal(loc=mu[:, None], scale=sd[:, None],
-                                         size=(mu.shape[0], self.n_samples)))
+        # Logistic-normal (rescaled to [a, b]) has no closed-form moments; use MC.
+        # `_samples` already pushes through self._inverse, which handles the rescale.
+        samples = self._samples(mu, var, self.n_samples)
         return samples.mean(axis=1), samples.std(axis=1)
 
     def __getstate__(self):
         state = super().__getstate__()
         state["eps"] = self.eps
         state["n_samples"] = self.n_samples
+        state["range"] = self.range
         return state
