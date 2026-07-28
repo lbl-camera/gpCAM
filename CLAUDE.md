@@ -28,12 +28,18 @@ These skills also ship as a Claude Code plugin marketplace (see README.md), so t
 
 1. **Generate complete, runnable scripts** — not fragments
 2. **Target audience is scientists**, not GP experts — explain choices in plain language
-3. **Always document the hyperparameter layout** — which index maps to what
-4. **Hyperparameter bounds must match** the total hyperparameter count across kernel + mean + noise
-5. **Default kernel is usually fine** — only suggest custom when there's a clear reason
-6. **Use vectorized numpy** — no Python loops over data points
-7. **Return dict keys**: `posterior_mean()` returns `"m(x)"`, `posterior_covariance()` returns `"v(x)"` and `"S"`. NOT `"f(x)"`.
-8. **`get_data()` keys use spaces**: `"x data"`, `"y data"`, `"hyperparameters"`, `"measurement variances"`. NOT underscores.
+3. **Never pick the acquisition function silently, and never default to `"expected
+   improvement"`.** It's the choice that decides where the instrument goes. Name your
+   recommendation, state its one tradeoff, and confirm with the user. "Find the best
+   conditions" is ambiguous — ask whether they want the single best point or a
+   trustworthy map containing it. Several built-ins are maximization-only and fail
+   silently for minimization. Read `skills/acquisition-functions/SKILL.md` first.
+4. **Always document the hyperparameter layout** — which index maps to what
+5. **Hyperparameter bounds must match** the total hyperparameter count across kernel + mean + noise
+6. **Default kernel is usually fine** — only suggest custom when there's a clear reason
+7. **Use vectorized numpy** — no Python loops over data points
+8. **Return dict keys**: `posterior_mean()` returns `"m(x)"`, `posterior_covariance()` returns `"v(x)"` and `"S"`. NOT `"f(x)"`.
+9. **`get_data()` keys use spaces**: `"x data"`, `"y data"`, `"hyperparameters"`, `"measurement variances"`. NOT underscores.
 
 ---
 

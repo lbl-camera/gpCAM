@@ -66,9 +66,11 @@ skill explicitly:
   - Design and compose custom kernel functions that encode domain knowledge
     — smoothness, periodicity, symmetry, anisotropy, non-Euclidean inputs.
 * - **acquisition-functions**
-  - Write custom acquisition functions that encode experimental priorities:
-    exploration vs exploitation, multi-objective targets, constraints,
-    cost-aware acquisition, UCB / LCB, probability of improvement.
+  - Choose the acquisition function that actually fits the experiment's goal —
+    with a decision table, gpCAM-specific caveats, and worked examples per
+    archetype — and write custom ones: exploration vs exploitation,
+    multi-objective targets, constraints, cost-aware acquisition, UCB / LCB,
+    gradient and radical-gradient change mapping, threshold finding.
 * - **prior-mean-functions**
   - Encode known physics or expected trends as prior mean functions, so the
     GP regresses against a baseline rather than a flat zero prior.

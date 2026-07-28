@@ -70,6 +70,15 @@ gpo.ask(parameter_bounds, x_out=np.array([0, 1]), n=4,
         acquisition_function="relative information entropy set", vectorized=True)
 ```
 
+**Do not use `"expected improvement"` with `x_out`.** The multi-task branch
+(`gpcam/surrogate_model.py:306`) sums the posterior mean across tasks and *sums* the
+standard deviations across tasks, then compares that sum against `np.max(gpo.y_data)`
+of a scalar observation. The quantities aren't comparable, and no error is raised.
+Prefer `"relative information entropy set"` or `"variance"` for multi-task. If the
+scientist really wants to optimize one channel, that's a single-task problem on a
+derived scalar — extract it in the measurement function and use `GPOptimizer`. See the
+`acquisition-functions` skill.
+
 ### One-shot optimize
 
 For simple black-box vector-valued optimization, `optimize()` replaces the manual loop:
