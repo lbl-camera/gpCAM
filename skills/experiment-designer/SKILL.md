@@ -34,8 +34,18 @@ Ask about:
 - **Input dimensions**: What parameters do they control? (motor positions, temperature, voltage, etc.)
 - **Input bounds**: What range for each parameter?
 - **Output**: What do they measure? (intensity, spectrum, image, scalar?)
-- **Goal**: Exploration (map everything)? Optimization (find the peak)? Both?
+- **Goal**: this drives the acquisition function, so don't settle for "optimize it."
+  Which of these is it?
+  - *map the whole space* — replace a raster, build a surrogate
+  - *find the single best point* — set the instrument there and run production
+  - *find the worst / minimum* — background, leakage, error (**note the direction**;
+    most built-in optimization acquisitions maximize only)
+  - *find where the signal changes* — phase boundaries, transitions, onsets
+  - *find where the signal crosses a threshold* — a level set
+  - *find conditions giving output ≈ some target* — a specification, not an extremum
+  - *some combination* — often "explore first, then exploit," which is easy to script
 - **Constraints**: Any forbidden regions? Cost of moving between points?
+- **Batch**: One point at a time, or several per round?
 - **Prior knowledge**: Do they know roughly what to expect? (smooth? periodic? sharp features?)
 - **Data size**: How many measurements can they afford? (determines if gp2Scale is needed)
 - **Noise**: Is the measurement noisy? Does noise vary across the parameter space?
@@ -47,7 +57,7 @@ Based on their answers, decide:
 |--------|----------|
 | **Optimizer class** | Pick by the support of the observations: `GPOptimizer` for unconstrained or negative-allowed `y`; `LogGPOptimizer` if `y > 0` (intensities, rates, concentrations); `LogitGPOptimizer` if `y ∈ [0, 1]` (yields, fractions, probabilities). A plain GP on positive-only or bounded data can predict invalid values — see `transformed-optimizers-advanced` skill. |
 | **Kernel** | Default Matérn-3/2 ARD is good for most cases. Use periodic kernel if periodicity is known. Use Matérn-1/2 for rough/discontinuous data, Matérn-5/2 or SE for very smooth. See `kernel-designer` skill for custom kernels. |
-| **Acquisition function** | `'variance'` for exploration/mapping. `'expected improvement'` or `'ucb'` for optimization (UCB exposes a tunable exploration/exploitation tradeoff via `beta`). For **noisy** measurements prefer `'noisy expected improvement'` (EI robust to observation noise) or `'knowledge gradient'` (lookahead, keeps exploring when EI stalls); both also work multi-task. Custom callable for multi-objective or constraints. See `acquisition-functions` skill. |
+| **Acquisition function** | **Do not pick this one on your own — read the `acquisition-functions` skill and confirm the choice with the scientist.** It's the argument that decides where the instrument actually goes, and several built-ins have gpCAM-specific behavior that surprises people (plain EI is maximization-only and degenerates to pure exploration early in a run; `ask(n>1)` silently overrides string acquisitions). Starting points, all subject to confirmation: `'variance'` for exploration/mapping; `'ucb'` for maximization (`beta` fixed at 3.0 — write a callable to tune it); `'lcb'` for **minimization**; `'noisy expected improvement'` when measurements are noisy, or `'knowledge gradient'` for lookahead that keeps exploring when EI stalls — both also work multi-task; `'gradient'` or a radical-gradient callable to map where the signal changes; a custom callable for multi-objective or constraints. Do **not** default to `'expected improvement'`. |
 | **Prior mean** | Default is a **constant equal to `mean(y_data)`** — not zero. Away from data the posterior reverts to that constant. Override with `prior_mean_function=` only if they have a physical model. See `prior-mean-functions` skill. |
 | **Noise model** | Use `noise_variances` if noise is known and uniform. Use `noise_function` if noise varies. See `noise-functions` skill. |
 | **Training strategy** | `method='global'` for first training, `method='local'` for re-training during the loop. Other options: `"mcmc"` (Bayesian — returns posterior samples over hyperparameters), `"adam"` (stochastic-gradient, fast, works well for high-dimensional hyperparameter vectors like deep kernels), `"hgdl"` (distributed local+global hybrid — needs a `dask_client`). |
@@ -216,11 +226,21 @@ hp_bounds = np.array(
 # ============================================================
 # 5. ACQUISITION FUNCTION
 # ============================================================
-acquisition_function = "variance"  # Options: "variance", "expected improvement",
-                                   #          "ucb", "relative information entropy",
-                                   #          "knowledge gradient" (lookahead, noise-robust),
-                                   #          "noisy expected improvement" (EI under noise),
-                                   #          or a callable
+# CONFIRM THIS WITH THE SCIENTIST — it decides where the instrument goes.
+# Set here to the choice agreed in conversation, with the reason recorded:
+#   "variance"  -> map the space evenly (safe default)
+#   "ucb"       -> find the maximum (beta fixed at 3.0)
+#   "lcb"       -> find the MINIMUM (the maximization acquisitions fail silently here)
+#   "noisy expected improvement" -> find the maximum when measurements are noisy
+#   "knowledge gradient"         -> lookahead; keeps exploring when EI has stalled
+#   "gradient" / radical_gradient callable -> map where the signal changes
+#   "target probability" + args={'a':lo,'b':hi} -> hit a target output value
+#   "total correlation" / "relative information entropy set" -> batch (n > 1)
+#   "expected improvement" -> only to refine an already-located maximum on low-noise
+#                             sequential data; prefer "noisy expected improvement"
+#                             under noise. See the caveats in the acquisition-functions
+#                             skill before choosing plain EI.
+acquisition_function = "variance"  # REASON: <why this one, in the scientist's terms>
 
 # ============================================================
 # 6. RUN THE EXPERIMENT
@@ -302,8 +322,9 @@ if __name__ == "__main__":
 3. **Comment heavily** — explain every choice for the non-expert.
 4. **Hyperparameter bounds matter** — set sensible defaults based on the parameter ranges and expected signal scale.
 5. **Default kernel is usually fine** — only suggest custom kernels when there's a clear reason (known periodicity, symmetry, etc.).
-6. **Training schedule** — train globally once at the start, then locally every N iterations. Don't train every iteration (too slow).
-7. **Initial points** — always start with random initial sampling before the adaptive loop.
+6. **The acquisition function is not a default — it's a conversation.** State your recommendation, name the one tradeoff it makes, and confirm before writing the loop. Record the reason as a comment in the script. Remind them it's an `ask()` argument, so it can change between iterations — "explore first, then exploit" is often the right design. See the `acquisition-functions` skill.
+7. **Training schedule** — train globally once at the start, then locally every N iterations. Don't train every iteration (too slow).
+8. **Initial points** — always start with random initial sampling before the adaptive loop.
 
 ## Hyperparameter Coordination
 

@@ -33,16 +33,17 @@ These skills also ship as a Claude Code plugin marketplace (`.claude-plugin/mark
 
 1. **Generate complete, runnable scripts** — not fragments
 2. **Target audience is scientists**, not GP experts — explain choices in plain language
-3. **Always document the hyperparameter layout** — which index maps to what
-4. **Hyperparameter bounds must match** the total hyperparameter count across kernel + mean + noise
-5. **Default kernel is usually fine** — only suggest custom when there's a clear reason
-6. **Use vectorized numpy** — no Python loops over data points
-7. **Return dict keys**: `posterior_mean()` returns `"m(x)"`, `posterior_covariance()` returns `"v(x)"` and `"S"`. NOT `"f(x)"`.
-8. **`get_data()` keys use spaces**: `"x data"`, `"y data"`, `"hyperparameters"`, `"measurement variances"`. NOT underscores.
-9. **Hyperparameter index layout is kernel → mean → noise**, and the ranges must be disjoint. Derive the start index as `K = 1 + D` for the default kernel; never hardcode `K = 3` (correct only for 2-D input) and never read `hps[-1]` in a prior mean (that is the noise function's slot).
-10. **The prior mean keyword is `prior_mean_function=`**, and the default prior mean is a constant equal to `mean(y_data)` — not zero.
-11. **`args` reaches kernel/mean/noise only** (dispatched by parameter count). Cost functions are called as `cost_function(origin, x)` and acquisition functions as `f(x, gp_obj)` — neither receives `args`; use `functools.partial`.
-12. **`cost_function` is applied only when `ask(..., position=...)` is given.** Without `position`, gpCAM silently ignores it.
+3. **Never pick the acquisition function silently, and never default to `"expected improvement"`.** It's the choice that decides where the instrument goes. Name your recommendation, state its one tradeoff, and confirm with the user. "Find the best conditions" is ambiguous — ask whether they want the single best point or a trustworthy map containing it. Several built-ins are maximization-only and fail silently for minimization. Read `skills/acquisition-functions/SKILL.md` first.
+4. **Always document the hyperparameter layout** — which index maps to what
+5. **Hyperparameter bounds must match** the total hyperparameter count across kernel + mean + noise
+6. **Default kernel is usually fine** — only suggest custom when there's a clear reason
+7. **Use vectorized numpy** — no Python loops over data points
+8. **Return dict keys**: `posterior_mean()` returns `"m(x)"`, `posterior_covariance()` returns `"v(x)"` and `"S"`. NOT `"f(x)"`.
+9. **`get_data()` keys use spaces**: `"x data"`, `"y data"`, `"hyperparameters"`, `"measurement variances"`. NOT underscores.
+10. **Hyperparameter index layout is kernel → mean → noise**, and the ranges must be disjoint. Derive the start index as `K = 1 + D` for the default kernel; never hardcode `K = 3` (correct only for 2-D input) and never read `hps[-1]` in a prior mean (that is the noise function's slot).
+11. **The prior mean keyword is `prior_mean_function=`**, and the default prior mean is a constant equal to `mean(y_data)` — not zero.
+12. **`args` reaches kernel/mean/noise only** (dispatched by parameter count). Cost functions are called as `cost_function(origin, x)` and acquisition functions as `f(x, gp_obj)` — neither receives `args`; use `functools.partial`.
+13. **`cost_function` is applied only when `ask(..., position=...)` is given.** Without `position`, gpCAM silently ignores it.
 
 ---
 
