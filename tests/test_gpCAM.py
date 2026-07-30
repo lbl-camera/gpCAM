@@ -179,6 +179,107 @@ def test_acq_funcs(client):
     r = my_gpo.ask([np.array([0.,1.,.5]), np.array([0.5,0.5,0.5])], n = 1,
                    acquisition_function="noisy expected improvement", vectorized = False)
 
+def test_expected_improvement_not_degenerate():
+    """Regression test for issue #55.
+
+    The improvement must be standardized *before* it is clipped. Clipping first pins
+    z to 0 at every candidate below the incumbent, so EI collapses to the constant
+    std * norm.pdf(0) = 0.3989 * std -- i.e. a scaled `variance` acquisition that
+    carries no information about the posterior mean.
+    """
+    from scipy.stats import norm
+
+    x_data = np.random.uniform(size=(15, 2))
+    y_data = np.sin(np.linalg.norm(x_data, axis=1))
+    gpo = GPOptimizer(x_data, y_data)
+
+    grid = np.random.uniform(size=(200, 2))
+    ei = gpo.evaluate_acquisition_function(grid, acquisition_function="expected improvement")
+    m = gpo.posterior_mean(grid)["m(x)"].reshape(len(grid))
+    std = np.sqrt(gpo.posterior_covariance(grid, variance_only=True)["v(x)"]).reshape(len(grid))
+    incumbent = np.max(gpo.y_data)
+
+    assert ei.shape == (len(grid),)
+    assert np.all(np.isfinite(ei)) and np.all(ei >= 0.)
+
+    below = m < incumbent
+    assert below.sum() > 10, "test needs candidates below the incumbent to be meaningful"
+    ratio = ei[below] / std[below]
+    # the bug made this ratio exactly norm.pdf(0) at every sub-incumbent candidate
+    assert len(np.unique(np.round(ratio, 8))) > 1
+    assert ratio.max() - ratio.min() > 0.05
+    assert np.all(ratio < norm.pdf(0.))
+
+    # ei/std is a monotone function of z = (m - incumbent)/std, which is what the clip
+    # destroyed: it pinned z to 0 and made the ratio constant. (Monotone in z, not in m
+    # -- candidates with equal improvement but different std have different z.)
+    z = (m - incumbent) / (std + 1e-9)
+    ratio_by_z = (ei / std)[np.argsort(z)]
+    assert np.all(np.diff(ratio_by_z) > -1e-12)
+
+    # matches the textbook closed form
+    expected = (m - incumbent) * norm.cdf(z) + std * norm.pdf(z)
+    assert np.allclose(ei, np.maximum(expected, 0.), atol=1e-12)
+
+
+def test_expected_improvement_closed_form():
+    """The EI helper, on a controlled grid where std is fixed (issue #55)."""
+    from scipy.stats import norm
+    from gpcam.surrogate_model import _expected_improvement
+
+    imp = np.linspace(-5., 5., 1001)
+    ei = _expected_improvement(imp, np.ones_like(imp))
+    # strictly increasing in the improvement; the clipped version was flat for imp < 0
+    assert np.all(np.diff(ei) > 0.)
+    assert np.all(ei > 0.)
+    # at imp == 0 the value is exactly std * phi(0)
+    assert np.isclose(_expected_improvement(np.zeros(1), np.ones(1))[0], norm.pdf(0.))
+    # deep below the incumbent EI vanishes rather than plateauing at 0.3989 * std
+    assert _expected_improvement(np.array([-50.]), np.ones(1))[0] < 1e-12
+    # for a near-deterministic candidate EI approaches the improvement itself
+    assert np.isclose(_expected_improvement(np.array([3.]), np.array([1e-9]))[0], 3., atol=1e-6)
+    # non-negative and finite for degenerate/extreme inputs
+    for i, s in [(-1e6, 1e-12), (-1e3, 1e-3), (0., 0.), (1e3, 0.), (-40., 1.)]:
+        v = _expected_improvement(np.array([i]), np.array([s]))[0]
+        assert np.isfinite(v) and v >= 0.
+
+
+def test_expected_improvement_multi_task_scalarization():
+    """Issue #55, multi-task branch: the incumbent must use the same scalarization as
+    the posterior mean (a sum over tasks), and the spread must be the std of that sum
+    -- not the sum of the per-task stds."""
+    from scipy.stats import norm
+
+    x_data = np.random.uniform(size=(12, 2))
+    # deliberately mismatched task scales: max(y_data) over the flattened product space
+    # is dominated by task 1 and is not comparable to a sum over tasks
+    y_data = np.column_stack([np.sin(np.linalg.norm(x_data, axis=1)),
+                              100. * np.cos(np.linalg.norm(x_data, axis=1))])
+    gpo = fvGPOptimizer(x_data, y_data)
+    x_out = np.array([0, 1])
+
+    grid = np.random.uniform(size=(25, 2))
+    ei = gpo.evaluate_acquisition_function(grid, x_out=x_out,
+                                           acquisition_function="expected improvement")
+    assert ei.shape == (len(grid),)
+    assert np.all(np.isfinite(ei)) and np.all(ei >= 0.)
+
+    m = np.sum(gpo.posterior_mean(grid, x_out=x_out)["m(x)"].reshape(len(grid), len(x_out)), axis=1)
+    v = gpo.posterior_covariance(grid, x_out=x_out, variance_only=True)["v(x)"].reshape(len(grid), len(x_out))
+    std = np.sqrt(np.sum(v, axis=1))
+    incumbent = np.max(np.sum(gpo.fvgp_y_data, axis=1))
+    z = (m - incumbent) / (std + 1e-9)
+    expected = (m - incumbent) * norm.cdf(z) + std * norm.pdf(z)
+    assert np.allclose(ei, np.maximum(expected, 0.), atol=1e-12)
+
+    # the incumbent is the best task-summed observation, not the largest single entry
+    # of the task-major product-space vector
+    assert incumbent != np.max(gpo.y_data)
+    # ...and not what a naive reshape of the product-space vector would give
+    naive = np.max(np.sum(np.asarray(gpo.y_data).reshape(-1, len(x_out)), axis=1))
+    assert not np.isclose(incumbent, naive)
+
+
 def test_pickle():
     import numpy as np
     from gpcam.gp_optimizer import GPOptimizer

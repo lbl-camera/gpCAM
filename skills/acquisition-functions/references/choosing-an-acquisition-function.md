@@ -26,13 +26,14 @@ measurement?"*
 - They already know roughly where the peak is and want it refined → `"expected improvement"`
   (low noise) or `"noisy expected improvement"`
 
-**Why not plain EI by default.** Two reasons specific to gpCAM. Its EI anchors to
-`np.max(y_data)` — the largest *noisy observation*, not the posterior mean — so on
-noisy data it locks onto a spike; this is exactly what NEI was added to fix. And until
-the posterior mean somewhere exceeds that incumbent, gpCAM's EI is algebraically
-`0.3989 · σ(x)`, i.e. identical in ranking to `"variance"`
-([#55](https://github.com/lbl-camera/gpCAM/issues/55)). Early in a run it is not
-exploiting at all.
+**Why not plain EI by default.** Its EI anchors to `np.max(y_data)` — the largest
+*noisy observation*, not the posterior mean — so on noisy data it locks onto a spike;
+this is exactly what NEI was added to fix. And on gpCAM ≤ 8.4.2 there is a second,
+bigger reason: until the posterior mean somewhere exceeded that incumbent, EI was
+algebraically `0.3989 · σ(x)` over the whole sub-incumbent region — pure exploration,
+identical in ranking to `"variance"` there. Fixed in
+[#55](https://github.com/lbl-camera/gpCAM/issues/55), so check the version before
+ruling EI in or out on those grounds.
 
 ```python
 # Explore first, then exploit — a good default for peak finding.

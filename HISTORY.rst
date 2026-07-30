@@ -2,6 +2,31 @@
 History
 =======
 
+Unreleased
+----------
+
+Bug fixes
+~~~~~~~~~
+
+* ``"expected improvement"`` no longer degenerates to a scaled ``"variance"``
+  acquisition (`#55 <https://github.com/lbl-camera/gpCAM/issues/55>`_). The
+  improvement was clipped to zero *before* being divided by the standard
+  deviation, so at every candidate whose posterior mean sat below the incumbent
+  the score collapsed to the constant ``0.3989 * sigma`` and carried no
+  information about the posterior mean. EI now standardizes first,
+  ``imp * Phi(z) + sigma * phi(z)``, which needs no clipping. Scores above the
+  incumbent are unchanged; below it, EI now exploits as intended. Anyone who ran
+  a single-task EI campaign on 8.4.2 or earlier was effectively running pure
+  exploration.
+* Multi-task ``"expected improvement"`` is scalarized coherently. It compared a
+  posterior mean summed over tasks against ``np.max(y_data)`` — a single
+  ``(point, task)`` entry of the flattened product-space vector — and used the
+  *sum of the per-task standard deviations* as the spread. The incumbent is now
+  the best task-summed observation and the spread is ``sqrt(sum_t Var[f(x,t)])``,
+  matching ``ucb``/``lcb``. This assumes independent tasks; ``"knowledge
+  gradient"`` and ``"noisy expected improvement"`` remain the accurate choice for
+  correlated tasks, since they take the exact cross-task covariance.
+
 8.4.2 — 2026-07-24
 ------------------
 
