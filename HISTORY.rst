@@ -5,6 +5,12 @@ History
 Unreleased
 ----------
 
+Dependencies
+~~~~~~~~~~~~
+
+* Require ``fvgp ~= 4.8.4``, the newest release in the 4.8 line (was ``~= 4.8.1``).
+  This raises the floor only; ``~=`` already allowed any later 4.8.z.
+
 Bug fixes
 ~~~~~~~~~
 

@@ -69,7 +69,7 @@ hatch build                       # build sdist + wheel (version comes from git 
 
 ### Version state
 
-The repo is on the **8.4.x beta line** (latest tag `8.4.2`, `fvgp ~= 4.8.1`); **8.3.9 is the stable line** users may still be pinned to. HISTORY.rst and the README warning are the migration reference. 8.4.1 → 8.4.2 was a docs/skills-only release (identical wheel), so a HISTORY entry does not imply library changes. Constructor/method kwargs renamed in 8.4:
+The repo is on the **8.4.x beta line** (latest tag `8.4.2`, `fvgp ~= 4.8.4`); **8.3.9 is the stable line** users may still be pinned to. HISTORY.rst and the README warning are the migration reference. 8.4.1 → 8.4.2 was a docs/skills-only release (identical wheel), so a HISTORY entry does not imply library changes. Constructor/method kwargs renamed in 8.4:
 
 | Old (8.3.x) | New (8.4.x) |
 |---|---|
@@ -82,7 +82,7 @@ When answering user questions or writing examples, use the new names — but rec
 
 ### The big picture
 
-**gpCAM is a thin Bayesian-optimization / autonomous-data-acquisition layer on top of the [`fvgp`](https://github.com/lbl-camera/fvgp) package** (`fvgp ~= 4.8.1` in `pyproject.toml`). The actual GP math — kernels, hyperparameter training, posterior evaluation, MCMC, deep kernels — lives in `fvgp`. gpCAM adds the `ask`/`tell`/`train`/`optimize` loop and acquisition-function optimization on top.
+**gpCAM is a thin Bayesian-optimization / autonomous-data-acquisition layer on top of the [`fvgp`](https://github.com/lbl-camera/fvgp) package** (`fvgp ~= 4.8.4` in `pyproject.toml` — the newest 4.8.x; `~=` allows any later 4.8.z but not 4.9). The actual GP math — kernels, hyperparameter training, posterior evaluation, MCMC, deep kernels — lives in `fvgp`. gpCAM adds the `ask`/`tell`/`train`/`optimize` loop and acquisition-function optimization on top.
 
 This means **the most important architectural fact is what is NOT in this repo**:
 
