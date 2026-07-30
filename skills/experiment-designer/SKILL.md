@@ -3,12 +3,12 @@ name: experiment-designer
 description: Use for end-to-end autonomous experiment design with gpCAM. Translates a scientist's description of their measurement into a complete, runnable gpCAM script — useful for replacing raster scans with adaptive sampling, peak-finding, or parameter optimization.
 gpcam_version: "8.4.x"
 fvgp_version: "4.8.x"
-last_verified: "2026-07-23 (gpCAM dadeb65)"
+last_verified: "2026-07-30 (gpCAM d45db2c + issue #55 fix)"
 ---
 
 # Skill: gpCAM Experiment Designer
 
-*Verified against gpCAM 8.4.x / fvgp 4.8.x — last checked 2026-07-23 (gpCAM `dadeb65`).*
+*Verified against gpCAM 8.4.x / fvgp 4.8.x — last checked 2026-07-30 (gpCAM `d45db2c` + the issue #55 fix).*
 
 Design complete autonomous experiment scripts using gpCAM. You translate a scientist's description of their measurement into a runnable Python script.
 
@@ -57,7 +57,7 @@ Based on their answers, decide:
 |--------|----------|
 | **Optimizer class** | Pick by the support of the observations: `GPOptimizer` for unconstrained or negative-allowed `y`; `LogGPOptimizer` if `y > 0` (intensities, rates, concentrations); `LogitGPOptimizer` if `y ∈ [0, 1]` (yields, fractions, probabilities). A plain GP on positive-only or bounded data can predict invalid values — see `transformed-optimizers-advanced` skill. |
 | **Kernel** | Default Matérn-3/2 ARD is good for most cases. Use periodic kernel if periodicity is known. Use Matérn-1/2 for rough/discontinuous data, Matérn-5/2 or SE for very smooth. See `kernel-designer` skill for custom kernels. |
-| **Acquisition function** | **Do not pick this one on your own — read the `acquisition-functions` skill and confirm the choice with the scientist.** It's the argument that decides where the instrument actually goes, and several built-ins have gpCAM-specific behavior that surprises people (plain EI is maximization-only and degenerates to pure exploration early in a run; `ask(n>1)` silently overrides string acquisitions). Starting points, all subject to confirmation: `'variance'` for exploration/mapping; `'ucb'` for maximization (`beta` fixed at 3.0 — write a callable to tune it); `'lcb'` for **minimization**; `'noisy expected improvement'` when measurements are noisy, or `'knowledge gradient'` for lookahead that keeps exploring when EI stalls — both also work multi-task; `'gradient'` or a radical-gradient callable to map where the signal changes; a custom callable for multi-objective or constraints. Do **not** default to `'expected improvement'`. |
+| **Acquisition function** | **Do not pick this one on your own — read the `acquisition-functions` skill and confirm the choice with the scientist.** It's the argument that decides where the instrument actually goes, and several built-ins have gpCAM-specific behavior that surprises people (plain EI is maximization-only, and on gpCAM ≤ 8.4.2 it degenerates to pure exploration; `ask(n>1)` silently overrides string acquisitions). Starting points, all subject to confirmation: `'variance'` for exploration/mapping; `'ucb'` for maximization (`beta` fixed at 3.0 — write a callable to tune it); `'lcb'` for **minimization**; `'noisy expected improvement'` when measurements are noisy, or `'knowledge gradient'` for lookahead that keeps exploring when EI stalls — both also work multi-task; `'gradient'` or a radical-gradient callable to map where the signal changes; a custom callable for multi-objective or constraints. Do **not** default to `'expected improvement'`. |
 | **Prior mean** | Default is a **constant equal to `mean(y_data)`** — not zero. Away from data the posterior reverts to that constant. Override with `prior_mean_function=` only if they have a physical model. See `prior-mean-functions` skill. |
 | **Noise model** | Use `noise_variances` if noise is known and uniform. Use `noise_function` if noise varies. See `noise-functions` skill. |
 | **Training strategy** | `method='global'` for first training, `method='local'` for re-training during the loop. Other options: `"mcmc"` (Bayesian — returns posterior samples over hyperparameters), `"adam"` (stochastic-gradient, fast, works well for high-dimensional hyperparameter vectors like deep kernels), `"hgdl"` (distributed local+global hybrid — needs a `dask_client`). |

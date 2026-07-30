@@ -3,12 +3,12 @@ name: multi-task-advanced
 description: Use for multi-output, vector-valued, or function-valued gpCAM experiments using fvGPOptimizer — useful when a single measurement returns multiple correlated quantities (e.g., spectra, multi-channel detectors).
 gpcam_version: "8.4.x"
 fvgp_version: "4.8.x"
-last_verified: "2026-07-23 (gpCAM dadeb65)"
+last_verified: "2026-07-30 (gpCAM d45db2c + issue #55 fix)"
 ---
 
 # Skill: Multi-Task GPs with fvGPOptimizer
 
-*Verified against gpCAM 8.4.x / fvgp 4.8.x — last checked 2026-07-23 (gpCAM `dadeb65`).*
+*Verified against gpCAM 8.4.x / fvgp 4.8.x — last checked 2026-07-30 (gpCAM `d45db2c` + the issue #55 fix).*
 
 Design experiments with vector-valued or function-valued outputs using gpCAM's multi-task GP.
 
@@ -77,20 +77,26 @@ gpo.ask(parameter_bounds, x_out=np.array([0, 1]), n=4,
         acquisition_function="relative information entropy set", vectorized=True)
 ```
 
-**Do not use plain `"expected improvement"` with `x_out`.** The multi-task branch
-(`gpcam/surrogate_model.py:319`) sums the posterior mean across tasks and *sums* the
-standard deviations across tasks, then compares that sum against `np.max(gpo.y_data)`
-of a scalar observation. Summed std is not the std of the sum — that needs the
-cross-task covariance — so the quantities aren't comparable, and no error is raised.
+**Plain `"expected improvement"` with `x_out` assumes the tasks are uncorrelated.** The
+multi-task branch (`gpcam/surrogate_model.py:312-321`) scalarizes to the task-summed
+objective and takes the spread as `sqrt(Σ_t Var[f(x,t)])`, which drops the cross-task
+covariance. It is cheap and coherent but not exact; for correlated tasks — the usual
+reason to fit a multi-task GP at all — prefer KG/NEI below.
+
+**On gpCAM ≤ 8.4.2, do not use plain `"expected improvement"` with `x_out` at all.**
+There it *summed the standard deviations* rather than the variances and compared the
+task-sum against `np.max(gpo.y_data)`, a single `(point, task)` entry of the flattened
+product-space vector — quantities that aren't comparable, with no error raised. Fixed in
+[#55](https://github.com/lbl-camera/gpCAM/issues/55).
 
 Choose by what the scientist is doing:
 
 - **Exploring / mapping all channels** → `"relative information entropy set"` or `"variance"`
 - **Optimizing** → `"knowledge gradient"` or `"noisy expected improvement"`. Both act on
-  the task-summed objective `g(x) = Σ_t f(x, t)` — the same scalarization the built-in
-  multi-task `"expected improvement"` / `"ucb"` use — but build the joint posterior
-  properly via `_scalarized_blocks`. Both are maximization-only and are the most
-  expensive built-ins; see the caveats in the `acquisition-functions` skill.
+  the same task-summed objective `g(x) = Σ_t f(x, t)` as multi-task
+  `"expected improvement"` / `"ucb"`, but build the joint posterior with the exact
+  cross-task covariance via `_scalarized_blocks`. Both are maximization-only and are the
+  most expensive built-ins; see the caveats in the `acquisition-functions` skill.
 
 ```python
 gpo.ask(parameter_bounds, x_out=np.array([0, 1]),

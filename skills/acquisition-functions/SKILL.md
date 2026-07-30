@@ -3,12 +3,12 @@ name: acquisition-functions
 description: Use when choosing or designing the acquisition function for a gpCAM experiment — deciding which built-in actually fits the scientist's goal (and confirming it with them rather than defaulting to expected improvement), or writing a custom one for exploration/exploitation balance, multi-objective targets, constrained search regions, cost-aware moves, change-mapping via gradient or radical gradient, knowledge gradient and noisy EI under observation noise, UCB/LCB, target-value, or threshold-finding criteria.
 gpcam_version: "8.4.x"
 fvgp_version: "4.8.x"
-last_verified: "2026-07-28 (gpCAM 3d576fa)"
+last_verified: "2026-07-30 (gpCAM d45db2c + issue #55 fix)"
 ---
 
 # Skill: gpCAM Acquisition Functions
 
-*Verified against gpCAM 8.4.x / fvgp 4.8.x — last checked 2026-07-28 (gpCAM `3d576fa`).*
+*Verified against gpCAM 8.4.x / fvgp 4.8.x — last checked 2026-07-30 (gpCAM `d45db2c` + the issue #55 fix).*
 
 Choose — and where needed, write — the acquisition function that controls where gpCAM measures next.
 
@@ -48,9 +48,11 @@ Before generating a script:
    generated script so the choice is revisitable.
 
 Do **not** default to `"expected improvement"`. It is the most famous acquisition
-function in the literature and the most over-applied in practice; in gpCAM it also
-carries behavior that surprises people — see
-[gpCAM-Specific Behavior](#gpcam-specific-behavior-you-must-know) below.
+function in the literature and the most over-applied in practice; it is also
+maximization-only and anchors to a single noisy observation — see
+[gpCAM-Specific Behavior](#gpcam-specific-behavior-you-must-know) below. And on gpCAM
+≤ 8.4.2 it degenerates to pure exploration (caveat a), so **ask which version they run
+before recommending it**.
 
 ### Decision Table — start from what they want to *learn*
 
@@ -66,7 +68,7 @@ carries behavior that surprises people — see
 | "**minimize** this" | `"lcb"`, or a custom EI-for-minimization | **not** EI, PI, KG, NEI, or `"ucb"` — all are hardcoded for maximization |
 | "give me N points per round" (batch) | `"total correlation"` or `"relative information entropy set"` | anything else is silently overridden — see caveat (e) |
 | multi-task / spectra — *exploring* | `"relative information entropy set"` or `"variance"` | — |
-| multi-task / spectra — *optimizing* | `"knowledge gradient"` or `"noisy expected improvement"` | both act on the task-summed objective; **not** plain EI — see caveat (d) |
+| multi-task / spectra — *optimizing* | `"knowledge gradient"` or `"noisy expected improvement"` | all three act on the task-summed objective, but KG/NEI use the exact cross-task covariance where plain EI assumes independent tasks — see caveat (d) |
 | "I already know roughly where the peak is, refine it" | `"expected improvement"` if noise is low, `"noisy expected improvement"` if not | greedy; plain EI assumes the incumbent is known exactly |
 | "I don't know yet" | `"variance"` for the first ~20 points, then revisit | you can change the acquisition between `ask()` calls — it is not fixed for the run |
 
@@ -129,7 +131,7 @@ Pass these as strings to `gpo.ask(acquisition_function=...)`:
 | Name | String key | Best for | Avoid when |
 |------|-----------|----------|------------|
 | Variance | `"variance"` | Pure exploration / mapping | They need the peak refined, not the map |
-| Expected Improvement | `"expected improvement"` | Late refinement of a known maximum, low noise, sequential, single-task | Minimizing; noisy data; batch (`n>1`); multi-task; early in a run (it degenerates — caveat a) |
+| Expected Improvement | `"expected improvement"` | Late refinement of a known maximum, low noise, sequential, single-task | Minimizing; noisy data; batch (`n>1`); correlated multi-task (caveat d); **any run on gpCAM ≤ 8.4.2** (caveat a) |
 | Probability of Improvement | `"probability of improvement"` | Risk-averse maximization | Minimizing; it is even greedier than EI and stalls easily |
 | Upper Confidence Bound | `"ucb"` | Maximization; the most reliable general-purpose optimizer here | Minimizing; you need `beta ≠ 3.0` (write the callable — caveat f) |
 | Lower Confidence Bound | `"lcb"` | Minimization | You need `beta ≠ 3.0` (write the callable) |
@@ -158,43 +160,46 @@ These are properties of gpCAM's implementations, not of the textbook definitions
 the scientist about any that apply to their choice — several will otherwise silently do
 something other than what they were told.
 
-**(a) EI degenerates to pure exploration early in a run.**
-`gpcam/surrogate_model.py:260` clips the improvement *before* forming the ratio:
+**(a) EI degenerated to pure exploration in gpCAM ≤ 8.4.2 — check which version they run.**
+Fixed by [#55](https://github.com/lbl-camera/gpCAM/issues/55); `surrogate_model.py` now
+standardizes first and needs no clip at all (the `np.maximum` is only a guard against
+floating-point cancellation when `σ` is at or below the epsilon), in the shared
+`_expected_improvement` helper:
 
 ```python
-a = (m - last_best).reshape(len(x))
-a[a < 0.] = 0.              # clipped BEFORE gamma, unlike textbook EI
-gamma = a / (std + 1e-9)
-return std * (gamma * cdf + pdf)
+z = imp / (std + 1e-9)
+return np.maximum(imp * norm.cdf(z) + std * norm.pdf(z), 0.)
 ```
 
-Textbook EI clips after forming `z = (m - y_best)/σ`. Here, at every candidate whose
-posterior mean sits **below** the incumbent, `gamma == 0` and the score collapses to
-`σ · φ(0) = 0.3989 · σ` — that is the `"variance"` acquisition up to a positive
-constant. Until the posterior mean somewhere exceeds the best observed value, gpCAM's
-EI *is* pure exploration. Never tell a scientist "EI will exploit toward the maximum"
-without this caveat. Reported upstream as
-[lbl-camera/gpCAM#55](https://github.com/lbl-camera/gpCAM/issues/55) — if that is fixed,
-update this section. `"knowledge gradient"` and `"noisy expected improvement"` do not
-have this problem.
+The old code clipped `imp` to 0 *first* and only then divided by `σ`, so at every
+candidate whose posterior mean sat **below** the incumbent the score collapsed to the
+constant `σ · φ(0) = 0.3989 · σ` — the `"variance"` acquisition up to a positive factor.
+Until the posterior mean somewhere exceeded the best observed value, EI was pure
+exploration. This matters because **8.3.9 is still the stable line and 8.4.2 the latest
+release**, so most scientists you talk to are running the broken version. If they are,
+tell them plainly that their EI run was exploration, and recommend upgrading or using
+`"knowledge gradient"` / `"noisy expected improvement"` (never affected).
 
-Verify it on their own model in three lines — on a 15-point fit of `sin(x)` over
-`[0, 10]`, 193 of 200 grid candidates sit below the incumbent and the ratio is exactly
-`0.398942` at every one of them:
+Check which behavior their install has, in four lines:
 
 ```python
 ei  = gpo.evaluate_acquisition_function(x_grid, acquisition_function="expected improvement")
 var = gpo.evaluate_acquisition_function(x_grid, acquisition_function="variance")
 below = gpo.posterior_mean(x_grid)["m(x)"] < np.max(gpo.y_data)
-print(np.unique(np.round(ei[below] / var[below], 6)))   # -> [0.398942] == norm.pdf(0)
+print(np.unique(np.round(ei[below] / var[below], 6)))
+# one value == [0.398942] -> affected build; a spread of values below 0.398942 -> fixed
 ```
 
 (The public `gpo.evaluate_acquisition_function` returns the higher-is-better score —
 it flips the internal sign back at `gp_optimizer_base.py:297`. Don't negate it again.)
 
+Note this fixes only the *degeneration*. Caveats (b) and (c) below — maximization-only,
+and anchoring to a noisy observation — are properties of plain EI and still apply.
+
 **(b) EI, PI, KG, and NEI are all maximization-only.** `last_best = np.max(gpo.y_data)`
-is hardcoded for EI/PI (`surrogate_model.py:251, 258`), and KG/NEI take
-`np.max(mu_ref)` over the reference set. If the scientist is minimizing, every one of
+is hardcoded for single-task EI/PI (`surrogate_model.py:251, 258`), multi-task EI takes
+the max over the task-summed observations, and KG/NEI take `np.max(mu_ref)` over the
+reference set. If the scientist is minimizing, every one of
 them produces meaningless behavior with no error. Use `"lcb"` or the
 `expected_improvement_minimize` callable below.
 
@@ -205,13 +210,21 @@ for** — it integrates over the posterior of the incumbent instead of treating 
 known. Prefer NEI (or `"knowledge gradient"`) on noisy measurements; reach for `"ucb"`
 only if you also need the cheaper evaluation.
 
-**(d) Multi-task *plain* EI is dimensionally incoherent.** The `x_out` branch
-(`surrogate_model.py:319`) sums the posterior mean across tasks and *sums* the standard
-deviations across tasks, then compares that sum against `np.max(gpo.y_data)` of a
-scalar observation. Summed std is not the std of the sum. Do not recommend plain EI for
-`fvGPOptimizer` — use `"knowledge gradient"` or `"noisy expected improvement"`, which
-scalarize the same task-summed objective but build the joint posterior properly via
-`_scalarized_blocks`.
+**(d) Multi-task plain EI assumes the tasks are independent.** The `x_out` branch
+(`surrogate_model.py:312-321`) scalarizes to the task-summed objective
+`g(x) = Σ_t f(x, t)`, and since #55 it does so coherently: the incumbent is the best
+task-*summed* observation (`_observed_task_sums`) and the spread is
+`sqrt(Σ_t Var[f(x,t)])`. That last step drops the cross-task covariance, so the spread
+is right only if the tasks are uncorrelated — usually they are not, which is the whole
+reason to fit a multi-task GP. `"knowledge gradient"` and `"noisy expected improvement"`
+scalarize the same objective but take the exact cross-task covariance from
+`_scalarized_blocks`, at O((N·T)²) cost per evaluation. So for correlated tasks prefer
+KG/NEI; plain multi-task EI is the cheap approximation, not the accurate one.
+
+In gpCAM ≤ 8.4.2 this branch was worse than approximate — it *summed the standard
+deviations* (not the variances) and compared the task-sum against `np.max(gpo.y_data)`,
+a single `(point, task)` entry of the product-space vector. On that build, do not
+recommend plain multi-task EI at all.
 
 **(e) `ask(n>1)` silently rewrites string acquisitions.** With an `np.ndarray`
 `input_set`, `n > 1`, `method != "hgdl"`, and a string acquisition,
@@ -308,8 +321,8 @@ def lcb(x, gpo):
 
 ### Expected Improvement (custom version with minimization)
 Required if the scientist is minimizing — the built-in `"expected improvement"` string
-is hardcoded to maximize (caveat b). Note this version also clips after forming `z`, so
-unlike the built-in it does not degenerate to pure exploration early on (caveat a).
+is hardcoded to maximize (caveat b). This version forms `z` before clipping, so it is
+also the safe choice on gpCAM ≤ 8.4.2, where the built-in degenerates (caveat a).
 
 ```python
 from scipy.stats import norm
