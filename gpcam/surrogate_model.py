@@ -411,18 +411,42 @@ def _reference_points(gpo, x_out, cap, rng):
 def _assumed_observation_noise(gpo, x_out):
     """Assumed observation-noise variance for the (scalarized) objective.
 
-    Uses the mean of the measurement variances. For the task-summed multi-task
-    objective the noise of the sum is approximated as ``len(x_out)`` times that mean.
+    Averages the per-observation noise variances. fvgp lets a ``noise_function``
+    return either a 1-d vector of variances or a **full (N, N) noise covariance**
+    (``addKV`` and ``add_noise`` both accept a 2-d ``V``), so the matrix case has to
+    be handled: the per-observation variances are its diagonal. Averaging the whole
+    matrix instead would divide by N -- for uncorrelated noise expressed as a
+    diagonal matrix that understates the noise by exactly a factor of N.
+
+    For the task-summed multi-task objective the relevant quantity is
+    ``Var(sum_t eps(x, t))``. With a full covariance that is the sum of each point's
+    (T, T) noise block, which accounts for cross-task noise correlation exactly; the
+    product-space ordering is task-major (k = point + Npts*task), as in
+    :func:`_scalarized_blocks`. With only per-observation variances available the
+    tasks have to be assumed uncorrelated, giving ``len(x_out)`` times the mean.
     """
+    base = None
+    task_summed = False          # True once `base` is already Var(sum over tasks)
     try:
         v = np.asarray(gpo.get_data()["measurement variances"], dtype=float)
-        base = float(np.mean(v)) if v.size else 1e-6
+        if v.size and v.ndim == 2 and v.shape[0] == v.shape[1]:
+            T = len(x_out) if x_out is not None else 0
+            if T > 0 and v.shape[0] % T == 0:
+                # exact Var(sum_t eps) per point, averaged over the data points
+                P = v.shape[0] // T
+                blocks = v.reshape(T, P, T, P)               # [task, point, task, point]
+                base = float(np.mean([blocks[:, i, :, i].sum() for i in range(P)]))
+                task_summed = True
+            else:
+                base = float(np.mean(np.diag(v)))
+        elif v.size:
+            base = float(np.mean(v))
     except Exception:
-        base = 1e-6
-    if not np.isfinite(base) or base <= 0.0:
-        base = 1e-6
-    if x_out is not None:
-        base *= len(x_out)
+        base = None
+    if base is None or not np.isfinite(base) or base <= 0.0:
+        base, task_summed = 1e-6, False
+    if x_out is not None and not task_summed:
+        base *= len(x_out)       # tasks assumed uncorrelated
     return base
 
 

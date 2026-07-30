@@ -26,6 +26,14 @@ Bug fixes
   matching ``ucb``/``lcb``. This assumes independent tasks; ``"knowledge
   gradient"`` and ``"noisy expected improvement"`` remain the accurate choice for
   correlated tasks, since they take the exact cross-task covariance.
+* ``"knowledge gradient"`` now handles matrix-valued observation noise. fvgp lets a
+  ``noise_function`` return a full ``(N, N)`` noise covariance rather than a 1-d
+  vector of variances, and the assumed-noise helper averaged the whole matrix --
+  understating the noise by a factor of N for uncorrelated noise merely expressed as
+  a diagonal matrix, which inflated the KG update slopes and over-valued noisy
+  candidates. It now reads the diagonal, and for the multi-task task-summed objective
+  a full covariance yields ``Var(sum_t eps)`` exactly, including cross-task noise
+  correlation.
 
 8.4.2 — 2026-07-24
 ------------------

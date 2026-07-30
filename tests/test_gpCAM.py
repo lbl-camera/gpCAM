@@ -280,6 +280,47 @@ def test_expected_improvement_multi_task_scalarization():
     assert not np.isclose(incumbent, naive)
 
 
+def test_assumed_observation_noise_matrix_valued():
+    """fvgp accepts a full (N, N) noise covariance from a noise_function, not just a
+    1-d vector of variances. The per-observation variances are then its diagonal --
+    averaging the whole matrix divides by N. For the multi-task task-sum, a full
+    covariance gives Var(sum_t eps) exactly, including cross-task correlation."""
+    from gpcam.surrogate_model import _assumed_observation_noise
+
+    sig2, rho, N = 0.04, 0.6, 30
+
+    def noise_vector(x, hps):
+        return np.full(len(x), sig2)
+
+    def noise_diag_matrix(x, hps):
+        return np.diag(np.full(len(x), sig2))
+
+    def noise_correlated(x, hps):
+        c = np.full((len(x), len(x)), rho * sig2)
+        np.fill_diagonal(c, sig2)
+        return c
+
+    x = np.random.uniform(size=(N, 2))
+    y = np.sin(np.linalg.norm(x, axis=1))
+    for f in (noise_vector, noise_diag_matrix, noise_correlated):
+        gpo = GPOptimizer(x, y, noise_function=f, init_hyperparameters=np.ones(3))
+        assert np.isclose(_assumed_observation_noise(gpo, None), sig2), f.__name__
+
+    # multi-task: T tasks, Var(eps_0 + eps_1) = 2*sig2 (+ 2*rho*sig2 if correlated)
+    xm = np.random.uniform(size=(15, 2))
+    ym = np.column_stack([np.sin(xm[:, 0]), np.cos(xm[:, 1])])
+    x_out = np.array([0, 1])
+    for f, exact in ((noise_vector, 2 * sig2),
+                     (noise_diag_matrix, 2 * sig2),
+                     (noise_correlated, 2 * sig2 + 2 * rho * sig2)):
+        gpo = fvGPOptimizer(xm, ym, noise_function=f, init_hyperparameters=np.ones(4))
+        assert np.isclose(_assumed_observation_noise(gpo, x_out), exact), f.__name__
+
+    # degenerate input still yields a usable positive scalar
+    gpo = GPOptimizer(x, y)
+    assert _assumed_observation_noise(gpo, None) > 0.
+
+
 def test_pickle():
     import numpy as np
     from gpcam.gp_optimizer import GPOptimizer
