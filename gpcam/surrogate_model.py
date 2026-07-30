@@ -253,15 +253,10 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gpo, x_out):
         elif acquisition_function == "total correlation":
             return -np.array([gpo.gp_total_correlation(x)["total correlation"]])
         elif acquisition_function == "expected improvement":
-            m = gpo.posterior_mean(x)["m(x)"]
-            std = np.sqrt(gpo.posterior_covariance(x, variance_only=True)["v(x)"])
+            m = gpo.posterior_mean(x)["m(x)"].reshape(len(x))
+            std = np.sqrt(gpo.posterior_covariance(x, variance_only=True)["v(x)"]).reshape(len(x))
             last_best = np.max(gpo.y_data)
-            a = (m - last_best).reshape(len(x))
-            a[a < 0.] = 0.
-            gamma = a / (std + 1e-9)
-            pdf = norm.pdf(gamma)
-            cdf = norm.cdf(gamma)
-            return std * (gamma * cdf + pdf)
+            return _expected_improvement(m - last_best, std)
         elif acquisition_function == "knowledge gradient":
             return knowledge_gradient(x, gpo, x_out=None)
         elif acquisition_function == "noisy expected improvement":
@@ -310,23 +305,72 @@ def evaluate_gp_acquisition_function(x, acquisition_function, gpo, x_out):
             av_v = np.sum(v, axis=1)
             return -(av_m - 3.0 * np.sqrt(av_v))
         elif acquisition_function == "expected improvement":
-            m = gpo.posterior_mean(x, x_out=x_out)["m(x)"].reshape(len(x), len(x_out))
-            m = np.sum(m, axis=1)
-            std = np.sqrt(gpo.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"]).reshape(len(x), len(x_out))
-            std = np.sum(std, axis=1)
-            last_best = np.max(gpo.y_data)
-            a = (m - last_best)
-            a[a < 0.] = 0.
-            gamma = a / (std + 1e-9)
-            pdf = norm.pdf(gamma)
-            cdf = norm.cdf(gamma)
-            return std * (gamma * cdf + pdf)
+            # Scalarized to the task-summed objective g(x) = sum_t f(x, t), as ucb/lcb
+            # and knowledge gradient / noisy EI do.
+            m = np.sum(gpo.posterior_mean(x, x_out=x_out)["m(x)"].reshape(len(x), len(x_out)), axis=1)
+            v = gpo.posterior_covariance(x, x_out=x_out, variance_only=True)["v(x)"].reshape(len(x), len(x_out))
+            # Var(sum_t f) under task independence -- sqrt(sum of variances), not the
+            # sum of standard deviations (which assumes perfect correlation). Matches
+            # ucb/lcb above; `knowledge gradient` / `noisy expected improvement` get
+            # this exactly from the cross-task covariance at O((N*T)^2) cost.
+            std = np.sqrt(np.sum(v, axis=1))
+            # The incumbent must use the same scalarization as `m`: the best *task-summed*
+            # observation. `np.max(gpo.y_data)` is a single (point, task) entry and is not
+            # comparable with a sum over tasks.
+            last_best = np.max(_observed_task_sums(gpo, x_out))
+            return _expected_improvement(m - last_best, std)
         elif acquisition_function == "knowledge gradient":
             return knowledge_gradient(x, gpo, x_out=x_out)
         elif acquisition_function == "noisy expected improvement":
             return noisy_expected_improvement(x, gpo, x_out=x_out)
         else:
             raise Exception("No valid acquisition function string provided. Choose from ", all_acq_func)
+
+
+def _observed_task_sums(gpo, x_out):
+    """Per-data-point observations summed over the tasks named by ``x_out``.
+
+    This is the incumbent scalarization for multi-task ``expected improvement``: it has
+    to match how the posterior mean is scalarized, otherwise the "improvement" compares
+    a sum over tasks against something that is not one.
+
+    ``gpo.fvgp_y_data`` is the original ``(N, No)`` observation array. (``gpo.y_data``
+    is the flattened product-space vector in task-major order, so neither its ``max``
+    nor a ``reshape(-1, No)`` of it gives per-point task sums.)
+
+    ``x_out`` holds output-space coordinates; in the usual discrete-task setting these
+    are the integer task indices, so the matching columns can be selected when only a
+    subset of tasks is being asked about. For genuinely continuous (function-valued)
+    output coordinates there are no columns to select and every task is summed -- which
+    is the same thing whenever ``x_out`` is the full task set, the default.
+    """
+    y = np.asarray(gpo.fvgp_y_data, dtype=float)
+    idx = np.asarray(x_out)
+    if idx.ndim == 1 and np.all(np.isfinite(idx)) and np.all(idx == np.round(idx)):
+        idx = np.round(idx).astype(int)
+        if idx.min() >= 0 and idx.max() < y.shape[1]:
+            y = y[:, idx]
+    return np.sum(y, axis=1)
+
+
+def _expected_improvement(imp, std):
+    """Closed-form expected improvement from the improvement mean and its std.
+
+    ``imp = mu - incumbent`` and ``std`` are 1d arrays of the same length. Returns
+    ``imp * Phi(z) + std * phi(z)`` with ``z = imp / std``, which is the textbook EI:
+    non-negative, smooth, and strictly increasing in ``imp``.
+
+    The improvement is deliberately *not* clipped before forming ``z`` -- doing so
+    pins ``z`` to 0 at every candidate below the incumbent, collapsing EI to the
+    constant ``std * phi(0)`` and turning it into a scaled ``variance`` acquisition
+    (issue #55). Clipping is unnecessary: the expectation is already non-negative.
+
+    The ``np.maximum`` guards the case ``std <~ 1e-9``, where ``z`` is dominated by
+    the epsilon rather than the real std and the two terms can cancel to a small
+    negative value.
+    """
+    z = imp / (std + 1e-9)
+    return np.maximum(imp * norm.cdf(z) + std * norm.pdf(z), 0.)
 
 
 ##########################################################################
