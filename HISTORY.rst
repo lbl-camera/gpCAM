@@ -8,8 +8,11 @@ Unreleased
 Dependencies
 ~~~~~~~~~~~~
 
-* Require ``fvgp ~= 4.8.4``, the newest release in the 4.8 line (was ``~= 4.8.1``).
-  This raises the floor only; ``~=`` already allowed any later 4.8.z.
+* Require ``fvgp ~= 4.8.5``, the newest release in the 4.8 line (was ``~= 4.8.1``).
+  This raises the floor only; ``~=`` already allowed any later 4.8.z. 4.8.5 carries the
+  corrected sparse-solver guidance: preconditioner reuse is decided by how far K+V has
+  drifted rather than by a refresh interval, and Krylov warm starts are honored only for
+  ``train(method='mcmc')``.
 
 Bug fixes
 ~~~~~~~~~
@@ -58,12 +61,12 @@ installed wheel is identical to 8.4.1).
   to cause/fix decision tree).
 * Every code recipe in the skills is verified to run against fvgp 4.8.1.
 
-8.4.0 (beta) — 2026
--------------------
+8.4.0 — 2026
+------------
 
-This release tracks ``fvgp ~= 4.8`` and renames a few constructor kwargs.
-**8.3.9 remains the stable line**; pin ``gpcam==8.3.9`` if you encounter
-issues on 8.4 and please open a GitHub issue.
+This release tracks ``fvgp ~= 4.8`` and renames a few constructor kwargs. It went out
+as a beta; the 8.4 line is now the recommended one and 8.3.9 is no longer maintained
+as a fallback.
 
 API migration
 ~~~~~~~~~~~~~

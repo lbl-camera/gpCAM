@@ -10,13 +10,12 @@
 [![Pepy Total Downloads](https://img.shields.io/pepy/dt/gpcam)](https://pepy.tech/project/gpcam)
 [![Downloads](https://static.pepy.tech/badge/gpcam/month)](https://pepy.tech/project/gpcam)
 
-> [!WARNING]
-> **gpCAM 8.4.X is a beta release.** It targets `fvgp ~= 4.8` and renames a few
+> [!NOTE]
+> **Upgrading from 8.3.x?** gpCAM 8.4 targets `fvgp ~= 4.8` and renames a few
 > constructor kwargs (`gp2Scale_dask_client → dask_client`,
-> `gp2Scale_linalg_mode → linalg_mode`, `gp_rank_n_update → rank_n_update`) and
-> removes `calc_inv` in favor of `linalg_mode="CholInv"`. If you hit issues, pin
-> `gpcam==8.3.9` while you report — 8.3.9 remains the stable line. Full migration
-> notes are in [HISTORY.rst](HISTORY.rst).
+> `gp2Scale_linalg_mode → linalg_mode`, `gp_rank_n_update → rank_n_update`), and
+> replaces `calc_inv=True` with `linalg_mode="CholInv"`. Full migration notes are in
+> [HISTORY.rst](HISTORY.rst).
 
 
 

@@ -627,8 +627,8 @@ class GPOptimizerBase(GP):
         ask_pop_size : int, optional
             Default=20. Population size of the global and hybrid optimizer.
         method : str, optional
-            Default=`global`. Method of optimization of the acquisition function.
-            One of `global, `local`, `hybrid`.
+            Default=``global``. Method of optimization of the acquisition function.
+            One of ``global``, ``local``, ``hgdl``, matching :py:meth:`ask`.
         training_method : str, optional
             Default=`global`. See :py:meth:`gpcam.GPOptimizer.train`
         training_max_iter : int, optional

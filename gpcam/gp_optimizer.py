@@ -252,6 +252,13 @@ class GPOptimizer(GPOptimizerBase):
         - "random_logdet_verbose" : True/False; default = False
         - "random_logdet_print_info" : True/False; default = False
         - "random_logdet_lanczos_compute_device" : str; default = "cpu"/"gpu"
+        - "random_logdet_min_num_samples" : int; default = 10 — fewest Hutchinson
+          probes to draw
+        - "random_logdet_max_num_samples" : int; default = 5000 — most to draw.
+          The probe count is the fidelity dial of this estimator: its variance falls
+          as 1/t while its cost grows as t, so it trades accuracy against compute.
+          The variance actually achieved is reported by
+          :py:meth:`fvgp.gp_marginal_likelihood.GPmarginalLikelihood.log_likelihood_variance`.
 
         Sparse iterative solver tolerances and iteration limits:
 
@@ -270,13 +277,23 @@ class GPOptimizer(GPOptimizerBase):
         ``*pre`` variants):
 
         - "sparse_krylov_warm_start" : True/False; default = False — feed the
-          previous training iteration's ``KVinvY`` as ``x0`` to the next solve
+          previous training iteration's ``KVinvY`` as ``x0`` to the next solve.
+          Honored only for ``train(method='mcmc')``, whose steps are small enough for
+          the previous solution to be a good guess, and only while K+V has not drifted
+          (see ``sparse_preconditioner_max_matrix_drift``): a warm start from distant
+          hyperparameters is worse than a cold one, and on a truncated solve it leaves
+          an error that depends on which hyperparameters ran before it.
         - "sparse_preconditioner_type" : str; default = "ilu". One of "ilu",
           "ichol"/"ic"/"incomplete_cholesky", "ichol0", "native_ic"/"native_ichol",
           "block_jacobi", "schwarz"/"additive_schwarz", "amg" (requires pyamg)
-        - "sparse_preconditioner_refresh_interval" : int; default = 1 —
-          reuse the cached preconditioner for up to N consecutive solves
-          before rebuilding. ``set_KV`` always force-refreshes.
+        - "sparse_preconditioner_max_matrix_drift" : float; default = 0.1 — relative
+          change in K+V, measured by trace and Frobenius norm, beyond which the cached
+          preconditioner and any warm start are stale and rebuilt. This, rather than a
+          count of reuses, is what decides reuse: a fixed count cannot tell many tiny
+          MCMC steps from one jump across the domain.
+        - "sparse_preconditioner_refresh_interval" : int; default = None (no cap) —
+          optional hard cap on consecutive reuses, applied on top of the drift test
+          above. ``set_KV`` always force-refreshes.
         - "sparse_preconditioner_block_size" : int — block size for block_jacobi
           and additive_schwarz partitions
         - "sparse_preconditioner_schwarz_overlap" : int — overlap layers for
@@ -293,6 +310,27 @@ class GPOptimizer(GPOptimizerBase):
           "native_ic"/"native_ichol" (legacy), "block_jacobi", and
           "additive_schwarz" when a local factorization encounters a non-PD pivot
 
+        Practical sparse-solver guidance:
+
+        - Keep compact-support covariance matrices genuinely sparse before using global
+          factor-based preconditioners. If the kernel support is too broad, ILU/IC
+          failures are usually memory/fill failures, not proof that Krylov solvers are bad.
+        - Prefer ``sparseCGpre_*`` as the primary path for covariance systems, which are
+          symmetric positive definite in the usual case. ``MINRES`` can be useful as a
+          comparison, but it may need a stricter ``sparse_minres_tol`` to satisfy a raw
+          relative residual check.
+        - Sweep preconditioner parameters at the target scale. For ILU, ``drop_tol`` and
+          ``fill_factor`` control a memory/solve-time tradeoff; a slightly more expressive
+          factor can cost only marginally more to build but reduce solve time substantially.
+        - Preconditioner reuse across nearby K+V updates is automatic and needs no tuning:
+          the cached factor is kept until K+V has actually drifted past
+          ``sparse_preconditioner_max_matrix_drift``. Reach for
+          ``sparse_preconditioner_refresh_interval`` only to impose an extra hard cap.
+          ``sparse_krylov_warm_start`` is a separate opt-in and is honored only for
+          ``train(method='mcmc')``, whose steps are small enough for the previous solution
+          to be a good starting guess; the other methods sample non-locally, where a warm
+          start is worse than a cold one.
+
         Cholesky compute-device routing:
 
         - "Chol_factor_compute_device" : str; default = "cpu"/"gpu"
@@ -308,6 +346,7 @@ class GPOptimizer(GPOptimizerBase):
 
         All other keys will be stored and are available as part of the object instance and
         in kernel, mean, and noise functions.
+
 
     Attributes
     ----------
@@ -636,6 +675,13 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
         - "random_logdet_verbose" : True/False; default = False
         - "random_logdet_print_info" : True/False; default = False
         - "random_logdet_lanczos_compute_device" : str; default = "cpu"/"gpu"
+        - "random_logdet_min_num_samples" : int; default = 10 — fewest Hutchinson
+          probes to draw
+        - "random_logdet_max_num_samples" : int; default = 5000 — most to draw.
+          The probe count is the fidelity dial of this estimator: its variance falls
+          as 1/t while its cost grows as t, so it trades accuracy against compute.
+          The variance actually achieved is reported by
+          :py:meth:`fvgp.gp_marginal_likelihood.GPmarginalLikelihood.log_likelihood_variance`.
 
         Sparse iterative solver tolerances and iteration limits:
 
@@ -654,13 +700,23 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
         ``*pre`` variants):
 
         - "sparse_krylov_warm_start" : True/False; default = False — feed the
-          previous training iteration's ``KVinvY`` as ``x0`` to the next solve
+          previous training iteration's ``KVinvY`` as ``x0`` to the next solve.
+          Honored only for ``train(method='mcmc')``, whose steps are small enough for
+          the previous solution to be a good guess, and only while K+V has not drifted
+          (see ``sparse_preconditioner_max_matrix_drift``): a warm start from distant
+          hyperparameters is worse than a cold one, and on a truncated solve it leaves
+          an error that depends on which hyperparameters ran before it.
         - "sparse_preconditioner_type" : str; default = "ilu". One of "ilu",
           "ichol"/"ic"/"incomplete_cholesky", "ichol0", "native_ic"/"native_ichol",
           "block_jacobi", "schwarz"/"additive_schwarz", "amg" (requires pyamg)
-        - "sparse_preconditioner_refresh_interval" : int; default = 1 —
-          reuse the cached preconditioner for up to N consecutive solves
-          before rebuilding. ``set_KV`` always force-refreshes.
+        - "sparse_preconditioner_max_matrix_drift" : float; default = 0.1 — relative
+          change in K+V, measured by trace and Frobenius norm, beyond which the cached
+          preconditioner and any warm start are stale and rebuilt. This, rather than a
+          count of reuses, is what decides reuse: a fixed count cannot tell many tiny
+          MCMC steps from one jump across the domain.
+        - "sparse_preconditioner_refresh_interval" : int; default = None (no cap) —
+          optional hard cap on consecutive reuses, applied on top of the drift test
+          above. ``set_KV`` always force-refreshes.
         - "sparse_preconditioner_block_size" : int — block size for block_jacobi
           and additive_schwarz partitions
         - "sparse_preconditioner_schwarz_overlap" : int — overlap layers for
@@ -677,6 +733,27 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
           "native_ic"/"native_ichol" (legacy), "block_jacobi", and
           "additive_schwarz" when a local factorization encounters a non-PD pivot
 
+        Practical sparse-solver guidance:
+
+        - Keep compact-support covariance matrices genuinely sparse before using global
+          factor-based preconditioners. If the kernel support is too broad, ILU/IC
+          failures are usually memory/fill failures, not proof that Krylov solvers are bad.
+        - Prefer ``sparseCGpre_*`` as the primary path for covariance systems, which are
+          symmetric positive definite in the usual case. ``MINRES`` can be useful as a
+          comparison, but it may need a stricter ``sparse_minres_tol`` to satisfy a raw
+          relative residual check.
+        - Sweep preconditioner parameters at the target scale. For ILU, ``drop_tol`` and
+          ``fill_factor`` control a memory/solve-time tradeoff; a slightly more expressive
+          factor can cost only marginally more to build but reduce solve time substantially.
+        - Preconditioner reuse across nearby K+V updates is automatic and needs no tuning:
+          the cached factor is kept until K+V has actually drifted past
+          ``sparse_preconditioner_max_matrix_drift``. Reach for
+          ``sparse_preconditioner_refresh_interval`` only to impose an extra hard cap.
+          ``sparse_krylov_warm_start`` is a separate opt-in and is honored only for
+          ``train(method='mcmc')``, whose steps are small enough for the previous solution
+          to be a good starting guess; the other methods sample non-locally, where a warm
+          start is worse than a cold one.
+
         Cholesky compute-device routing:
 
         - "Chol_factor_compute_device" : str; default = "cpu"/"gpu"
@@ -692,6 +769,7 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
 
         All other keys will be stored and are available as part of the object instance and
         in kernel, mean, and noise functions.
+
 
     Attributes
     ----------
