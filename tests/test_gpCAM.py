@@ -612,3 +612,95 @@ def test_transformed_gp():
 
 
 
+
+
+def test_candidate_batch_is_jointly_optimized_for_set_valued_acquisitions():
+    """With a candidate list and n>1, a set-valued acquisition must choose a batch that
+    is good *as a batch*.
+
+    Ranking candidates individually and taking the top n says nothing about whether the
+    batch is any good together, and the best scorers routinely land on top of each
+    other. Only `total correlation` and `relative information entropy` score a whole set
+    with one number, so only they can express this.
+    """
+    import warnings
+    from gpcam.surrogate_model import SET_VALUED_ACQUISITION_FUNCTIONS
+
+    np.random.seed(0)
+    x_data = np.random.rand(40, 2)
+    y_data = np.sin(np.linalg.norm(x_data, axis=1))
+    gpo = GPOptimizer(x_data, y_data)
+    candidates = [np.random.rand(2) for _ in range(200)]
+
+    def closest_pair(points):
+        pts = np.asarray(points)
+        return float(np.min([np.linalg.norm(a - b)
+                             for i, a in enumerate(pts) for b in pts[i + 1:]]))
+
+    def set_value(points):
+        return float(gpo.evaluate_acquisition_function(
+            np.asarray(points), acquisition_function="total correlation")[0])
+
+    joint = gpo.ask(candidates, n=5, acquisition_function="total correlation")
+    assert np.asarray(joint["x"]).shape == (5, 2)
+    # one number for the batch, and it really is the batch's value
+    assert np.asarray(joint["f_a(x)"]).shape == (1,)
+    assert np.isclose(joint["f_a(x)"][0], set_value(joint["x"]))
+
+    # the independently-ranked batch is worse as a set, and far more clustered
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        independent = gpo.ask(candidates, n=5, acquisition_function="variance",
+                              vectorized=False)
+    assert set_value(joint["x"]) > set_value(independent["x"])
+    assert closest_pair(joint["x"]) > 5.0 * closest_pair(independent["x"])
+
+    # both set-valued acquisitions take this path
+    for acq in sorted(SET_VALUED_ACQUISITION_FUNCTIONS):
+        r = gpo.ask(candidates[:60], n=4, acquisition_function=acq)
+        assert np.asarray(r["x"]).shape == (4, 2)
+        assert np.asarray(r["f_a(x)"]).shape == (1,)
+
+
+def test_candidate_batch_warns_when_it_cannot_be_jointly_optimized():
+    """A point-wise acquisition cannot express whether a batch is jointly good, so
+    ask() must say so rather than implying the n points were chosen together."""
+    import warnings
+    np.random.seed(1)
+    x_data = np.random.rand(25, 2)
+    y_data = np.sin(np.linalg.norm(x_data, axis=1))
+    gpo = GPOptimizer(x_data, y_data)
+    candidates = [np.random.rand(2) for _ in range(50)]
+
+    def messages(**kwargs):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            gpo.ask(candidates, **kwargs)
+        return [str(w.message) for w in caught]
+
+    assert any("not mutually optimal" in m for m in
+               messages(n=5, acquisition_function="variance", vectorized=False))
+
+    # a user callable cannot be introspected, so it is warned about too
+    def my_acq(x, gp_obj):
+        return gp_obj.posterior_covariance(x, variance_only=True)["v(x)"]
+    assert any("user-supplied acquisition function" in m for m in
+               messages(n=3, acquisition_function=my_acq, vectorized=False))
+
+    # a single point is not a batch, so no warning either way
+    assert not any("not mutually optimal" in m for m in
+                   messages(n=1, acquisition_function="variance", vectorized=False))
+    assert not any("not mutually optimal" in m for m in
+                   messages(n=5, acquisition_function="total correlation"))
+
+
+def test_candidate_batch_handles_small_pools():
+    """Asking for more points than exist must return the pool, not fail."""
+    np.random.seed(2)
+    x_data = np.random.rand(20, 2)
+    y_data = np.sin(np.linalg.norm(x_data, axis=1))
+    gpo = GPOptimizer(x_data, y_data)
+    candidates = [np.random.rand(2) for _ in range(3)]
+    r = gpo.ask(candidates, n=10, acquisition_function="total correlation")
+    assert np.asarray(r["x"]).shape == (3, 2)
+    assert np.asarray(r["f_a(x)"]).shape == (1,)

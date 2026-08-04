@@ -14,6 +14,27 @@ Dependencies
   drifted rather than by a refresh interval, and Krylov warm starts are honored only for
   ``train(method='mcmc')``.
 
+New features
+~~~~~~~~~~~~
+
+* ``ask()`` selects a *jointly* informative batch from a candidate list. Previously,
+  ``n > 1`` with a candidate list scored every candidate on its own, sorted, and returned
+  the top ``n`` — which says nothing about whether those points are useful together, and
+  in practice returned near-duplicates, since nothing stops the highest individual scorers
+  from sitting on top of one another.
+
+  ``"total correlation"`` and ``"relative information entropy"`` score a whole set with a
+  single number, so for those the batch is now chosen jointly and ``'f_a(x)'`` is one
+  value describing the set rather than one value per point. The best subset is
+  combinatorial, so it is built by greedy forward selection — the best single candidate,
+  then the one that best complements it, and so on — which costs ``n`` passes over the
+  candidates instead of enumerating subsets. Criteria of this kind are approximately
+  submodular, for which greedy selection is a standard and well-founded choice.
+
+  Every other acquisition, including any callable (which gpCAM cannot introspect), still
+  takes the point-by-point path, and ``ask()`` now warns that the returned points are not
+  mutually optimal.
+
 Bug fixes
 ~~~~~~~~~
 

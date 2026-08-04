@@ -3,12 +3,12 @@ name: acquisition-functions
 description: Use when choosing or designing the acquisition function for a gpCAM experiment — deciding which built-in actually fits the scientist's goal (and confirming it with them rather than defaulting to expected improvement), or writing a custom one for exploration/exploitation balance, multi-objective targets, constrained search regions, cost-aware moves, change-mapping via gradient or radical gradient, knowledge gradient and noisy EI under observation noise, UCB/LCB, target-value, or threshold-finding criteria.
 gpcam_version: "8.4.x"
 fvgp_version: "4.8.x"
-last_verified: "2026-07-30 (gpCAM d45db2c + issue #55 fix)"
+last_verified: "2026-08-04 (gpCAM 23c886d + joint candidate-batch selection)"
 ---
 
 # Skill: gpCAM Acquisition Functions
 
-*Verified against gpCAM 8.4.x / fvgp 4.8.x — last checked 2026-07-30 (gpCAM `d45db2c` + the issue #55 fix).*
+*Verified against gpCAM 8.4.x / fvgp 4.8.x — last checked 2026-08-04 (gpCAM `23c886d` + joint candidate-batch selection).*
 
 Choose — and where needed, write — the acquisition function that controls where gpCAM measures next.
 
@@ -66,7 +66,7 @@ before recommending it**.
 | "find where the signal crosses X" | `threshold_finder` callable (below) | concentrates on one level set; the rest of the space stays coarse |
 | "find conditions where output ≈ X" | `"target probability"` + `args={'a':lo,'b':hi}` | same — a band, not a global map |
 | "**minimize** this" | `"lcb"`, or a custom EI-for-minimization | **not** EI, PI, KG, NEI, or `"ucb"` — all are hardcoded for maximization |
-| "give me N points per round" (batch) | `"total correlation"` or `"relative information entropy set"` | anything else is silently overridden — see caveat (e) |
+| "give me N points per round" (batch) | `"total correlation"` (or `"relative information entropy"`) | the only two that score a *set*, so the only two that can pick a batch jointly — see caveat (e) |
 | multi-task / spectra — *exploring* | `"relative information entropy set"` or `"variance"` | — |
 | multi-task / spectra — *optimizing* | `"knowledge gradient"` or `"noisy expected improvement"` | all three act on the task-summed objective, but KG/NEI use the exact cross-task covariance where plain EI assumes independent tasks — see caveat (d) |
 | "I already know roughly where the peak is, refine it" | `"expected improvement"` if noise is low, `"noisy expected improvement"` if not | greedy; plain EI assumes the incumbent is known exactly |
@@ -139,11 +139,38 @@ Pass these as strings to `gpo.ask(acquisition_function=...)`:
 | Predicted Minimum | `"minimum"` | Pure exploitation for minimization | Same |
 | Gradient | `"gradient"` | Seek steepest regions of the posterior mean | Signal is flat but interesting; you want uniform coverage |
 | Target Probability | `"target probability"` | Find points with output near a target value | `args={'a':…, 'b':…}` not set — it raises |
-| Relative Information Entropy | `"relative information entropy"` | Information-theoretic exploration | Speed matters — forces `vectorized=False` |
+| Relative Information Entropy | `"relative information entropy"` | Information-theoretic exploration; scores a **set** | Speed matters — forces `vectorized=False` |
 | RIE Set | `"relative information entropy set"` | Batch acquisition; multi-task exploration | — |
-| Total Correlation | `"total correlation"` | Batch acquisition | Speed matters — forces `vectorized=False` |
+| Total Correlation | `"total correlation"` | Batch acquisition; scores a **set** | Speed matters — forces `vectorized=False` |
 | Knowledge Gradient | `"knowledge gradient"` | Maximization; lookahead, one-step-optimal, robust to noise; keeps exploring when EI stalls | Minimizing; large datasets or tight acquisition budgets — it loops per candidate over a joint posterior |
 | Noisy Expected Improvement | `"noisy expected improvement"` | Maximization on noisy measurements — the right EI when the incumbent isn't known exactly | Minimizing; noiseless data (plain EI is cheaper); tight compute budgets |
+
+### The two set-valued acquisitions, and how they differ
+
+`"total correlation"` and `"relative information entropy"` are the only built-ins that
+score a **whole set** with a single number rather than scoring each point on its own.
+That is what lets them judge a batch, and it is why they are the answer when a scientist
+asks "which `M` experiments should I run together". Both are KL divergences, but between
+different pairs of distributions, so they answer different questions.
+
+**`"total correlation"`** is the divergence between the joint distribution over the
+existing data together with the candidates, and that same distribution with the
+data-to-candidate cross-covariance removed and the candidates made mutually independent.
+So it measures how much statistical dependence is present: how redundant the candidates
+are with what has already been measured, and with each other. gpCAM negates it, so
+maximizing the acquisition *minimizes* dependence and prefers points that are novel
+relative to the existing data **and** mutually distinct.
+
+**`"relative information entropy"`** is the divergence between the prior and the
+posterior at the candidate points alone. It measures how much the data already collected
+has changed the belief there. Negated the same way, maximizing it prefers points where
+prior and posterior still agree — locations the data has not reached.
+
+Which to recommend: for "which measurements should I take *together*", `"total
+correlation"` is the more direct criterion, because it explicitly penalizes
+candidate-to-candidate correlation. `"relative information entropy"` also spreads points
+out, but only as a side effect of them all lying in unexplored regions, so it will
+tolerate neighbors that are individually uninformed yet redundant with one another.
 
 To sanity-check any built-in or custom acquisition on a grid of candidates without calling `ask()`:
 ```python
@@ -226,12 +253,25 @@ deviations* (not the variances) and compared the task-sum against `np.max(gpo.y_
 a single `(point, task)` entry of the product-space vector. On that build, do not
 recommend plain multi-task EI at all.
 
-**(e) `ask(n>1)` silently rewrites string acquisitions.** With an `np.ndarray`
-`input_set`, `n > 1`, `method != "hgdl"`, and a string acquisition,
+**(e) Batch behavior depends on whether you passed bounds or candidates.**
+
+With an `np.ndarray` `input_set`, `n > 1`, `method != "hgdl"`, and a string acquisition,
 `gpcam/gp_optimizer_base.py:528-536` replaces whatever was requested with
 `"total correlation"` (a warning is emitted). Batch EI is not EI — and neither is batch
 KG or batch NEI. Either use a genuinely batch-aware acquisition, or pass a callable and
 `method="hgdl"` with a Dask client.
+
+With a **candidate list** and `n > 1` the split is different, and it is the one that
+decides whether a batch is any good. `"total correlation"` and `"relative information
+entropy"` score a whole set with one number, so gpCAM selects the batch jointly by
+greedy forward selection and `'f_a(x)'` comes back as a **single value for the set**.
+Every other acquisition — including any callable, which gpCAM cannot introspect — is
+scored one point at a time, `n` truncates the sorted list, and `ask()` warns that the
+points are not mutually optimal. Take that warning seriously: nothing stops the highest
+individual scorers from sitting on top of each other, so a point-wise top-`n` from a
+dense candidate pool is very often several copies of the same experiment. If the
+scientist wants "the `M` most valuable experiments to run together", that is the
+set-valued path, not the point-wise one.
 
 **(f) `"ucb"` and `"lcb"` hardcode `beta = 3.0`** (`surrogate_model.py:232, 236`). The
 strings expose no tuning. To change the exploration/exploitation balance you must pass
@@ -489,7 +529,7 @@ result = gpo.ask(
 
 | Argument | Meaning |
 |----------|---------|
-| `n=N` | Request `N` points at once (batch). For vectorized single-task, use a batch-aware acquisition like `"relative information entropy set"` or `"total correlation"`. |
+| `n=N` | Request `N` points at once (batch). Use `"total correlation"` or `"relative information entropy"` — the two that score a set — or the batch is chosen point by point and will cluster. |
 | `vectorized=True` (default) | The acquisition function is called once with all candidate points, shape `(V, D)` — required for custom callables written against the contract above. |
 | `vectorized=False` | Candidates are evaluated one at a time (list of 1-D arrays). Used for non-vectorizable acquisition or non-Euclidean inputs. |
 | `method="global"\|"local"\|"hgdl"\|"hgdlAsync"` | Inner optimizer that searches for the argmax of the acquisition over `input_set`. `hgdl` requires `dask_client=`; `hgdlAsync` starts a background search and returns an `opt_obj` you can poll or `kill_client()`. |

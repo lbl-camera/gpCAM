@@ -383,6 +383,20 @@ class GPOptimizerBase(GP):
             The possibility of a candidate list together with user-defined acquisition functions also means
             that mixed discrete-continuous spaces can be considered here. The candidates will be directly
             given to the acquisition function.
+
+            With ``n > 1`` the sorted-and-truncated behavior above applies only to the
+            acquisition functions that score one point at a time. Those say nothing about
+            whether the returned points are useful *together*, and nothing stops the best
+            scorers from sitting on top of one another, so the batch is frequently a set of
+            near-duplicates; ``ask()`` warns when it returns one.
+            ``total correlation`` and ``relative information entropy`` instead score a whole
+            set with a single number, so for those ``ask()`` selects the batch jointly and
+            ``f_a(x)`` is one value describing the set rather than one value per point.
+            Choosing the genuinely best subset is combinatorial, so the batch is built by
+            greedy forward selection: take the best single candidate, then the one that best
+            complements it, and so on. This costs ``n`` passes over the candidate list, and
+            criteria of this kind are approximately submodular, for which greedy selection
+            is a standard and well-founded choice.
         x_out : np.ndarray, optional
             The position indicating where in the output space the acquisition function should be evaluated.
             This array is of shape (No). This is only use the multi-task setting.
@@ -437,6 +451,32 @@ class GPOptimizerBase(GP):
             total correlation: extension of mutual information to more than 2 random variables;
             target probability: probability of a target. This needs a dictionary
             args = {'a': lower bound, 'b': upper bound} to be defined.
+
+            ``total correlation`` and ``relative information entropy`` are the two that
+            score a *set* of points with a single number instead of scoring each point on
+            its own, which is what lets them judge a batch. Both are KL divergences, but
+            between different pairs of distributions, and they answer different questions.
+
+            ``total correlation`` is the divergence between the joint distribution over
+            the existing data together with the candidates, and the same distribution with
+            the data-to-candidate cross-covariance removed and the candidates made mutually
+            independent. It therefore measures how much statistical dependence is present:
+            how redundant the candidates are with what has already been measured, and with
+            each other. gpCAM negates it, so maximizing the acquisition minimizes that
+            dependence and prefers points that are novel relative to the existing data and
+            mutually distinct.
+
+            ``relative information entropy`` is the divergence between the prior and the
+            posterior at the candidate points alone. It measures how much the data already
+            collected has changed the belief there. Negated in the same way, maximizing it
+            prefers points where prior and posterior still agree, i.e. locations the data
+            has not yet reached.
+
+            For "which measurements should I take together", ``total correlation`` is the
+            more direct criterion, because it explicitly penalizes candidate-to-candidate
+            correlation. ``relative information entropy`` also spreads points out, but only
+            as a side effect of them all lying in unexplored regions, so it tolerates
+            neighbors that are individually uninformed but redundant with one another.
             knowledge gradient: the expected increase in the maximum of the posterior
             mean after a fantasized measurement (KGCP scheme over the data points plus
             the candidate). For multi-task GPs it acts on the task-summed objective.

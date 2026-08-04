@@ -9,6 +9,52 @@ from functools import partial
 import warnings
 
 
+#: Acquisition functions that score a *set* of points with a single number rather than
+#: scoring each point on its own. Only these can express whether a batch is jointly
+#: informative, so only these can be optimized over subsets of a candidate list.
+SET_VALUED_ACQUISITION_FUNCTIONS = frozenset({"total correlation", "relative information entropy"})
+
+
+def _greedy_batch_from_candidates(func, candidates, n, acquisition_function):
+    """Choose ``n`` candidates that are jointly valuable, by greedy forward selection.
+
+    Ranking candidates individually and taking the top ``n`` -- what ask() does for the
+    point-wise acquisition functions -- says nothing about whether the batch is any good
+    as a batch. Nothing prevents the best scorers from sitting on top of one another, and
+    in practice they do: on 500 candidates in the unit square the five individually best
+    points came out 0.018 apart, five copies of the same experiment.
+
+    Choosing the genuinely best subset is combinatorial -- 8e17 subsets for 5 out of
+    10000 -- but it does not have to be enumerated. Greedy forward selection takes the
+    best single point, then the point that best complements it, and so on, which is
+    ``n`` passes over the candidates instead of "n choose N" subsets. Criteria of this
+    kind are approximately submodular, for which greedy is a standard and well-founded
+    choice (Nemhauser et al. 1978; Krause, Singh & Guestrin 2008 study exactly this
+    problem -- placing k sensors under a GP -- and report near-optimal results).
+
+    Cost is ``n * len(candidates)`` set evaluations: about 16 s for 5 out of 10000, and
+    linear in both, so it stays usable as either grows.
+
+    ``func`` returns the *negated* acquisition (the optimizers minimize), so the best
+    candidate at each step is the one that minimizes it.
+    """
+    remaining = list(range(len(candidates)))
+    n = min(n, len(remaining))
+    chosen, chosen_idx = [], []
+    for step in range(n):
+        scores = [func(chosen + [candidates[j]]) for j in remaining]
+        scores = [float(np.asarray(s).reshape(-1)[0]) for s in scores]
+        best = remaining[int(np.argmin(scores))]
+        chosen.append(candidates[best])
+        chosen_idx.append(best)
+        remaining.remove(best)
+        logger.debug("greedy batch selection picked {} of {}: candidate {}", step + 1, n, best)
+    # one number for the batch, not n numbers for n points: the whole point of a
+    # set-valued acquisition is that the set is what carries the value
+    set_value = float(np.asarray(func(chosen)).reshape(-1)[0])
+    return np.asarray(chosen), np.array([set_value]), None
+
+
 ##########################################################################
 def find_acquisition_function_maxima(gpo, acquisition_function, *,
                                      origin=None,
@@ -53,7 +99,27 @@ def find_acquisition_function_maxima(gpo, acquisition_function, *,
     logger.debug("bounds:")
     logger.debug(bounds)
     logger.debug("====================================")
-    if candidates is not None:
+    if candidates is not None and number_of_maxima_sought > 1 and \
+            acquisition_function in SET_VALUED_ACQUISITION_FUNCTIONS:
+        opti, func_eval, opt_obj = _greedy_batch_from_candidates(
+            func, candidates, number_of_maxima_sought, acquisition_function)
+
+    elif candidates is not None:
+        if number_of_maxima_sought > 1 and not callable(acquisition_function):
+            warnings.warn(
+                f"ask() is returning the {number_of_maxima_sought} individually best "
+                f"candidates under `{acquisition_function}`, which scores one point at a "
+                f"time. They are not mutually optimal and are often near-duplicates, since "
+                f"nothing stops the top scorers from sitting on top of each other. For a "
+                f"batch chosen to be jointly informative use "
+                f"{sorted(SET_VALUED_ACQUISITION_FUNCTIONS)}, which score a whole set.")
+        elif number_of_maxima_sought > 1:
+            warnings.warn(
+                f"ask() is returning the {number_of_maxima_sought} individually best "
+                f"candidates under a user-supplied acquisition function. gpCAM cannot tell "
+                f"whether it scores a set or a single point, so it is applied point by "
+                f"point and the result is not mutually optimal. For a jointly informative "
+                f"batch use {sorted(SET_VALUED_ACQUISITION_FUNCTIONS)}.")
         if vectorized is False:
             if dask_client is not None:
                 logger.debug("Mapping the acquisition function evaluation over dask workers in batches of size", batch_size)
