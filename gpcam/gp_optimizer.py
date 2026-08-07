@@ -75,8 +75,16 @@ class GPOptimizer(GPOptimizerBase):
         array of positions, the hyperparameters argument
         is a 1d array of length D+1 for the default kernel and of a different
         length for user-defined kernels.
-        The default is a stationary anisotropic kernel
-        (:py:meth:`fvgp.GP.default_kernel`) which performs automatic relevance determination (ARD).
+        The default is a stationary anisotropic Matern kernel of first-order
+        differentiability, which performs automatic relevance determination (ARD)
+        through one length scale per input dimension.
+        If ``gp2Scale`` is enabled, the default changes to a compactly supported anisotropic
+        Wendland kernel instead -- compact support is what makes the covariance matrix sparse.
+        Which one is used depends on ``compute_device``:
+        :py:func:`fvgp.kernels.wendland_anisotropic_gp2Scale_cpu` or
+        :py:func:`fvgp.kernels.wendland_anisotropic_gp2Scale_gpu`.
+        See :py:mod:`fvgp.kernels` for those, their support-aware sparse variants, and the
+        other built-in kernels.
         The output is a matrix, an N1 x N2 numpy array.
         This callable receives the full hyperparameter vector but must only use
         the indices reserved for the kernel (disjoint from mean and noise indices).
@@ -145,6 +153,16 @@ class GPOptimizer(GPOptimizerBase):
         The default is False.
     gp2Scale_batch_size : int, optional
         Matrix batch size for distributed computing in gp2Scale. The default is 10000.
+    gp2Scale_distribution : str, optional
+        How the covariance computation is cut across the workers in gp2Scale.
+        ``"blockwise"`` (default) sends (row block, column block) pairs and, for the
+        symmetric prior covariance, schedules only the upper triangle, so the cluster
+        performs half the kernel evaluations and the host mirrors the result.
+        ``"rowwise"`` sends whole row strips and has each worker return a finished sparse
+        strip, so the assembly is a concatenation rather than a global re-sort on the
+        host. Row-wise cannot exploit symmetry and so doubles the kernel evaluations, but
+        it removes the host as a bottleneck and lowers its peak memory considerably; it is
+        the better choice when assembly, not kernel evaluation, dominates the run time.
     dask_client : dask.distributed.Client, optional
         A dask client for gp2Scale, asynchronous training, and certain linear algebra operations.
         On HPC architecture, this client is provided by the job script. Please have a look at the examples.
@@ -382,6 +400,7 @@ class GPOptimizer(GPOptimizerBase):
             gp2Scale=False,
             dask_client=None,
             gp2Scale_batch_size=10000,
+            gp2Scale_distribution="blockwise",
             linalg_mode=None,
             ram_economy=False,
             cost_function=None,
@@ -402,6 +421,7 @@ class GPOptimizer(GPOptimizerBase):
                          gp2Scale=gp2Scale,
                          dask_client=dask_client,
                          gp2Scale_batch_size=gp2Scale_batch_size,
+                         gp2Scale_distribution=gp2Scale_distribution,
                          linalg_mode=linalg_mode,
                          ram_economy=ram_economy,
                          cost_function=cost_function,
@@ -496,8 +516,16 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
         The input ``x1`` is a N1 x Di+1 array of positions, ``x2`` is a N2 x Di+1
         array of positions, the hyperparameters argument
         is a 1d array of length N depending on how many hyperparameters are initialized.
-        The default is a stationary anisotropic kernel
-        (:py:meth:`fvgp.GP.default_kernel`) which performs automatic relevance determination (ARD). The task
+        The default is a stationary anisotropic Matern kernel of first-order
+        differentiability, which performs automatic relevance determination (ARD)
+        through one length scale per input dimension.
+        If ``gp2Scale`` is enabled, the default changes to a compactly supported anisotropic
+        Wendland kernel instead -- compact support is what makes the covariance matrix sparse.
+        Which one is used depends on ``compute_device``:
+        :py:func:`fvgp.kernels.wendland_anisotropic_gp2Scale_cpu` or
+        :py:func:`fvgp.kernels.wendland_anisotropic_gp2Scale_gpu`.
+        See :py:mod:`fvgp.kernels` for those, their support-aware sparse variants, and the
+        other built-in kernels. The task
         direction is simply considered an additional dimension. This kernel should only be used for tests and in the
         simplest of cases.
         The output is a matrix, an N1 x N2 numpy array.
@@ -568,6 +596,16 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
         The default is False.
     gp2Scale_batch_size : int, optional
         Matrix batch size for distributed computing in gp2Scale. The default is 10000.
+    gp2Scale_distribution : str, optional
+        How the covariance computation is cut across the workers in gp2Scale.
+        ``"blockwise"`` (default) sends (row block, column block) pairs and, for the
+        symmetric prior covariance, schedules only the upper triangle, so the cluster
+        performs half the kernel evaluations and the host mirrors the result.
+        ``"rowwise"`` sends whole row strips and has each worker return a finished sparse
+        strip, so the assembly is a concatenation rather than a global re-sort on the
+        host. Row-wise cannot exploit symmetry and so doubles the kernel evaluations, but
+        it removes the host as a bottleneck and lowers its peak memory considerably; it is
+        the better choice when assembly, not kernel evaluation, dominates the run time.
     dask_client : dask.distributed.Client, optional
         A dask client for gp2Scale, asynchronous training, and certain linear algebra operations.
         On HPC architecture, this client is provided by the job script. Please have a look at the examples.
@@ -805,6 +843,7 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
             gp2Scale=False,
             dask_client=None,
             gp2Scale_batch_size=10000,
+            gp2Scale_distribution="blockwise",
             linalg_mode=None,
             ram_economy=False,
             cost_function=None,
@@ -825,6 +864,7 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
                          gp2Scale=gp2Scale,
                          dask_client=dask_client,
                          gp2Scale_batch_size=gp2Scale_batch_size,
+                         gp2Scale_distribution=gp2Scale_distribution,
                          linalg_mode=linalg_mode,
                          ram_economy=ram_economy,
                          cost_function=cost_function,

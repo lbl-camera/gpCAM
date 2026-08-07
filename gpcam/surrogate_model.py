@@ -227,7 +227,9 @@ def find_acquisition_function_maxima(gpo, acquisition_function, *,
             if np.ndim(func_eval) != 1: func_eval = np.array([func_eval])
     else:
         raise ValueError("Invalid acquisition function optimization method given: ", optimization_method)
-    if np.ndim(func_eval) != 1:
+    # unreachable in practice: scipy rejects a non-scalar acquisition before this point
+    # for `global`, and the `local` and candidate-list paths normalize the shape
+    if np.ndim(func_eval) != 1:  # pragma: no cover - defensive
         logger.error("f_a(x): ", func_eval)
         logger.error("x: ", opti)
         raise Exception(

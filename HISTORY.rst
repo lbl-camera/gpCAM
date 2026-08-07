@@ -8,14 +8,40 @@ Unreleased
 Dependencies
 ~~~~~~~~~~~~
 
+* Require ``fvgp ~= 4.8.6``, which is the release that carries ``gp2Scale_distribution``
+  and Python 3.10 support (was ``~= 4.8.5``). ``~=`` already admitted any later 4.8.z, so
+  this only raises the floor -- but it has to be raised, because passing the new keyword
+  to an older fvGP is a ``TypeError`` rather than a graceful no-op.
+
 * Require ``fvgp ~= 4.8.5``, the newest release in the 4.8 line (was ``~= 4.8.1``).
   This raises the floor only; ``~=`` already allowed any later 4.8.z. 4.8.5 carries the
   corrected sparse-solver guidance: preconditioner reuse is decided by how far K+V has
   drifted rather than by a refresh interval, and Krylov warm starts are honored only for
   ``train(method='mcmc')``.
 
+Documentation
+~~~~~~~~~~~~~
+
+* The ``kernel_function`` docstrings now state what the default kernel actually is -- a
+  stationary anisotropic Matern kernel of first-order differentiability with one length
+  scale per input dimension -- and that ``gp2Scale`` switches the default to a compactly
+  supported Wendland kernel chosen by ``compute_device``, with pointers into
+  ``fvgp.kernels``. They previously referenced ``fvgp.GP.default_kernel``, which does not
+  exist, so the cross-reference never resolved. Kept in step with the same change in fvGP.
+
 New features
 ~~~~~~~~~~~~
+
+* ``gp2Scale_distribution`` is forwarded to fvGP by ``GPOptimizer``, ``fvGPOptimizer``
+  and ``GPOptimizerBase``. It chooses how the distributed covariance is cut across the
+  workers: ``"blockwise"`` (the default, and the historical behavior) maps (row block,
+  column block) pairs and schedules only the upper triangle of a symmetric covariance, so
+  the cluster does half the kernel evaluations; ``"rowwise"`` maps whole row strips and
+  has each worker return a finished sparse strip, moving the assembly sort onto the
+  workers and reducing the host's job to a concatenation. Row-wise cannot exploit symmetry
+  and so doubles the kernel evaluations; it is the choice when host assembly rather than
+  kernel evaluation is the bottleneck. The value is validated by fvGP and survives
+  pickling; state pickled before this parameter existed unpickles as ``"blockwise"``.
 
 * ``ask()`` selects a *jointly* informative batch from a candidate list. Previously,
   ``n > 1`` with a candidate list scored every candidate on its own, sorted, and returned

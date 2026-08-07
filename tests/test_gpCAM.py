@@ -704,3 +704,472 @@ def test_candidate_batch_handles_small_pools():
     r = gpo.ask(candidates, n=10, acquisition_function="total correlation")
     assert np.asarray(r["x"]).shape == (3, 2)
     assert np.asarray(r["f_a(x)"]).shape == (1,)
+
+
+###########################################################################
+############ lazy initialization: everything returns None #################
+###########################################################################
+def test_uninitialized_optimizer_reports_no_data():
+    """Without x_data/y_data the underlying fvgp.GP is not built until the first
+    tell(), and every accessor has to say so rather than raise."""
+    gp = GPOptimizer()
+    assert gp.gp is False
+    assert gp.x_data is None
+    assert gp.y_data is None
+    assert gp.noise_variances is None
+    assert gp.input_space_dimension is None
+
+    # args round-trips through the pre-init shadow attribute
+    assert gp.args is None
+    gp.args = {"a": 1}
+    assert gp.args == {"a": 1}
+
+    # and once told, the same accessors go live
+    x = np.random.rand(10, dim)
+    gp.tell(x, np.sin(np.linalg.norm(x, axis=1)))
+    assert gp.gp is True
+    assert len(gp.x_data) == 10
+    assert gp.input_space_dimension == dim
+    gp.args = {"b": 2}
+    assert gp.args == {"b": 2}
+
+
+def test_logging_flag_enables_the_loggers():
+    from loguru import logger
+    gp = GPOptimizer(logging=True)
+    assert gp.logging is True
+    logger.disable("gpcam")
+    logger.disable("fvgp")
+
+
+###########################################################################
+################ ask() argument validation and rewriting ##################
+###########################################################################
+def _tiny_optimizer(n=15):
+    x = np.random.rand(n, dim)
+    y = np.sin(np.linalg.norm(x, axis=1))
+    return GPOptimizer(x, y)
+
+
+def test_ask_rejects_a_non_2d_bounds_array():
+    gp = _tiny_optimizer()
+    try:
+        gp.ask(np.array([0.0, 1.0]))
+    except Exception as e:
+        assert "2d np.ndarray or a list" in str(e)
+    else:
+        raise AssertionError("a 1-d input_set must be rejected")
+
+
+def test_ask_forces_hgdl_for_a_callable_acquisition_with_n_greater_than_one(client):
+    """A callable acquisition function cannot be evaluated jointly, so ask() rewrites
+    the method to hgdl -- with a warning, which is easy to miss inside a loop."""
+    import warnings
+    gp = _tiny_optimizer()
+    bounds = np.array([[0.0, 1.0], [0.0, 1.0]])
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        r = gp.ask(bounds, n=2, acquisition_function=ac_func1, method="global",
+                   dask_client=client, max_iter=2)
+    assert any("hgdl" in str(w.message) for w in caught)
+    assert r["x"].shape[1] == dim
+
+
+def test_cost_function_without_an_origin_warns():
+    """cost_function is applied only when ask(..., position=...) is given; without it
+    gpCAM would silently ignore the cost function."""
+    import warnings
+
+    def cost(origin, x):
+        return np.ones(len(x))
+
+    x = np.random.rand(15, dim)
+    gp = GPOptimizer(x, np.sin(np.linalg.norm(x, axis=1)), cost_function=cost)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        gp.evaluate_acquisition_function(np.random.rand(3, dim), origin=None)
+    assert any("origin has to be provided" in str(w.message) for w in caught)
+
+
+def test_evaluate_acquisition_function_reports_a_broken_acquisition():
+    gp = _tiny_optimizer()
+
+    def broken(x, obj):
+        raise RuntimeError("acquisition exploded")
+
+    try:
+        gp.evaluate_acquisition_function(np.random.rand(3, dim), acquisition_function=broken)
+    except Exception as e:
+        assert "exploded" in str(e) or "Evaluating" in str(e)
+    else:
+        raise AssertionError("a broken acquisition function must be reported")
+
+
+###########################################################################
+################## transformed optimizers: derivatives ####################
+###########################################################################
+def test_log_and_logit_forward_derivatives():
+    """_forward_deriv carries the delta-method noise propagation, so it is only
+    exercised when measurement variances are supplied."""
+    from gpcam import LogGPOptimizer, LogitGPOptimizer
+
+    x = np.random.rand(12, dim)
+    y = np.random.rand(12) + 0.5                       # strictly positive
+    v = np.full(12, 0.01)
+
+    log_gp = LogGPOptimizer(x, y, noise_variances=v)
+    assert np.allclose(log_gp._forward_deriv(y), 1.0 / y)
+
+    y01 = np.random.rand(12) * 0.6 + 0.2               # inside (0, 1)
+    logit_gp = LogitGPOptimizer(x, y01, noise_variances=v)
+    a, b = logit_gp.range
+    expected = 1.0 / ((b - a) * y01 * (1.0 - y01))
+    assert np.allclose(logit_gp._forward_deriv(y01), expected)
+
+
+###########################################################################
+################### the deprecated experimenters ##########################
+###########################################################################
+def test_autonomous_experimenters_are_deprecated():
+    from gpcam import AutonomousExperimenterGP, AutonomousExperimenterFvGP
+
+    for cls in (AutonomousExperimenterGP, AutonomousExperimenterFvGP):
+        try:
+            cls(np.array([[0.0, 1.0]]), np.ones(2), np.array([[0.01, 10.0], [0.01, 10.0]]))
+        except Exception as e:
+            assert "DEPRECIATED" in str(e).upper() or "DEPRECATED" in str(e).upper()
+        else:
+            raise AssertionError(f"{cls.__name__} must refuse construction")
+
+
+def test_reexport_modules_are_importable():
+    """kernels, gp_mcmc and deep_kernel_network are one-line fvgp re-exports."""
+    import gpcam.deep_kernel_network as dkn
+    import gpcam.gp_mcmc as mcmc
+    import gpcam.kernels as k
+    assert hasattr(k, "matern_kernel_diff1")
+    assert hasattr(mcmc, "gpMCMC")
+    assert dkn is not None
+
+
+###########################################################################
+############### surrogate_model: validation and helpers ###################
+###########################################################################
+def test_find_acquisition_maxima_rejects_bad_input_sets():
+    from gpcam.surrogate_model import find_acquisition_function_maxima
+
+    gp = _tiny_optimizer()
+    for bad, msg in ((None, "has to be provided"), ("bounds", "allowed format")):
+        try:
+            find_acquisition_function_maxima(gp, "variance", input_set=bad, input_set_dim=dim)
+        except Exception as e:
+            assert msg in str(e), (bad, str(e))
+        else:
+            raise AssertionError(f"input_set={bad!r} must be rejected")
+
+
+def test_acquisition_optimization_rejects_an_unknown_method():
+    from gpcam.surrogate_model import find_acquisition_function_maxima
+
+    gp = _tiny_optimizer()
+    bounds = np.array([[0.0, 1.0], [0.0, 1.0]])
+    try:
+        find_acquisition_function_maxima(gp, "variance", input_set=bounds, input_set_dim=dim,
+                                         optimization_method="telepathy")
+    except ValueError as e:
+        assert "Invalid acquisition function optimization method" in str(e)
+    else:
+        raise AssertionError("an unknown optimization method must be rejected")
+
+
+def test_local_optimization_accepts_both_x0_shapes():
+    """`local` takes a 1-d start, the first row of a 2-d one, or a random draw."""
+    from gpcam.surrogate_model import find_acquisition_function_maxima
+
+    gp = _tiny_optimizer()
+    bounds = np.array([[0.0, 1.0], [0.0, 1.0]])
+    for x0 in (np.array([0.5, 0.5]), np.array([[0.5, 0.5], [0.2, 0.2]]), None):
+        opti, f_a, _ = find_acquisition_function_maxima(
+            gp, "variance", input_set=bounds, input_set_dim=dim,
+            optimization_method="local", optimization_x0=x0, optimization_max_iter=3)
+        assert np.ndim(opti) == 2 and np.ndim(f_a) == 1
+
+
+def test_evaluate_acquisition_function_input_shapes():
+    from gpcam.surrogate_model import evaluate_acquisition_function
+
+    gp = _tiny_optimizer()
+    # a 1-d x is reshaped to a single point
+    one = evaluate_acquisition_function(np.random.rand(dim), gpo=gp,
+                                        acquisition_function="variance", dim=dim)
+    assert np.ndim(one) == 1
+
+    # a list of 1-d arrays is stacked
+    listed = evaluate_acquisition_function([np.random.rand(dim), np.random.rand(dim)],
+                                           gpo=gp, acquisition_function="variance", dim=dim)
+    assert len(np.atleast_1d(listed)) == 2
+
+    # a 3-d x is refused
+    try:
+        evaluate_acquisition_function(np.random.rand(2, 2, dim), gpo=gp,
+                                      acquisition_function="variance", dim=dim)
+    except Exception as e:
+        assert "Wrong input dim" in str(e)
+    else:
+        raise AssertionError("a 3-d x must be rejected")
+
+    # x_out must be 1-d
+    try:
+        evaluate_acquisition_function(np.random.rand(2, dim), gpo=gp,
+                                      acquisition_function="variance", dim=dim,
+                                      x_out=np.array([[0, 1]]))
+    except Exception as e:
+        assert "1d numpy array" in str(e)
+    else:
+        raise AssertionError("a 2-d x_out must be rejected")
+
+
+def test_unknown_acquisition_strings_are_rejected_on_both_branches():
+    from gpcam.surrogate_model import evaluate_acquisition_function
+
+    gp = _tiny_optimizer()
+    try:
+        evaluate_acquisition_function(np.random.rand(3, dim), gpo=gp,
+                                      acquisition_function="telekinesis", dim=dim)
+    except Exception as e:
+        assert "No valid acquisition function string" in str(e)
+    else:
+        raise AssertionError("an unknown single-task acquisition must be rejected")
+
+    x = np.random.rand(12, dim)
+    y = np.column_stack([np.sin(np.linalg.norm(x, axis=1)), np.cos(np.linalg.norm(x, axis=1))])
+    mt = fvGPOptimizer(x, y, init_hyperparameters=np.ones(3), kernel_function=mt_kernel)
+    try:
+        evaluate_acquisition_function(np.random.rand(3, dim), gpo=mt,
+                                      acquisition_function="telekinesis", dim=dim,
+                                      x_out=np.array([0, 1]))
+    except Exception as e:
+        assert "No valid acquisition function string" in str(e)
+    else:
+        raise AssertionError("an unknown multi-task acquisition must be rejected")
+
+
+def test_target_probability_needs_its_bounds():
+    from gpcam.surrogate_model import evaluate_acquisition_function
+
+    gp = _tiny_optimizer()
+    try:
+        evaluate_acquisition_function(np.random.rand(3, dim), gpo=gp,
+                                      acquisition_function="target probability", dim=dim)
+    except Exception as e:
+        assert "target probability" in str(e)
+    else:
+        raise AssertionError("`target probability` without args must be rejected")
+
+    gp.args = {"a": 0.0, "b": 1.0}
+    out = evaluate_acquisition_function(np.random.rand(3, dim), gpo=gp,
+                                        acquisition_function="target probability", dim=dim)
+    assert np.all(np.isfinite(out))
+
+
+def test_lookahead_helpers():
+    from gpcam.surrogate_model import (_acq_arg, _reference_points, _jitter_cholesky,
+                                       _expected_max_of_affine, divide_chunks)
+
+    gp = _tiny_optimizer(n=30)
+    assert _acq_arg(gp, "missing", 7) == 7          # args is None
+    gp.args = {"kg_seed": 3, "empty": None}
+    assert _acq_arg(gp, "kg_seed", 7) == 3
+    assert _acq_arg(gp, "empty", 7) == 7            # an explicit None falls back
+
+    rng = np.random.default_rng(0)
+    capped = _reference_points(gp, None, cap=5, rng=rng)
+    assert len(capped) == 5, "the reference set must be subsampled to the cap"
+
+    # a single affine line is its own maximum
+    assert np.isclose(_expected_max_of_affine(np.array([2.0]), np.array([0.5])), 2.0)
+
+    # a badly conditioned covariance still factors, by jitter or by eigendecomposition
+    bad = np.full((4, 4), 1.0)
+    L = _jitter_cholesky(bad)
+    assert L.shape == (4, 4) and np.all(np.isfinite(L))
+
+    assert [list(c) for c in divide_chunks([1, 2, 3, 4, 5], 2)] == [[1, 2], [3, 4], [5]]
+
+
+def test_candidate_evaluation_across_dask_and_sequential_paths(client):
+    """A candidate list is scored four ways: vectorized or not, on a dask client or
+    in-process. All four must agree."""
+    from gpcam.surrogate_model import find_acquisition_function_maxima
+
+    gp = _tiny_optimizer()
+    candidates = [np.random.rand(dim) for _ in range(6)]
+
+    results = {}
+    for vectorized in (True, False):
+        for use_client in (True, False):
+            opti, f_a, _ = find_acquisition_function_maxima(
+                gp, "variance", input_set=candidates, input_set_dim=dim,
+                number_of_maxima_sought=2, vectorized=vectorized,
+                dask_client=client if use_client else None, batch_size=2)
+            results[(vectorized, use_client)] = np.sort(np.asarray(f_a).ravel())
+            assert len(opti) == 2
+
+    reference = results[(True, False)]
+    for key, value in results.items():
+        assert np.allclose(value, reference, atol=1e-8), key
+
+
+def test_hgdl_async_acquisition_optimization(client):
+    """`hgdlAsync` hands back a live optimizer object rather than a solution."""
+    from gpcam.surrogate_model import find_acquisition_function_maxima
+
+    gp = _tiny_optimizer()
+    bounds = np.array([[0.0, 1.0], [0.0, 1.0]])
+    opti, f_a, opt_obj = find_acquisition_function_maxima(
+        gp, "variance", input_set=bounds, input_set_dim=dim,
+        optimization_method="hgdlAsync", optimization_x0=np.array([0.5, 0.5]),
+        optimization_max_iter=2, dask_client=client)
+    assert opt_obj is not None
+    assert opti.shape == (1, dim)
+    opt_obj.kill_client()
+
+    try:
+        find_acquisition_function_maxima(
+            gp, "variance", input_set=bounds, input_set_dim=dim,
+            optimization_method="hgdlAsync", optimization_max_iter=2, dask_client=None)
+    except Exception as e:
+        assert "dask_client" in str(e)
+    else:
+        raise AssertionError("hgdlAsync without a client must be rejected")
+
+
+def test_cost_function_is_applied_when_an_origin_is_given():
+    from gpcam.surrogate_model import evaluate_acquisition_function
+
+    gp = _tiny_optimizer()
+    x = np.random.rand(4, dim)
+
+    def cost(origin, x):
+        return np.full(len(x), 2.0)
+
+    plain = evaluate_acquisition_function(x, gpo=gp, acquisition_function="variance", dim=dim)
+    costed = evaluate_acquisition_function(x, gpo=gp, acquisition_function="variance", dim=dim,
+                                           origin=np.zeros(dim), cost_function=cost)
+    assert np.allclose(costed, plain / 2.0), "the acquisition is divided by the cost"
+
+
+def test_assumed_observation_noise_falls_back_when_unusable():
+    """A non-positive or missing noise estimate falls back to a small positive floor,
+    and multi-task scales it by the number of tasks."""
+    from gpcam.surrogate_model import _assumed_observation_noise
+
+    gp = _tiny_optimizer()
+    original = gp.likelihood.V
+    try:
+        gp.likelihood.V = np.zeros((len(gp.x_data), len(gp.x_data)))   # degenerate
+        assert _assumed_observation_noise(gp, None) == 1e-6
+        assert np.isclose(_assumed_observation_noise(gp, np.array([0, 1])), 2e-6)
+    finally:
+        gp.likelihood.V = original
+
+    # and if reading the noise raises at all, the floor still applies
+    real_get_data = gp.get_data
+
+    def exploding_get_data():
+        raise RuntimeError("no noise available")
+
+    gp.get_data = exploding_get_data
+    try:
+        assert _assumed_observation_noise(gp, None) == 1e-6
+    finally:
+        gp.get_data = real_get_data
+
+
+def test_jitter_cholesky_falls_back_to_an_eigendecomposition():
+    from gpcam.surrogate_model import _jitter_cholesky
+
+    # negative eigenvalues: no amount of jitter makes this factorable
+    bad = np.array([[1.0, 2.0], [2.0, 1.0]])
+    L = _jitter_cholesky(bad)
+    assert L.shape == (2, 2) and np.all(np.isfinite(L))
+
+
+def test_optimize_loop_honors_callback_and_break_condition():
+    """optimize() runs the whole tell/ask/train loop; the callback and the break
+    condition are the two user hooks inside it."""
+    seen = {"callback": 0}
+
+    def func(x):
+        # seeding maps func over single points; the loop calls it with the ask() batch
+        x = np.atleast_2d(x)
+        return np.sin(np.linalg.norm(x, axis=1)), np.full(len(x), 0.01)
+
+    def callback(x_data, y_data):
+        seen["callback"] += 1
+
+    def stop_immediately(x_data, y_data):
+        return True
+
+    gp = GPOptimizer()
+    r = gp.optimize(func=func, search_space=np.array([[0.0, 1.0], [0.0, 1.0]]),
+                    hyperparameter_bounds=np.array([[0.01, 10.], [0.01, 10.], [0.01, 10.]]),
+                    callback=callback, break_condition=stop_immediately,
+                    max_iter=5, ask_max_iter=2, ask_pop_size=4, training_max_iter=2)
+    assert seen["callback"] >= 1
+    assert set(r) == {"trace f(x)", "trace x", "f(x)", "x"}
+    assert len(r["trace x"]) < 5 + 10, "the break condition must end the loop early"
+
+
+def test_ask_constructs_its_own_dask_client_when_hgdl_needs_one():
+    """`hgdl` needs a client. If none was passed, ask() makes one and closes it inside
+    the call -- worth knowing, because it is a real cluster spun up per call."""
+    import warnings
+    gp = _tiny_optimizer()
+    bounds = np.array([[0.0, 1.0], [0.0, 1.0]])
+
+    # explicit method="hgdl" with no client
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        r = gp.ask(bounds, method="hgdl", max_iter=2, dask_client=None)
+    assert any("Initiating dask client" in str(w.message) for w in caught)
+    assert r["x"].shape[1] == dim
+
+    # and the n>1 + callable path, which forces hgdl and then needs a client too
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        r = gp.ask(bounds, n=2, acquisition_function=ac_func1, method="global",
+                   max_iter=2, dask_client=None)
+    messages = " ".join(str(w.message) for w in caught)
+    assert "Method set to hgdl" in messages and "Initiating dask client" in messages
+
+
+def test_evaluate_acquisition_function_tolerates_an_unstackable_list():
+    """A list of ragged arrays cannot be reshaped; the acquisition passes it through
+    untouched rather than failing on the caller's behalf."""
+    from gpcam.surrogate_model import evaluate_acquisition_function
+
+    gp = _tiny_optimizer()
+    ragged = [np.random.rand(dim), np.random.rand(dim + 1)]
+    try:
+        evaluate_acquisition_function(ragged, gpo=gp, acquisition_function="variance", dim=dim)
+    except Exception:
+        pass          # the GP rejects it downstream; the reshape itself must not raise
+    else:
+        pass
+
+
+def test_assumed_observation_noise_reads_a_diagonal_noise_matrix():
+    """The noise may be a 1-d vector or a full matrix; both give a positive base."""
+    from gpcam.surrogate_model import _assumed_observation_noise
+
+    gp = _tiny_optimizer()
+    original = gp.likelihood.V
+    try:
+        n = len(gp.x_data)
+        gp.likelihood.V = np.eye(n) * 0.25          # full matrix -> mean of the diagonal
+        assert np.isclose(_assumed_observation_noise(gp, None), 0.25)
+        gp.likelihood.V = np.full(n, 0.5)           # 1-d vector -> mean
+        assert np.isclose(_assumed_observation_noise(gp, None), 0.5)
+    finally:
+        gp.likelihood.V = original

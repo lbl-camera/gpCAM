@@ -30,6 +30,7 @@ class GPOptimizerBase(GP):
             gp2Scale=False,
             dask_client=None,
             gp2Scale_batch_size=10000,
+            gp2Scale_distribution="blockwise",
             linalg_mode=None,
             ram_economy=False,
             cost_function=None,
@@ -49,6 +50,7 @@ class GPOptimizerBase(GP):
         self._gp2Scale = gp2Scale
         self._dask_client = dask_client
         self.gp2Scale_batch_size = gp2Scale_batch_size
+        self.gp2Scale_distribution = gp2Scale_distribution
         self._linalg_mode = linalg_mode
         self.ram_economy = ram_economy
         self._args = args
@@ -128,6 +130,7 @@ class GPOptimizerBase(GP):
             gp2Scale=self._gp2Scale,
             dask_client=self._dask_client,
             gp2Scale_batch_size=self.gp2Scale_batch_size,
+            gp2Scale_distribution=self.gp2Scale_distribution,
             linalg_mode=self._linalg_mode,
             ram_economy=self.ram_economy,
             args=self._args
@@ -740,6 +743,7 @@ class GPOptimizerBase(GP):
             _gp2Scale=self._gp2Scale,
             _dask_client=None,
             gp2Scale_batch_size=self.gp2Scale_batch_size,
+            gp2Scale_distribution=self.gp2Scale_distribution,
             _linalg_mode=self._linalg_mode,
             ram_economy=self.ram_economy,
             _args=self._args,
@@ -753,6 +757,8 @@ class GPOptimizerBase(GP):
 
     def __setstate__(self, state):  # Called when the object is unpickled
         state['_dask_client'] = None
+        # written before gp2Scale_distribution existed
+        state.setdefault('gp2Scale_distribution', "blockwise")
         self.__dict__.update(state)
 
 
