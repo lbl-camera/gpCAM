@@ -89,7 +89,7 @@ This means **the most important architectural fact is what is NOT in this repo**
 - `gpcam/kernels.py`, `gpcam/gp_mcmc.py`, and `gpcam/deep_kernel_network.py` are **one-line `from fvgp.X import *` re-exports**.
 - Methods like `train()`, `posterior_mean()`, `posterior_covariance()`, `update_gp_data()`, `gp_relative_information_entropy()`, `gp_total_correlation()`, and the default kernel/mean/noise are all **inherited from `fvgp.GP`** — to understand or change them, read the installed `fvgp` source, not this repo.
 
-Effectively the entire package is four files: `gp_optimizer_base.py` (loop logic + transform hooks), `gp_optimizer.py` (the four public classes), `surrogate_model.py` (acquisition evaluation + optimization), and `autonomous_experimenter.py` (deprecated).
+Effectively the entire package is three files: `gp_optimizer_base.py` (loop logic + transform hooks), `gp_optimizer.py` (the four public classes), and `surrogate_model.py` (acquisition evaluation + optimization).
 
 ### Class hierarchy
 
@@ -102,7 +102,7 @@ So a `GPOptimizer` instance *is* an `fvgp.GP` with the optimization methods mixe
 
 ### ask / tell / train loop
 
-The canonical usage (no `AutonomousExperimenter` — see below):
+The canonical usage:
 
 ```python
 gp = GPOptimizer(x_data, y_data)
@@ -161,9 +161,9 @@ The two set-valued acquisitions are both KL divergences but answer different que
 
 `GPOptimizerBase.__getstate__`/`__setstate__` are hand-written (Dask clients and some fvgp internals don't pickle). `LogitGPOptimizer` overrides `__getstate__` again for its transform state. Callables handed to the optimizer (cost/acquisition functions) must be **module-level** to pickle by reference — `tests/test_gpCAM.py::test_pickle` depends on this.
 
-### Deprecated code
+### Removed code
 
-`gpcam/autonomous_experimenter.py` — `AutonomousExperimenterGP` and `AutonomousExperimenterFvGP` are still exported from `gpcam/__init__.py` but both **raise on construction**. They are deprecated in favor of using `GPOptimizer`/`fvGPOptimizer` directly. Don't extend or revive them; point users at the optimizer classes (or the Tsuchinoko package).
+`AutonomousExperimenterGP` / `AutonomousExperimenterFvGP` and their module are **gone** as of 8.4.3. They had raised on construction for some time; the names are now absent entirely, so old code gets an `ImportError` rather than a deprecation message. If someone turns up with `from gpcam import AutonomousExperimenterGP`, point them at `GPOptimizer`/`fvGPOptimizer` used directly (the ask/tell/train loop above), or at the Tsuchinoko package. `obsolete/` still holds the two superseded notebooks; it is not packaged or importable.
 
 ## Reference materials
 

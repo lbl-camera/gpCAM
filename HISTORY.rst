@@ -5,6 +5,20 @@ History
 Unreleased
 ----------
 
+Removals
+~~~~~~~~
+
+* ``AutonomousExperimenterGP`` and ``AutonomousExperimenterFvGP`` are gone, along with
+  ``gpcam/autonomous_experimenter.py`` and the two notebooks in ``obsolete/`` that used
+  them. Both classes had raised on construction for several releases, so nothing that
+  worked stops working -- but the *names* are no longer exported, so
+  ``from gpcam import AutonomousExperimenterGP`` now raises ``ImportError`` rather than
+  importing successfully and failing later with a deprecation message.
+
+  The replacement is to use ``GPOptimizer``/``fvGPOptimizer`` directly in an ask/tell/train
+  loop, which is what the class wrapped and what every example already shows; the
+  Tsuchinoko package is the alternative for a full experiment-orchestration layer.
+
 Dependencies
 ~~~~~~~~~~~~
 

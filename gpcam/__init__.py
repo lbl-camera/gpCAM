@@ -10,10 +10,8 @@ from .gp_optimizer import fvGPOptimizer
 from .gp_optimizer import LogGPOptimizer
 from .gp_optimizer import LogitGPOptimizer
 from .gp_mcmc import gpMCMC, ProposalDistribution
-from .autonomous_experimenter import AutonomousExperimenterGP
-from .autonomous_experimenter import AutonomousExperimenterFvGP
 
 __all__ = ['GPOptimizer', 'fvGPOptimizer', 'LogGPOptimizer', 'LogitGPOptimizer',
-           'AutonomousExperimenterGP', 'AutonomousExperimenterFvGP', 'gpMCMC', 'ProposalDistribution']
+           'gpMCMC', 'ProposalDistribution']
 
 logger.disable('gpcam')

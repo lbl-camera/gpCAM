@@ -827,21 +827,6 @@ def test_log_and_logit_forward_derivatives():
     assert np.allclose(logit_gp._forward_deriv(y01), expected)
 
 
-###########################################################################
-################### the deprecated experimenters ##########################
-###########################################################################
-def test_autonomous_experimenters_are_deprecated():
-    from gpcam import AutonomousExperimenterGP, AutonomousExperimenterFvGP
-
-    for cls in (AutonomousExperimenterGP, AutonomousExperimenterFvGP):
-        try:
-            cls(np.array([[0.0, 1.0]]), np.ones(2), np.array([[0.01, 10.0], [0.01, 10.0]]))
-        except Exception as e:
-            assert "DEPRECIATED" in str(e).upper() or "DEPRECATED" in str(e).upper()
-        else:
-            raise AssertionError(f"{cls.__name__} must refuse construction")
-
-
 def test_reexport_modules_are_importable():
     """kernels, gp_mcmc and deep_kernel_network are one-line fvgp re-exports."""
     import gpcam.deep_kernel_network as dkn
