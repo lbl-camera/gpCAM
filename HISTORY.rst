@@ -22,6 +22,20 @@ Removals
 Dependencies
 ~~~~~~~~~~~~
 
+* gpCAM supports Python 3.10 through 3.14, and CI tests all five (was 3.11 and 3.12).
+  The obstacle was never the code but the ``~=`` pins: ``scipy ~= 1.16.0`` requires
+  Python >= 3.11 and has no cp314 wheel, so no single pin can span the range. The
+  scipy/numpy/dask/distributed requirements are ranges now and pip resolves per
+  interpreter -- 3.10 lands on scipy 1.13 / dask 2024.1 through hgdl 2.2.3, while 3.11
+  and up get the 2025-era stack. In practice these versions are decided upstream anyway:
+  fvgp depends on hgdl, and hgdl ``~=``-pins the whole scientific stack, so hgdl is what
+  picks the versions a given Python gets. ``fvgp ~= 4.8.6`` is unchanged and is what made
+  3.10 reachable at all -- 4.8.5 declared ``requires_python >= 3.11``.
+
+  The workflow also moves off ``actions/checkout@v2`` and ``actions/setup-python@v5``'s
+  predecessor, which cannot install 3.13 or 3.14, and gains ``fail-fast: false`` so one
+  version failing no longer hides the others.
+
 * Require ``fvgp ~= 4.8.6``, which is the release that carries ``gp2Scale_distribution``
   and Python 3.10 support (was ``~= 4.8.5``). ``~=`` already admitted any later 4.8.z, so
   this only raises the floor -- but it has to be raised, because passing the new keyword

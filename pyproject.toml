@@ -6,14 +6,20 @@ build-backend = "hatchling.build"
 name = "gpcam"
 dependencies = [
     "wheel",
-    "scipy ~= 1.16.0",
-    "numpy ~= 2.2.6",
-    "dask ~= 2025.5.1",
-    "distributed ~= 2025.5.1",
+    # Ranges, not `~=` pins: gpCAM supports Python 3.10 through 3.14, and no single
+    # scipy/numpy release covers that span (scipy 1.16 requires >=3.11; scipy 1.18
+    # requires >=3.12), so a `~=` pin makes both ends of the Python range
+    # uninstallable. With ranges, pip resolves per interpreter. Note that these are
+    # effectively decided upstream anyway: fvgp depends on hgdl, which `~=`-pins the
+    # whole scientific stack, so hgdl is what picks the versions a given Python gets.
+    "scipy >= 1.13",
+    "numpy >= 2.1",
+    "dask >= 2024.1",
+    "distributed >= 2024.1",
     "fvgp ~= 4.8.6",
     "loguru",
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 authors = [
     { name = "Marcus Michael Noack", email = "MarcusNoack@lbl.gov" },
     { name = "Ronald J. Pandolfi", email = "ronpandolfi@lbl.gov" },
@@ -31,8 +37,11 @@ classifiers = [
     'Intended Audience :: Developers',
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Programming Language :: Python :: 3",
+    'Programming Language :: Python :: 3.10',
     'Programming Language :: Python :: 3.11',
     'Programming Language :: Python :: 3.12',
+    'Programming Language :: Python :: 3.13',
+    'Programming Language :: Python :: 3.14',
     "Natural Language :: English",
 ]
 dynamic = ["version"]
