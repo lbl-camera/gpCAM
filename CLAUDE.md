@@ -69,7 +69,7 @@ hatch build                       # build sdist + wheel (version comes from git 
 
 ### Version state
 
-The repo is on the **8.4.x line** (latest tag `8.4.2`, `fvgp ~= 4.8.5`), which is now the recommended one — the beta warning was retired once 8.4 proved solid. Users on the older **8.3.9** may still turn up, and HISTORY.rst plus the README upgrade note are the migration reference. 8.4.1 → 8.4.2 was a docs/skills-only release (identical wheel), so a HISTORY entry does not imply library changes. Constructor/method kwargs renamed in 8.4:
+The repo is on the **8.4.x line** (latest tag `8.4.3`, `fvgp ~= 4.8.7`), which is now the recommended one — the beta warning was retired once 8.4 proved solid. Users on the older **8.3.9** may still turn up, and HISTORY.rst plus the README upgrade note are the migration reference. 8.4.1 → 8.4.2 was a docs/skills-only release (identical wheel), so a HISTORY entry does not imply library changes. Constructor/method kwargs renamed in 8.4:
 
 | Old (8.3.x) | New (8.4.x) |
 |---|---|

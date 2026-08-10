@@ -22,6 +22,24 @@ Removals
 Dependencies
 ~~~~~~~~~~~~
 
+* Require ``fvgp ~= 4.8.7`` (was ``~= 4.8.6``). ``~=`` already admitted any later 4.8.z,
+  so this raises the floor only, but 4.8.7 is where the behavior gpCAM's docstrings now
+  describe actually lives. Two things come with it, both inherited rather than wrapped:
+
+  - **Row-wise distribution is genuinely row-wise.** A ``"rowwise"`` worker evaluates one
+    strip against every column in a single kernel call, so ``gp2Scale_batch_size`` is a
+    *strip width* there and a *block side* under ``"blockwise"`` -- two different memory
+    budgets, and not comparable numbers. Both are maxima with a remainder rather than
+    exact divisors. The budget also decides whether to distribute at all, which is what
+    stops a tall thin cross-covariance from being shredded into hundreds of tiny tasks;
+    cross-covariances are striped regardless of the setting.
+  - **``train(accept_only_if_improved=True)``**, the new default: synchronous training
+    with ``method`` in ``'local'``, ``'hgdl'``, ``'adam'`` or a callable now keeps the
+    incumbent hyperparameters when the optimizer returns worse ones, and warns.
+    ``'global'``, ``'mcmc'``, ``'bo'`` and asynchronous training are unaffected.
+    ``GPOptimizer`` and ``fvGPOptimizer`` inherit ``train`` from fvGP, so this needs no
+    gpCAM code and is available on both.
+
 * gpCAM supports Python 3.10 through 3.14, and CI tests all five (was 3.11 and 3.12).
   The obstacle was never the code but the ``~=`` pins: ``scipy ~= 1.16.0`` requires
   Python >= 3.11 and has no cp314 wheel, so no single pin can span the range. The

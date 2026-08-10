@@ -152,15 +152,52 @@ class GPOptimizer(GPOptimizerBase):
         The default kernel will use the specified device to compute covariances.
         The default is False.
     gp2Scale_batch_size : int, optional
-        Matrix batch size for distributed computing in gp2Scale. The default is 10000.
+        How finely the covariance is cut up for distributed computing in gp2Scale.
+        The default is 10000. It is a **maximum, not a target**: every chunk is exactly
+        this size except the last along each axis, which carries the remainder -- 100000
+        points at 15000 give six chunks of 15000 and one of 10000.
+
+        What it sizes depends on ``gp2Scale_distribution``. For ``"blockwise"`` it is the
+        side of a square block, so a worker evaluates
+        ``gp2Scale_batch_size x gp2Scale_batch_size``. For ``"rowwise"`` it is the
+        **strip width**: a worker evaluates ``gp2Scale_batch_size x N``, the whole row at
+        once. With a dense kernel that allocation is what bounds worker memory, so pick
+        it against the memory a worker has -- at N=100000 a strip width of 10000 is 8 GB
+        in float64. Compactly supported kernels that return a sparse block
+        (:py:func:`fvgp.kernels.wendland_anisotropic_gp2Scale_cpu_sparse`) never
+        materialize it.
+
+        Row-wise also produces far fewer tasks -- ``N / gp2Scale_batch_size`` against
+        roughly ``(N / gp2Scale_batch_size)^2 / 2`` for block-wise -- so on a large
+        cluster it usually wants a smaller value than block-wise would.
+
+        These two meanings are **not comparable numbers**. At ``gp2Scale_batch_size=10000``
+        and N=1e6, block-wise sanctions 0.8 GB per task and row-wise 80 GB, so the same
+        setting can leave a computation local under one distribution and distribute it
+        under the other. That is deliberate -- each mode gets the memory its own user
+        actually declared.
+
+        The budget also decides **whether to distribute at all**: anything that fits in one
+        task is computed in a single kernel call instead, because scheduling costs more
+        than the work. A 10 000 x 2 cross-covariance takes 0.83 ms directly against 1.8 s
+        spread over 1000 dask tasks. That local call happens on the client, so it can hold
+        up to one task's budget in client memory -- worth remembering under ``"rowwise"``,
+        where the budget grows with N.
+
+        Cross-covariances -- the posterior's ``k(x_data, x_pred)`` and the ``k(x_old,
+        x_new)`` block of an append -- are **always cut into strips**, whatever
+        ``gp2Scale_distribution`` says, with the strip width taken from the budget above.
+        Blocking a tall thin matrix multiplies the task count without reducing per-task
+        memory, since the long axis has to be traversed either way.
     gp2Scale_distribution : str, optional
         How the covariance computation is cut across the workers in gp2Scale.
         ``"blockwise"`` (default) sends (row block, column block) pairs and, for the
         symmetric prior covariance, schedules only the upper triangle, so the cluster
         performs half the kernel evaluations and the host mirrors the result.
-        ``"rowwise"`` sends whole row strips and has each worker return a finished sparse
-        strip, so the assembly is a concatenation rather than a global re-sort on the
-        host. Row-wise cannot exploit symmetry and so doubles the kernel evaluations, but
+        ``"rowwise"`` sends whole row strips -- one kernel call per strip against every
+        column, ``gp2Scale_batch_size`` rows wide -- and has each worker return a
+        finished sparse strip, so the assembly is a concatenation rather than a global
+        re-sort on the host. Row-wise cannot exploit symmetry and so doubles the kernel evaluations, but
         it removes the host as a bottleneck and lowers its peak memory considerably; it is
         the better choice when assembly, not kernel evaluation, dominates the run time.
     dask_client : dask.distributed.Client, optional
@@ -518,16 +555,16 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
         is a 1d array of length N depending on how many hyperparameters are initialized.
         The default is a stationary anisotropic Matern kernel of first-order
         differentiability, which performs automatic relevance determination (ARD)
-        through one length scale per input dimension.
+        through one length scale per input dimension. The task
+        direction is simply considered an additional dimension. This kernel should only be used for tests and in the
+        simplest of cases.
         If ``gp2Scale`` is enabled, the default changes to a compactly supported anisotropic
         Wendland kernel instead -- compact support is what makes the covariance matrix sparse.
         Which one is used depends on ``compute_device``:
         :py:func:`fvgp.kernels.wendland_anisotropic_gp2Scale_cpu` or
         :py:func:`fvgp.kernels.wendland_anisotropic_gp2Scale_gpu`.
         See :py:mod:`fvgp.kernels` for those, their support-aware sparse variants, and the
-        other built-in kernels. The task
-        direction is simply considered an additional dimension. This kernel should only be used for tests and in the
-        simplest of cases.
+        other built-in kernels.
         The output is a matrix, an N1 x N2 numpy array.
         This callable receives the full hyperparameter vector but must only use
         the indices reserved for the kernel (disjoint from mean and noise indices).
@@ -595,15 +632,52 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
         The default kernel will use the specified device to compute covariances.
         The default is False.
     gp2Scale_batch_size : int, optional
-        Matrix batch size for distributed computing in gp2Scale. The default is 10000.
+        How finely the covariance is cut up for distributed computing in gp2Scale.
+        The default is 10000. It is a **maximum, not a target**: every chunk is exactly
+        this size except the last along each axis, which carries the remainder -- 100000
+        points at 15000 give six chunks of 15000 and one of 10000.
+
+        What it sizes depends on ``gp2Scale_distribution``. For ``"blockwise"`` it is the
+        side of a square block, so a worker evaluates
+        ``gp2Scale_batch_size x gp2Scale_batch_size``. For ``"rowwise"`` it is the
+        **strip width**: a worker evaluates ``gp2Scale_batch_size x N``, the whole row at
+        once. With a dense kernel that allocation is what bounds worker memory, so pick
+        it against the memory a worker has -- at N=100000 a strip width of 10000 is 8 GB
+        in float64. Compactly supported kernels that return a sparse block
+        (:py:func:`fvgp.kernels.wendland_anisotropic_gp2Scale_cpu_sparse`) never
+        materialize it.
+
+        Row-wise also produces far fewer tasks -- ``N / gp2Scale_batch_size`` against
+        roughly ``(N / gp2Scale_batch_size)^2 / 2`` for block-wise -- so on a large
+        cluster it usually wants a smaller value than block-wise would.
+
+        These two meanings are **not comparable numbers**. At ``gp2Scale_batch_size=10000``
+        and N=1e6, block-wise sanctions 0.8 GB per task and row-wise 80 GB, so the same
+        setting can leave a computation local under one distribution and distribute it
+        under the other. That is deliberate -- each mode gets the memory its own user
+        actually declared.
+
+        The budget also decides **whether to distribute at all**: anything that fits in one
+        task is computed in a single kernel call instead, because scheduling costs more
+        than the work. A 10 000 x 2 cross-covariance takes 0.83 ms directly against 1.8 s
+        spread over 1000 dask tasks. That local call happens on the client, so it can hold
+        up to one task's budget in client memory -- worth remembering under ``"rowwise"``,
+        where the budget grows with N.
+
+        Cross-covariances -- the posterior's ``k(x_data, x_pred)`` and the ``k(x_old,
+        x_new)`` block of an append -- are **always cut into strips**, whatever
+        ``gp2Scale_distribution`` says, with the strip width taken from the budget above.
+        Blocking a tall thin matrix multiplies the task count without reducing per-task
+        memory, since the long axis has to be traversed either way.
     gp2Scale_distribution : str, optional
         How the covariance computation is cut across the workers in gp2Scale.
         ``"blockwise"`` (default) sends (row block, column block) pairs and, for the
         symmetric prior covariance, schedules only the upper triangle, so the cluster
         performs half the kernel evaluations and the host mirrors the result.
-        ``"rowwise"`` sends whole row strips and has each worker return a finished sparse
-        strip, so the assembly is a concatenation rather than a global re-sort on the
-        host. Row-wise cannot exploit symmetry and so doubles the kernel evaluations, but
+        ``"rowwise"`` sends whole row strips -- one kernel call per strip against every
+        column, ``gp2Scale_batch_size`` rows wide -- and has each worker return a
+        finished sparse strip, so the assembly is a concatenation rather than a global
+        re-sort on the host. Row-wise cannot exploit symmetry and so doubles the kernel evaluations, but
         it removes the host as a bottleneck and lowers its peak memory considerably; it is
         the better choice when assembly, not kernel evaluation, dominates the run time.
     dask_client : dask.distributed.Client, optional
