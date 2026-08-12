@@ -2,8 +2,14 @@
 History
 =======
 
-Unreleased
-----------
+8.5.0 — 2026-08-12
+------------------
+
+A minor-version bump rather than a patch: ``from gpcam import AutonomousExperimenterGP``
+now raises ``ImportError``. Nothing that *worked* stops working -- those classes had
+raised on construction for several releases -- but an import-level break does not belong
+in a patch release. The release also carries the Python 3.10--3.14 support and the
+dependency ranges, which existed only in the repository until now.
 
 Removals
 ~~~~~~~~
@@ -22,9 +28,9 @@ Removals
 Dependencies
 ~~~~~~~~~~~~
 
-* Require ``fvgp ~= 4.8.7`` (was ``~= 4.8.6``). ``~=`` already admitted any later 4.8.z,
-  so this raises the floor only, but 4.8.7 is where the behavior gpCAM's docstrings now
-  describe actually lives. Two things come with it, both inherited rather than wrapped:
+* Require ``fvgp ~= 4.8.8`` (was ``~= 4.8.6``). ``~=`` already admitted any later 4.8.z,
+  so this raises the floor only, but 4.8.7/4.8.8 are where the behavior gpCAM's docstrings
+  now describe actually lives. Three things come with it, all inherited rather than wrapped:
 
   - **Row-wise distribution is genuinely row-wise.** A ``"rowwise"`` worker evaluates one
     strip against every column in a single kernel call, so ``gp2Scale_batch_size`` is a
@@ -39,6 +45,13 @@ Dependencies
     ``'global'``, ``'mcmc'``, ``'bo'`` and asynchronous training are unaffected.
     ``GPOptimizer`` and ``fvGPOptimizer`` inherit ``train`` from fvGP, so this needs no
     gpCAM code and is available on both.
+  - **``method='bo'`` now says so when it returns the hyperparameters it started from.**
+    Nothing beating the warm start is a legitimate answer, but it is indistinguishable
+    from a run that silently did nothing. The warning reports how many points were
+    evaluated, why the run stopped, and recommends ``method='local'`` or ``'mcmc'``,
+    which follow the variance/length-scale ridge of a marginal likelihood that a
+    space-filling design and an axis-aligned surrogate both miss. Worth knowing before
+    tuning many hyperparameters through ``GPOptimizer.train``.
 
 * gpCAM supports Python 3.10 through 3.14, and CI tests all five (was 3.11 and 3.12).
   The obstacle was never the code but the ``~=`` pins: ``scipy ~= 1.16.0`` requires

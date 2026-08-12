@@ -69,7 +69,7 @@ hatch build                       # build sdist + wheel (version comes from git 
 
 ### Version state
 
-The repo is on the **8.4.x line** (latest tag `8.4.3`, `fvgp ~= 4.8.7`), which is now the recommended one — the beta warning was retired once 8.4 proved solid. Users on the older **8.3.9** may still turn up, and HISTORY.rst plus the README upgrade note are the migration reference. 8.4.1 → 8.4.2 was a docs/skills-only release (identical wheel), so a HISTORY entry does not imply library changes. Constructor/method kwargs renamed in 8.4:
+The repo is on the **8.5.x line** (latest tag `8.5.0`, `fvgp ~= 4.8.8`), which is now the recommended one — the beta warning was retired once 8.4 proved solid. Users on the older **8.3.9** may still turn up, and HISTORY.rst plus the README upgrade note are the migration reference. 8.4.1 → 8.4.2 was a docs/skills-only release (identical wheel), so a HISTORY entry does not imply library changes. Constructor/method kwargs renamed in 8.4:
 
 | Old (8.3.x) | New (8.4.x) |
 |---|---|
@@ -82,7 +82,7 @@ When answering user questions or writing examples, use the new names — but rec
 
 ### The big picture
 
-**gpCAM is a thin Bayesian-optimization / autonomous-data-acquisition layer on top of the [`fvgp`](https://github.com/lbl-camera/fvgp) package** (`fvgp ~= 4.8.6` in `pyproject.toml` — `~=` allows any later 4.8.z but not 4.9). The floor is 4.8.6 because that is the release carrying `gp2Scale_distribution`; forwarding a keyword an older fvGP does not have is a `TypeError`, not a graceful no-op, so the floor must move whenever a new constructor argument is passed through. The actual GP math — kernels, hyperparameter training, posterior evaluation, MCMC, deep kernels — lives in `fvgp`. gpCAM adds the `ask`/`tell`/`train`/`optimize` loop and acquisition-function optimization on top.
+**gpCAM is a thin Bayesian-optimization / autonomous-data-acquisition layer on top of the [`fvgp`](https://github.com/lbl-camera/fvgp) package** (`fvgp ~= 4.8.8` in `pyproject.toml` — `~=` allows any later 4.8.z but not 4.9). The floor moved to 4.8.6 for `gp2Scale_distribution`, then to 4.8.8 for the row-wise strip semantics and `train(accept_only_if_improved=...)` that gpCAM's docstrings describe; forwarding a keyword an older fvGP does not have is a `TypeError`, not a graceful no-op, so the floor must move whenever a new constructor argument is passed through. Behavior gpCAM only *inherits* (it overrides no fvGP method) needs no floor bump to reach users, since `~=` admits later 4.8.z on its own — but the floor is still worth raising when the docs start describing it. The actual GP math — kernels, hyperparameter training, posterior evaluation, MCMC, deep kernels — lives in `fvgp`. gpCAM adds the `ask`/`tell`/`train`/`optimize` loop and acquisition-function optimization on top.
 
 This means **the most important architectural fact is what is NOT in this repo**:
 
@@ -163,7 +163,7 @@ The two set-valued acquisitions are both KL divergences but answer different que
 
 ### Removed code
 
-`AutonomousExperimenterGP` / `AutonomousExperimenterFvGP` and their module are **gone** as of 8.4.3. They had raised on construction for some time; the names are now absent entirely, so old code gets an `ImportError` rather than a deprecation message. If someone turns up with `from gpcam import AutonomousExperimenterGP`, point them at `GPOptimizer`/`fvGPOptimizer` used directly (the ask/tell/train loop above), or at the Tsuchinoko package. `obsolete/` still holds the two superseded notebooks; it is not packaged or importable.
+`AutonomousExperimenterGP` / `AutonomousExperimenterFvGP` and their module are **gone** as of 8.5.0. They had raised on construction for some time; the names are now absent entirely, so old code gets an `ImportError` rather than a deprecation message. If someone turns up with `from gpcam import AutonomousExperimenterGP`, point them at `GPOptimizer`/`fvGPOptimizer` used directly (the ask/tell/train loop above), or at the Tsuchinoko package. `obsolete/` still holds the two superseded notebooks; it is not packaged or importable.
 
 ## Reference materials
 

@@ -1,14 +1,14 @@
 ---
 name: gp2scale-advanced
 description: Use for large-scale gpCAM experiments (>10k points up to millions) using sparse compactly-supported kernels and Dask distributed computing for exact GP computation at scale.
-gpcam_version: "8.4.x"
-fvgp_version: "4.8.x"
-last_verified: "2026-07-23 (gpCAM dadeb65)"
+gpcam_version: "8.5.x"
+fvgp_version: "4.8.8"
+last_verified: "2026-08-12 (gpCAM 03bc99c)"
 ---
 
 # Skill: gp2Scale — Large-Scale GPs
 
-*Verified against gpCAM 8.4.x / fvgp 4.8.x — last checked 2026-07-23 (gpCAM `dadeb65`).*
+*Verified against gpCAM 8.5.x / fvgp 4.8.8 — last checked 2026-08-12 (gpCAM `03bc99c`).*
 
 Design experiments with tens of thousands to millions of data points using gpCAM's gp2Scale mode for exact GP computation at scale.
 
@@ -42,8 +42,9 @@ gpo = GPOptimizer(
     y_data=y_data,
     gp2Scale=True,
     dask_client=client,
-    # gp2Scale_batch_size defaults to 10000 — leave it alone unless profiling
-    # says otherwise. See "Choosing the Batch Size" below.
+    # gp2Scale_batch_size defaults to 10000 and gp2Scale_distribution to "blockwise".
+    # Leave both alone unless profiling says otherwise — the batch size means
+    # different things under the two distributions. See "Choosing the Batch Size".
     init_hyperparameters=np.array([0.73, 0.0014]),  # signal var, length scale
 )
 
@@ -52,11 +53,42 @@ gpo.train(hyperparameter_bounds=hps_bounds, max_iter=25, info=True)
 
 ## Choosing the Batch Size
 
-`gp2Scale_batch_size` is the side length of the covariance sub-blocks handed to Dask
-workers. **The default is 10000 and is the right starting point.** Blocks are
-`batch_size × batch_size`, so the number of tasks scales as `(N / batch_size)²` —
-dropping the batch size by 20× multiplies the task count by 400 and the run becomes
-scheduler-bound rather than compute-bound.
+`gp2Scale_batch_size` is a **memory budget per Dask task**, and what it sizes depends on
+`gp2Scale_distribution`. **The default is 10000 with `"blockwise"`, and that is the right
+starting point.**
+
+| `gp2Scale_distribution` | one task computes | task count |
+|---|---|---|
+| `"blockwise"` (default) | a `batch_size × batch_size` block | `(N / batch_size)² / 2` — upper triangle only |
+| `"rowwise"` | a `batch_size × N` **row strip**, in one kernel call | `N / batch_size` |
+
+So under block-wise, dropping the batch size by 20× multiplies the task count by 400 and
+the run becomes scheduler-bound rather than compute-bound. Under row-wise the count grows
+only linearly, so row-wise usually wants a *smaller* batch size than block-wise — it can
+otherwise leave a large cluster with fewer tasks than workers.
+
+The two numbers are **not comparable**. At `batch_size=10000` and N=1e6, block-wise
+sanctions 0.8 GB per task and row-wise 80 GB, so the same setting can leave a computation
+on the client under one mode and distribute it under the other.
+
+That budget also decides **whether to distribute at all**: anything that fits inside one
+task is computed in a single kernel call on the client instead, because scheduling costs
+more than the work. This is what stops a tall thin cross-covariance from being shredded —
+a 10000 × 2 posterior cross-covariance takes 0.83 ms directly against 1.8 s spread over
+1000 tasks. Cross-covariances (`k(x_data, x_pred)` for the posterior, `k(x_old, x_new)`
+when appending) are always cut into **strips** whatever the distribution says, since
+blocking a tall thin matrix multiplies tasks without reducing per-task memory.
+
+Chunks are a **maximum with a remainder**, not an exact division: N=100000 at 15000 gives
+six chunks of 15000 and one of 10000.
+
+Whether row-wise wins depends on the kernel, not the assembly. It cannot exploit symmetry
+so it doubles the kernel evaluations, but each worker returns a finished sparse strip and
+the host merely concatenates. Measured at N=6000 on 2 workers: with a **dense** kernel
+block-wise is ahead (0.85 s vs 1.39 s — row-wise pays 2× evaluations for nothing), but
+with the **support-aware sparse** kernel row-wise wins (0.171 s vs 0.193 s), because a
+whole row lets it prune in a single neighbor search. Reach for row-wise when host assembly
+is the bottleneck, or to cap host peak memory at the finished matrix plus one strip.
 
 Tune only if profiling shows a problem, and in this direction:
 
@@ -66,10 +98,13 @@ Tune only if profiling shows a problem, and in this direction:
 | Workers running out of memory on a single block | **Decrease** batch size |
 | Many workers idle because there are fewer blocks than workers | **Decrease**, so `(N / batch_size)² ≳ n_workers` |
 
-The constraint is that one block must fit comfortably in one worker's memory
-(`batch_size² × 8` bytes for float64 — 10000 gives an 800 MB dense block, which is why
-the compact-support kernel producing a *sparse* block matters), while still producing
-enough blocks to keep every worker busy.
+The constraint is that one task must fit comfortably in one worker's memory, while still
+producing enough tasks to keep every worker busy. Block-wise that is `batch_size² × 8`
+bytes for float64 — 10000 gives an 800 MB dense block. Row-wise it is `batch_size × N × 8`,
+which is 8 GB at N=100000 and a 10000 strip: that allocation, not the task count, is what
+bounds worker memory under row-wise. Either way this is why the compact-support kernel
+producing a *sparse* block matters — with
+`wendland_anisotropic_gp2Scale_cpu_sparse` the dense array is never materialized.
 
 Estimate the covariance-assembly time before committing to a long run — time one
 block on one worker, then:

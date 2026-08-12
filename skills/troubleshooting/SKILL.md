@@ -1,14 +1,14 @@
 ---
 name: troubleshooting
 description: Use when a gpCAM script crashes or misbehaves — Cholesky/non-positive-definite errors, singular covariance, hyperparameter bounds mismatches, NaNs, kernel signature errors, Dask hangs, pickling failures, or an ask/tell loop that keeps picking the same point. Maps the actual error text to the cause and the fix.
-gpcam_version: "8.4.x"
-fvgp_version: "4.8.x"
-last_verified: "2026-07-23 (gpCAM dadeb65)"
+gpcam_version: "8.5.x"
+fvgp_version: "4.8.8"
+last_verified: "2026-08-12 (gpCAM 03bc99c)"
 ---
 
 # Skill: Troubleshooting gpCAM
 
-*Verified against gpCAM 8.4.x / fvgp 4.8.x — last checked 2026-07-23 (gpCAM `dadeb65`).*
+*Verified against gpCAM 8.5.x / fvgp 4.8.8 — last checked 2026-08-12 (gpCAM `03bc99c`).*
 
 A decision tree from the error you actually saw to the thing that is actually wrong.
 The audience is a scientist who does not want to learn GP internals to get unstuck.
@@ -31,6 +31,8 @@ list of likely causes inline. The Cholesky failure in particular prints
 | `LogGPOptimizer requires strictly positive observations` | [Constrained data](#constrained-observations) |
 | Script hangs / spawns endless processes | [Dask & multiprocessing](#dask-hangs-and-process-storms) |
 | `PicklingError` / `Can't pickle local object` | [Pickling](#pickling-and-checkpointing) |
+| `returned the hyperparameters it started from` (warning) | [train() changed nothing](#train-returned-and-the-hyperparameters-did-not-change) |
+| `they were rejected and the previous hyperparameters kept` (warning) | [train() changed nothing](#train-returned-and-the-hyperparameters-did-not-change) |
 | No error, but the loop misbehaves | [Silent problems](#silent-problems-no-exception) |
 
 ---
@@ -347,6 +349,36 @@ h1 = gpo.hyperparameters.copy(); h2 = h1.copy(); h2[i] *= 1.5
 assert not np.isclose(gpo.log_likelihood(hyperparameters=h1),
                       gpo.log_likelihood(hyperparameters=h2)), f"hps[{i}] does nothing"
 ```
+
+### `train()` returned and the hyperparameters did not change
+
+Two different causes, and since fvgp 4.8.8 both announce themselves — read the warning
+rather than guessing.
+
+**"returned the hyperparameters it started from"** — `method='bo'` evaluated its whole
+design and nothing beat the starting point. That is a real answer, not a crash, and it is
+usually right: a marginal likelihood has a narrow ridge along which the signal variance
+and the length scales trade off *together*, so every one-at-a-time move off it looks
+useless. A space-filling design cannot land on a curve of that shape, and BO's
+axis-aligned surrogate cannot follow it. It gets worse fast with the hyperparameter count.
+Switch to `method='local'` or `'mcmc'`, which follow such a ridge directly — measured on a
+14-hyperparameter problem, BO returned the start at log-likelihood −93.4 while `local`
+from the *same* start reached −43.2. Use `bo` only where it earns its keep: an expensive,
+noisy, gradient-free likelihood (the gp2Scale/mBCG regime).
+
+Note also that `method='bo'` stops on `bo_args['patience']` (default 10) long before
+`max_iter`; raising `max_iter` alone changes nothing.
+
+**"they were rejected and the previous hyperparameters kept"** — `train()` found worse
+hyperparameters and rolled back, which `accept_only_if_improved=True` (the default) does
+for `method` in `'local'`, `'hgdl'`, `'adam'` or a callable. `'local'` accepts SciPy's
+point regardless of its `success` flag, so this fires most often there. It means training
+genuinely failed to improve, not that the guard misfired — give it a different
+`init_hyperparameters`, wider bounds, or more iterations. Pass
+`accept_only_if_improved=False` to take the worse point anyway.
+
+A change of *zero* with no warning at all is a third thing: `method='mcmc'` returns the
+posterior median, so repeating it on converged hyperparameters is expected to move little.
 
 ### Error bars look wrong
 

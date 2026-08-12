@@ -16,7 +16,7 @@ dependencies = [
     "numpy >= 2.1",
     "dask >= 2024.1",
     "distributed >= 2024.1",
-    "fvgp ~= 4.8.7",
+    "fvgp ~= 4.8.8",
     "loguru",
 ]
 requires-python = ">=3.10"

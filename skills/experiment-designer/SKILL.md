@@ -1,14 +1,14 @@
 ---
 name: experiment-designer
 description: Use for end-to-end autonomous experiment design with gpCAM. Translates a scientist's description of their measurement into a complete, runnable gpCAM script — useful for replacing raster scans with adaptive sampling, peak-finding, or parameter optimization.
-gpcam_version: "8.4.x"
-fvgp_version: "4.8.x"
-last_verified: "2026-07-30 (gpCAM d45db2c + issue #55 fix)"
+gpcam_version: "8.5.x"
+fvgp_version: "4.8.8"
+last_verified: "2026-08-12 (gpCAM 03bc99c)"
 ---
 
 # Skill: gpCAM Experiment Designer
 
-*Verified against gpCAM 8.4.x / fvgp 4.8.x — last checked 2026-07-30 (gpCAM `d45db2c` + the issue #55 fix).*
+*Verified against gpCAM 8.5.x / fvgp 4.8.8 — last checked 2026-08-12 (gpCAM `03bc99c`).*
 
 Design complete autonomous experiment scripts using gpCAM. You translate a scientist's description of their measurement into a runnable Python script.
 
@@ -60,7 +60,7 @@ Based on their answers, decide:
 | **Acquisition function** | **Do not pick this one on your own — read the `acquisition-functions` skill and confirm the choice with the scientist.** It's the argument that decides where the instrument actually goes, and several built-ins have gpCAM-specific behavior that surprises people (plain EI is maximization-only, and on gpCAM ≤ 8.4.2 it degenerates to pure exploration; `ask(n>1)` silently overrides string acquisitions). Starting points, all subject to confirmation: `'variance'` for exploration/mapping; `'ucb'` for maximization (`beta` fixed at 3.0 — write a callable to tune it); `'lcb'` for **minimization**; `'noisy expected improvement'` when measurements are noisy, or `'knowledge gradient'` for lookahead that keeps exploring when EI stalls — both also work multi-task; `'gradient'` or a radical-gradient callable to map where the signal changes; a custom callable for multi-objective or constraints. Do **not** default to `'expected improvement'`. |
 | **Prior mean** | Default is a **constant equal to `mean(y_data)`** — not zero. Away from data the posterior reverts to that constant. Override with `prior_mean_function=` only if they have a physical model. See `prior-mean-functions` skill. |
 | **Noise model** | Use `noise_variances` if noise is known and uniform. Use `noise_function` if noise varies. See `noise-functions` skill. |
-| **Training strategy** | `method='global'` for first training, `method='local'` for re-training during the loop. Other options: `"mcmc"` (Bayesian — returns posterior samples over hyperparameters), `"adam"` (stochastic-gradient, fast, works well for high-dimensional hyperparameter vectors like deep kernels), `"hgdl"` (distributed local+global hybrid — needs a `dask_client`). |
+| **Training strategy** | `method='global'` for first training, `method='local'` for re-training during the loop. Other options: `"mcmc"` (Bayesian — returns posterior samples over hyperparameters), `"adam"` (stochastic-gradient, fast, works well for high-dimensional hyperparameter vectors like deep kernels), `"hgdl"` (distributed local+global hybrid — needs a `dask_client`). Since fvgp 4.8.8, in-loop `local` re-training cannot make the model worse: `train(accept_only_if_improved=True)` is the default and rolls back to the incumbent hyperparameters with a warning when the optimizer returns a lower marginal likelihood. Expect that warning occasionally in a long loop — it means that round of training found nothing, not that the loop is broken. |
 | **linalg_mode** | Leave at the default (`None`) — gpCAM picks `"Chol"` automatically. For frequent posterior-covariance calls on small datasets (<5 000 points), set `linalg_mode="CholInv"` to store the inverse for a 3-10× speedup. For sparse / gp2Scale problems, see the `gp2scale-advanced` skill. |
 | **Number of initial points** | Rule of thumb: 5-10× the input dimensionality for initial random sampling. |
 | **Input scaling** | gpCAM does **not** normalize inputs internally. With mixed units (mm, °C, volts) each dimension keeps its own scale, so per-dimension length-scale bounds must be derived from that dimension's own range — which the template below does. See "Input Scaling" below. |
