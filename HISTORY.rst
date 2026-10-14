@@ -2,14 +2,19 @@
 History
 =======
 
-8.6.0 — unreleased
+8.6.1 — 2026-10-14
 ------------------
 
-Requires fvgp 4.9.2, and passes its new options through. 4.9.2 never runs CG on a broken
-preconditioner: a factor containing NaN or inf (an incomplete factorization that broke
-down silently) counts as a failed build, any CG solve that fails is redone with
-unpreconditioned MINRES, and CG is capped at 5000 iterations, 500 with a preconditioner
-(``args["sparse_cg_maxiter"]``). The constructor docstrings describe this.
+Requires fvgp 4.9.2. That release never runs CG on a broken preconditioner: a factor
+containing NaN or inf (an incomplete factorization that broke down silently) counts as a
+failed build, any CG solve that fails is redone with unpreconditioned MINRES, and CG is
+capped at 5000 iterations, 500 with a preconditioner (``args["sparse_cg_maxiter"]``). The
+constructor docstrings describe this. No gpCAM code changes.
+
+8.6.0 — 2026-10-14
+------------------
+
+Requires fvgp 4.9.1, and passes its new options through.
 
 Breaking changes
 ~~~~~~~~~~~~~~~~
