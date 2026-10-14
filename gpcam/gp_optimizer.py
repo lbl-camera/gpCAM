@@ -234,7 +234,9 @@ class GPOptimizer(GPOptimizerBase):
           In both preconditioned modes, training builds a preconditioner only once it is
           likely to be reused (see ``args["sparse_preconditioner_lazy"]``): until the
           hyperparameters settle, and whenever building fails, a training evaluation is
-          solved with unpreconditioned MINRES instead.
+          solved with unpreconditioned MINRES instead. A preconditioner containing NaN or
+          inf -- an incomplete factorization can break down without raising -- counts as
+          failed, and any CG solve that fails is redone with unpreconditioned MINRES.
         * ``"sparseCGpre_<type>"`` / ``"sparseMINRESpre_<type>"`` — shortcut that sets
           ``args["sparse_preconditioner_type"]`` to ``<type>`` (e.g. ``"sparseCGpre_amg"``).
 
@@ -330,7 +332,11 @@ class GPOptimizer(GPOptimizerBase):
 
         - "sparse_cg_tol" : float; default = 1e-5
         - "sparse_minres_tol" : float; default = 1e-5
-        - "sparse_cg_maxiter" : int; default = None (use scipy default)
+        - "sparse_cg_maxiter" : int; default = 5000 for plain CG, 500 with a
+          preconditioner (a working one converges in tens of iterations); None for
+          scipy's default (10 N). A CG solve that does not converge within it, or produces
+          a non-finite iterate (a broken preconditioner), is redone with unpreconditioned
+          MINRES, with a warning.
         - "sparse_minres_maxiter" : int; default = None (use scipy default)
         - "sparse_krylov_maxiter" : int; default = None (applies to both if the
           solver-specific key is not set)
@@ -739,7 +745,9 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
           In both preconditioned modes, training builds a preconditioner only once it is
           likely to be reused (see ``args["sparse_preconditioner_lazy"]``): until the
           hyperparameters settle, and whenever building fails, a training evaluation is
-          solved with unpreconditioned MINRES instead.
+          solved with unpreconditioned MINRES instead. A preconditioner containing NaN or
+          inf -- an incomplete factorization can break down without raising -- counts as
+          failed, and any CG solve that fails is redone with unpreconditioned MINRES.
         * ``"sparseCGpre_<type>"`` / ``"sparseMINRESpre_<type>"`` — shortcut that sets
           ``args["sparse_preconditioner_type"]`` to ``<type>`` (e.g. ``"sparseCGpre_amg"``).
 
@@ -835,7 +843,11 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
 
         - "sparse_cg_tol" : float; default = 1e-5
         - "sparse_minres_tol" : float; default = 1e-5
-        - "sparse_cg_maxiter" : int; default = None (use scipy default)
+        - "sparse_cg_maxiter" : int; default = 5000 for plain CG, 500 with a
+          preconditioner (a working one converges in tens of iterations); None for
+          scipy's default (10 N). A CG solve that does not converge within it, or produces
+          a non-finite iterate (a broken preconditioner), is redone with unpreconditioned
+          MINRES, with a warning.
         - "sparse_minres_maxiter" : int; default = None (use scipy default)
         - "sparse_krylov_maxiter" : int; default = None (applies to both if the
           solver-specific key is not set)
