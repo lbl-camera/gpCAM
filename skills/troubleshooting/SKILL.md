@@ -2,13 +2,13 @@
 name: troubleshooting
 description: Use when a gpCAM script crashes or misbehaves — Cholesky/non-positive-definite errors, singular covariance, hyperparameter bounds mismatches, NaNs, kernel signature errors, Dask hangs, pickling failures, or an ask/tell loop that keeps picking the same point. Maps the actual error text to the cause and the fix.
 gpcam_version: "8.6.x"
-fvgp_version: "4.9.0"
-last_verified: "2026-10-14 (fvgp 4.9.0)"
+fvgp_version: "4.9.1"
+last_verified: "2026-10-14 (fvgp 4.9.1)"
 ---
 
 # Skill: Troubleshooting gpCAM
 
-*Verified against gpCAM 8.6.x / fvgp 4.9.0 — last checked 2026-10-14.*
+*Verified against gpCAM 8.6.x / fvgp 4.9.1 — last checked 2026-10-14.*
 
 A decision tree from the error you actually saw to the thing that is actually wrong.
 The audience is a scientist who does not want to learn GP internals to get unstuck.

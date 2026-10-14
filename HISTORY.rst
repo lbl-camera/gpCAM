@@ -5,7 +5,7 @@ History
 8.6.0 — unreleased
 ------------------
 
-Requires fvgp 4.9.0, and passes its new options through.
+Requires fvgp 4.9.1, and passes its new options through.
 
 Breaking changes
 ~~~~~~~~~~~~~~~~

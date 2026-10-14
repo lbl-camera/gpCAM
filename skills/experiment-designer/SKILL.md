@@ -2,13 +2,13 @@
 name: experiment-designer
 description: Use for end-to-end autonomous experiment design with gpCAM. Translates a scientist's description of their measurement into a complete, runnable gpCAM script — useful for replacing raster scans with adaptive sampling, peak-finding, or parameter optimization.
 gpcam_version: "8.6.x"
-fvgp_version: "4.9.0"
-last_verified: "2026-10-14 (fvgp 4.9.0)"
+fvgp_version: "4.9.1"
+last_verified: "2026-10-14 (fvgp 4.9.1)"
 ---
 
 # Skill: gpCAM Experiment Designer
 
-*Verified against gpCAM 8.6.x / fvgp 4.9.0 — last checked 2026-10-14.*
+*Verified against gpCAM 8.6.x / fvgp 4.9.1 — last checked 2026-10-14.*
 
 Design complete autonomous experiment scripts using gpCAM. You translate a scientist's description of their measurement into a runnable Python script.
 

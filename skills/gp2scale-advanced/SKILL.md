@@ -2,13 +2,13 @@
 name: gp2scale-advanced
 description: Use for large-scale gpCAM experiments (>10k points up to millions) using sparse compactly-supported kernels and Dask distributed computing for exact GP computation at scale.
 gpcam_version: "8.6.x"
-fvgp_version: "4.9.0"
-last_verified: "2026-10-14 (fvgp 4.9.0)"
+fvgp_version: "4.9.1"
+last_verified: "2026-10-14 (fvgp 4.9.1)"
 ---
 
 # Skill: gp2Scale — Large-Scale GPs
 
-*Verified against gpCAM 8.6.x / fvgp 4.9.0 — last checked 2026-10-14.*
+*Verified against gpCAM 8.6.x / fvgp 4.9.1 — last checked 2026-10-14.*
 
 Design experiments with tens of thousands to millions of data points using gpCAM's gp2Scale mode for exact GP computation at scale.
 
