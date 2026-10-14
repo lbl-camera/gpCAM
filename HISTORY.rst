@@ -2,6 +2,60 @@
 History
 =======
 
+8.6.0 — unreleased
+------------------
+
+Requires fvgp 4.9.0, and passes its new options through.
+
+Breaking changes
+~~~~~~~~~~~~~~~~
+
+* The constructor argument ``ram_economy`` of ``GPOptimizer`` and ``fvGPOptimizer`` is
+  now ``gradient_per_direction``, following fvgp 4.9. It never governed RAM alone: it
+  decides whether a user's ``kernel_function_grad`` and ``noise_function_grad`` take a
+  ``direction`` argument and return one hyperparameter's slice, or return the full stack.
+  Optimizers pickled with the old name load unchanged.
+
+Changes inherited from fvgp 4.9
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+gpCAM overrides none of these methods, so they reach every ``GPOptimizer``; the docstrings
+are fvgp's.
+
+* **The default trainer is local optimization with restarts.** ``gpo.train()`` without a
+  ``method`` runs ``method='local'`` from ``n_restarts=5`` starting points and keeps the
+  best -- as accurate on held-out data as MCMC in fvgp's measurements, 2-4x faster. Under
+  gp2Scale and with ``asynchronous=True`` it stays ``mcmc``. Default fits therefore change:
+  they return the maximum-likelihood point rather than the MCMC posterior median, and
+  ``mcmc_info`` is not filled. Explicit ``method='local'`` calls now also restart five
+  times; ``n_restarts=1`` restores a single run. ``GPOptimizer.optimize()`` uses the
+  default for its first training too; its in-loop re-training (``training_method``,
+  default ``"global"``) is unchanged.
+* **MCMC fixed.** The proposal ignored its adapted step size, the stopping rule fired at
+  random, the result was the median of the last 1% of the chain, and the proposal's shape
+  was learned from the last 10 states only. ``train(method='mcmc')`` now reaches its
+  target acceptance, stops on a convergence check, returns the median after burn-in, and
+  samples positive scale-like hyperparameters in log space. New keywords:
+  ``mcmc_burn_in``, ``mcmc_break_condition``, ``mcmc_seed``, ``mcmc_log_scale``; new
+  ``gpcam.gp_mcmc.ess`` and ``split_rhat`` for multi-chain checks.
+* **gp2Scale.** Preconditioned modes build their preconditioner lazily during training
+  (``args["sparse_preconditioner_lazy"]``, ``"sparse_preconditioner_settle_steps"``), and
+  the stochastic log-determinant's 1% target (``random_logdet_error_rtol``) now holds for
+  negative log-determinants, which used to run all 5000 probes; ``random_logdet_error_atol``
+  sets an absolute target.
+* Measured noise is no longer added to prediction points that merely match the data in
+  number, and heteroscedastic ``noise_variances`` warn when their mean is used as the noise
+  at new points.
+
+Documentation
+~~~~~~~~~~~~~
+
+* Constructor docstrings re-synchronized with fvgp 4.9 (``gradient_per_direction``, the new
+  ``args`` keys).
+* The experiment-designer, troubleshooting and gp2Scale skills describe the new trainer,
+  the MCMC and the gp2Scale changes. The gp2Scale skill's ``gpMCMC`` example passed the
+  prior function where ``bounds`` belongs and is corrected.
+
 8.5.0 — 2026-08-12
 ------------------
 

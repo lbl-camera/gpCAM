@@ -1,14 +1,14 @@
 ---
 name: gp2scale-advanced
 description: Use for large-scale gpCAM experiments (>10k points up to millions) using sparse compactly-supported kernels and Dask distributed computing for exact GP computation at scale.
-gpcam_version: "8.5.x"
-fvgp_version: "4.8.8"
-last_verified: "2026-08-12 (gpCAM 03bc99c)"
+gpcam_version: "8.6.x"
+fvgp_version: "4.9.0"
+last_verified: "2026-10-14 (fvgp 4.9.0)"
 ---
 
 # Skill: gp2Scale — Large-Scale GPs
 
-*Verified against gpCAM 8.5.x / fvgp 4.8.8 — last checked 2026-08-12 (gpCAM `03bc99c`).*
+*Verified against gpCAM 8.6.x / fvgp 4.9.0 — last checked 2026-10-14.*
 
 Design experiments with tens of thousands to millions of data points using gpCAM's gp2Scale mode for exact GP computation at scale.
 
@@ -48,6 +48,9 @@ gpo = GPOptimizer(
     init_hyperparameters=np.array([0.73, 0.0014]),  # signal var, length scale
 )
 
+# Under gp2Scale, train() runs MCMC: its stochastic log-determinant rules out the
+# gradient-based default. max_iter=25 keeps this example quick; for a real fit leave it at
+# the default and let the convergence check end the chain (from 400 steps on).
 gpo.train(hyperparameter_bounds=hps_bounds, max_iter=25, info=True)
 ```
 
@@ -158,34 +161,55 @@ The incomplete-Cholesky options `"ichol"` / `"ichol0"` need the optional `ilupp`
 package and raise a clear `ImportError` with install instructions if it is missing;
 `"native_ic"` is a slower pure-Python fallback that always works.
 
+During training, a preconditioner is only worth building if it is reused: rebuilt for every
+likelihood evaluation, even a good one leaves CG slower than plain MINRES. So since fvgp 4.9
+the preconditioned modes build one lazily. While the hyperparameters still jump (an MCMC
+burn-in), training solves with unpreconditioned MINRES and builds nothing; once
+`args["sparse_preconditioner_settle_steps"]` (default 3) evaluations in a row stay close, one
+is built and reused for as long as K+V stays within `sparse_preconditioner_max_matrix_drift`
+of it. `args["sparse_preconditioner_lazy"]=False` restores building on every evaluation.
+
+The stochastic log-determinant stops sampling at `args["random_logdet_error_rtol"]`
+(default 0.01, i.e. 1% of |log|K+V||) or `random_logdet_max_num_samples`. Before fvgp 4.9 a
+negative log-determinant -- the common case -- never met the relative target and always ran
+all 5000 probes; it now stops at 1%, often 10x faster. `random_logdet_error_atol` sets an
+absolute target instead (with both given, the looser applies). Note that 1% of a large
+log-determinant is a likelihood error of several nats -- tighten it if MCMC acceptance
+decisions look noisy.
+
 **`"Chol"`, `"CholInv"`, and `"Inv"` are the dense (non-gp2Scale) modes** — do not use
 them here.
 
 ## Custom Block-MCMC Training
 
-For expensive gp2Scale likelihoods, standard `method="mcmc"` training may be too slow. gpCAM exposes a block Metropolis-Hastings sampler you can drive directly against the GP's log-likelihood:
+`train(method="mcmc")` -- the gp2Scale default -- is an adaptive Metropolis sampler: it
+tunes its step size toward 23% acceptance and learns the posterior's shape from the whole
+chain, samples positive hyperparameters spanning a decade in log space
+(`mcmc_log_scale="auto"`), and stops once a convergence check passes
+(`mcmc_break_condition="default"`; `None` runs exactly `max_iter` steps). The trained
+hyperparameters are the posterior median after `mcmc_burn_in` (0.5), and `mcmc_seed` makes
+the run reproducible. For full control, drive the sampler directly against the GP's
+log-likelihood:
 
 ```python
 import numpy as np
 from gpcam import gpMCMC, ProposalDistribution
-
-def in_bounds(v, bounds):
-    return not (any(v < bounds[:, 0]) or any(v > bounds[:, 1]))
-
-def prior_function(theta, args):
-    return 0.0 if in_bounds(theta, args["bounds"]) else -np.inf
 
 def log_likelihood(hps, args):
     return gpo.log_likelihood(hyperparameters=hps)   # exposed on GPOptimizer
 
 pd = ProposalDistribution([0, 1], init_prop_Sigma=np.identity(2) * 0.01)
 
-mcmc = gpMCMC(log_likelihood, prior_function, [pd],
-              args={"bounds": hps_bounds})
-result = mcmc.run_mcmc(x0=np.array([1.0, 0.01]), n_updates=200, info=True)
+# the default prior is flat within `bounds`; pass prior_function=f(theta, bounds, args) for another
+mcmc = gpMCMC(log_likelihood, bounds=hps_bounds, proposal_distributions=[pd])
+result = mcmc.run_mcmc(x0=np.array([1.0, 0.01]), n_updates=2000, info=True,
+                       break_condition="default", rng=0)
 
-gpo.set_hyperparameters(result["mean(x)"])
+gpo.set_hyperparameters(result["median(x)"])
 ```
+
+To check convergence properly, run several chains and compare them with
+`gpcam.gp_mcmc.split_rhat` (want < 1.01) and `gpcam.gp_mcmc.ess`.
 
 `ProposalDistribution` takes the list of hyperparameter indices in that block and an initial proposal covariance. Stack multiple `ProposalDistribution`s for block-wise updates of high-dimensional hyperparameter vectors (deep kernels, etc.).
 

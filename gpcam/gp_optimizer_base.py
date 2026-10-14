@@ -32,7 +32,7 @@ class GPOptimizerBase(GP):
             gp2Scale_batch_size=10000,
             gp2Scale_distribution="blockwise",
             linalg_mode=None,
-            ram_economy=False,
+            gradient_per_direction=False,
             cost_function=None,
             logging=False,
             multi_task=False,
@@ -52,7 +52,7 @@ class GPOptimizerBase(GP):
         self.gp2Scale_batch_size = gp2Scale_batch_size
         self.gp2Scale_distribution = gp2Scale_distribution
         self._linalg_mode = linalg_mode
-        self.ram_economy = ram_economy
+        self.gradient_per_direction = gradient_per_direction
         self._args = args
         self.logging = logging
         self.multi_task = multi_task
@@ -132,7 +132,7 @@ class GPOptimizerBase(GP):
             gp2Scale_batch_size=self.gp2Scale_batch_size,
             gp2Scale_distribution=self.gp2Scale_distribution,
             linalg_mode=self._linalg_mode,
-            ram_economy=self.ram_economy,
+            gradient_per_direction=self.gradient_per_direction,
             args=self._args
         )
         self.gp = True
@@ -745,7 +745,7 @@ class GPOptimizerBase(GP):
             gp2Scale_batch_size=self.gp2Scale_batch_size,
             gp2Scale_distribution=self.gp2Scale_distribution,
             _linalg_mode=self._linalg_mode,
-            ram_economy=self.ram_economy,
+            gradient_per_direction=self.gradient_per_direction,
             _args=self._args,
             logging=self.logging,
             multi_task=self.multi_task,
@@ -759,6 +759,9 @@ class GPOptimizerBase(GP):
         state['_dask_client'] = None
         # written before gp2Scale_distribution existed
         state.setdefault('gp2Scale_distribution', "blockwise")
+        # written while the option was still called ram_economy (gpCAM < 8.6)
+        if 'gradient_per_direction' not in state:
+            state['gradient_per_direction'] = state.pop('ram_economy', False)
         self.__dict__.update(state)
 
 

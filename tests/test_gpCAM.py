@@ -452,7 +452,7 @@ def test_pickle():
         init_hyperparameters=np.ones((4)) / 10.,
         compute_device="cpu",
         linalg_mode="Chol",
-        ram_economy=True,
+        gradient_per_direction=True,
         gp2Scale_batch_size=5000,
         cost_function=cost_f,
         args={"k": 7.})
@@ -462,9 +462,15 @@ def test_pickle():
                  "noise_function", "noise_function_grad",
                  "prior_mean_function", "prior_mean_function_grad",
                  "_gp2Scale", "gp2Scale_batch_size", "_linalg_mode",
-                 "ram_economy", "_args", "logging", "multi_task", "x_out", "gp"]:
+                 "gradient_per_direction", "_args", "logging", "multi_task", "x_out", "gp"]:
         assert cfg_equal(getattr(my_gpo, attr), getattr(my_gpo2, attr)), attr
     assert my_gpo2._dask_client is None
+    # a state pickled while the option was still called ram_economy
+    old_state = my_gpo.__getstate__()
+    old_state["ram_economy"] = old_state.pop("gradient_per_direction")
+    restored = GPOptimizer.__new__(GPOptimizer)
+    restored.__setstate__(old_state)
+    assert restored.gradient_per_direction is True and "ram_economy" not in restored.__dict__
 
     #TEST5
     #multi-task (fvGPOptimizer) pickling: exercises multi_task=True and x_out

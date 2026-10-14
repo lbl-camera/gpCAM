@@ -9,14 +9,13 @@ dependencies = [
     # Ranges, not `~=` pins: gpCAM supports Python 3.10 through 3.14, and no single
     # scipy/numpy release covers that span (scipy 1.16 requires >=3.11; scipy 1.18
     # requires >=3.12), so a `~=` pin makes both ends of the Python range
-    # uninstallable. With ranges, pip resolves per interpreter. Note that these are
-    # effectively decided upstream anyway: fvgp depends on hgdl, which `~=`-pins the
-    # whole scientific stack, so hgdl is what picks the versions a given Python gets.
+    # uninstallable. With ranges, pip resolves per interpreter. fvgp and hgdl (since
+    # 2.4) declare the same ranges, so no dependency pins the stack for us.
     "scipy >= 1.13",
     "numpy >= 2.1",
     "dask >= 2024.1",
     "distributed >= 2024.1",
-    "fvgp ~= 4.8.8",
+    "fvgp ~= 4.9.0",
     "loguru",
 ]
 requires-python = ">=3.10"

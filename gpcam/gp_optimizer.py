@@ -95,10 +95,10 @@ class GPOptimizer(GPOptimizerBase):
         ``x2`` (a N2 x D array of positions) and
         ``hyperparameters`` (a 1d array of length D+1 for the default kernel).
         The default is an analytical gradient for the default kernel or a finite difference calculation otherwise.
-        If ``ram_economy`` is True, the function's input is x1, x2, hyperparameters (numpy array), and a direction (int).
+        If ``gradient_per_direction`` is True, the function's input is x1, x2, hyperparameters (numpy array), and a direction (int).
         The output is a numpy array of shape (len(hps) x N).
-        If ``ram_economy`` is ``False``, the function's input is x1, x2, and hyperparameters.
-        The output is a numpy array of shape (len(hyperparameters) x N1 x N2). See ``ram_economy``.
+        If ``gradient_per_direction`` is ``False``, the function's input is x1, x2, and hyperparameters.
+        The output is a numpy array of shape (len(hyperparameters) x N1 x N2). See ``gradient_per_direction``.
     prior_mean_function : Callable, optional
         A function f(x, hyperparameters, [args]) that evaluates the prior mean at a set of input position.
         It accepts as input
@@ -140,7 +140,7 @@ class GPOptimizer(GPOptimizerBase):
         zeros are returned since the default noise function does not depend on
         hyperparameters, or, if ``noise_function`` is provided but no noise function gradient,
         a finite-difference approximation will be used.
-        The same rules regarding ``ram_economy`` as for the kernel definition apply here.
+        The same rules regarding ``gradient_per_direction`` as for the kernel definition apply here.
         That means the function will have an additional ``direction`` parameter.
     gp2Scale: bool, optional
         Turns on gp2Scale. This will distribute the covariance computations across multiple workers.
@@ -231,6 +231,10 @@ class GPOptimizer(GPOptimizerBase):
           ``"block_jacobi"``, ``"schwarz"``/``"additive_schwarz"``, or ``"amg"``
           (requires pyamg). The compiled IC options require the optional ``ilupp`` package.
         * ``"sparseMINRESpre"`` — preconditioned MINRES; same preconditioner choices.
+          In both preconditioned modes, training builds a preconditioner only once it is
+          likely to be reused (see ``args["sparse_preconditioner_lazy"]``): until the
+          hyperparameters settle, and whenever building fails, a training evaluation is
+          solved with unpreconditioned MINRES instead.
         * ``"sparseCGpre_<type>"`` / ``"sparseMINRESpre_<type>"`` — shortcut that sets
           ``args["sparse_preconditioner_type"]`` to ``<type>`` (e.g. ``"sparseCGpre_amg"``).
 
@@ -271,16 +275,16 @@ class GPOptimizer(GPOptimizerBase):
 
         **Migration note:** the ``calc_inv`` option from earlier gpCAM versions was removed;
         use ``linalg_mode="CholInv"`` (or ``"Inv"``) for the equivalent stored-inverse behavior.
-    ram_economy : bool, optional
+    gradient_per_direction : bool, optional
         Only of interest if the gradient and/or Hessian of the log marginal likelihood is/are used for the training.
         If True, components of the derivative of the log marginal likelihood are
         calculated sequentially, leading to a slow-down
         but much less RAM usage. If the derivative of the kernel (and noise function) with
         respect to the hyperparameters (kernel_function_grad) is
-        going to be provided, it has to be tailored: for ``ram_economy=True`` it should be
+        going to be provided, it has to be tailored: for ``gradient_per_direction=True`` it should be
         of the form f(x, hyperparameters, direction)
         and return a 2d numpy array of shape len(x1) x len(x2).
-        If ``ram_economy=False``, the function should be of the form f(x, hyperparameters)
+        If ``gradient_per_direction=False``, the function should be of the form f(x, hyperparameters)
         and return a numpy array of shape
         H x len(x1) x len(x2), where H is the number of hyperparameters.
         CAUTION: This array will be stored and is very large.
@@ -303,7 +307,14 @@ class GPOptimizer(GPOptimizerBase):
         Stochastic-Lanczos logdet (sparse modes):
 
         - "random_logdet_lanczos_degree" : int; default = 20
-        - "random_logdet_error_rtol" : float; default = 0.01
+        - "random_logdet_error_rtol" : float; default = 0.01 — target error relative to
+          |log|K+V||. Sampling stops once it is reached or at
+          "random_logdet_max_num_samples", whichever comes first. The log marginal
+          likelihood contains -1/2 log|K+V|, so 1% means a likelihood error of about
+          0.005 * |log|K+V||.
+        - "random_logdet_error_atol" : float; default = None — target absolute error of
+          log|K+V|. If given alone it replaces the relative default; with both given, the
+          looser of the two applies.
         - "random_logdet_verbose" : True/False; default = False
         - "random_logdet_print_info" : True/False; default = False
         - "random_logdet_lanczos_compute_device" : str; default = "cpu"/"gpu"
@@ -349,6 +360,15 @@ class GPOptimizer(GPOptimizerBase):
         - "sparse_preconditioner_refresh_interval" : int; default = None (no cap) —
           optional hard cap on consecutive reuses, applied on top of the drift test
           above. ``set_KV`` always force-refreshes.
+        - "sparse_preconditioner_lazy" : True/False; default = True — during training,
+          build a new preconditioner only when it is likely to be reused (see
+          "sparse_preconditioner_settle_steps"), and otherwise solve that evaluation with
+          plain MINRES. Rebuilt for every evaluation, even a good preconditioner is slower
+          than MINRES without one. False builds whenever the cached one is stale.
+        - "sparse_preconditioner_settle_steps" : int; default = 3 — consecutive training
+          evaluations, each within "sparse_preconditioner_max_matrix_drift" of the previous
+          one, required before a new preconditioner is built. Separate from the drift test
+          above, which compares K+V with the matrix the cached preconditioner was built for.
         - "sparse_preconditioner_block_size" : int — block size for block_jacobi
           and additive_schwarz partitions
         - "sparse_preconditioner_schwarz_overlap" : int — overlap layers for
@@ -381,6 +401,11 @@ class GPOptimizer(GPOptimizerBase):
           the cached factor is kept until K+V has actually drifted past
           ``sparse_preconditioner_max_matrix_drift``. Reach for
           ``sparse_preconditioner_refresh_interval`` only to impose an extra hard cap.
+        - During training a preconditioner is built lazily: while the hyperparameters
+          still jump (an MCMC burn-in, or any method other than ``mcmc``, which cannot
+          reuse one), evaluations are solved with unpreconditioned MINRES and nothing is
+          built. Once ``sparse_preconditioner_settle_steps`` evaluations in a row stay
+          close, one is built and reused for as long as the drift test allows.
           ``sparse_krylov_warm_start`` is a separate opt-in and is honored only for
           ``train(method='mcmc')``, whose steps are small enough for the previous solution
           to be a good starting guess; the other methods sample non-locally, where a warm
@@ -439,7 +464,7 @@ class GPOptimizer(GPOptimizerBase):
             gp2Scale_batch_size=10000,
             gp2Scale_distribution="blockwise",
             linalg_mode=None,
-            ram_economy=False,
+            gradient_per_direction=False,
             cost_function=None,
             logging=False,
             args=None
@@ -460,7 +485,7 @@ class GPOptimizer(GPOptimizerBase):
                          gp2Scale_batch_size=gp2Scale_batch_size,
                          gp2Scale_distribution=gp2Scale_distribution,
                          linalg_mode=linalg_mode,
-                         ram_economy=ram_economy,
+                         gradient_per_direction=gradient_per_direction,
                          cost_function=cost_function,
                          logging=logging,
                          multi_task=False,
@@ -575,10 +600,10 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
         ``x2`` (a N2 x Di + 1 array of positions) and
         ``hyperparameters`` (a 1d array of length Di+2 for the default kernel).
         The default is an analytical gradient for the default kernel or a finite difference calculation otherwise.
-        If ``ram_economy`` is True, the function's input is x1, x2, hyperparameters (numpy array), and a direction (int).
+        If ``gradient_per_direction`` is True, the function's input is x1, x2, hyperparameters (numpy array), and a direction (int).
         The output is a numpy array of shape (len(hps) x N).
-        If ``ram_economy`` is ``False``, the function's input is x1, x2, and hyperparameters.
-        The output is a numpy array of shape (len(hyperparameters) x N1 x N2). See ``ram_economy``.
+        If ``gradient_per_direction`` is ``False``, the function's input is x1, x2, and hyperparameters.
+        The output is a numpy array of shape (len(hyperparameters) x N1 x N2). See ``gradient_per_direction``.
     prior_mean_function : Callable, optional
         A function f(x, hyperparameters, [args]) that evaluates the prior mean at a set of input position.
         It accepts as input
@@ -620,7 +645,7 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
         zeros are returned since the default noise function does not depend on
         hyperparameters, or, if ``noise_function`` is provided but no noise function gradient,
         a finite-difference approximation will be used.
-        The same rules regarding ``ram_economy`` as for the kernel definition apply here.
+        The same rules regarding ``gradient_per_direction`` as for the kernel definition apply here.
         That means the function will have an additional ``direction`` parameter.
     gp2Scale: bool, optional
         Turns on gp2Scale. This will distribute the covariance computations across multiple workers.
@@ -711,6 +736,10 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
           ``"block_jacobi"``, ``"schwarz"``/``"additive_schwarz"``, or ``"amg"``
           (requires pyamg). The compiled IC options require the optional ``ilupp`` package.
         * ``"sparseMINRESpre"`` — preconditioned MINRES; same preconditioner choices.
+          In both preconditioned modes, training builds a preconditioner only once it is
+          likely to be reused (see ``args["sparse_preconditioner_lazy"]``): until the
+          hyperparameters settle, and whenever building fails, a training evaluation is
+          solved with unpreconditioned MINRES instead.
         * ``"sparseCGpre_<type>"`` / ``"sparseMINRESpre_<type>"`` — shortcut that sets
           ``args["sparse_preconditioner_type"]`` to ``<type>`` (e.g. ``"sparseCGpre_amg"``).
 
@@ -751,16 +780,16 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
 
         **Migration note:** the ``calc_inv`` option from earlier gpCAM versions was removed;
         use ``linalg_mode="CholInv"`` (or ``"Inv"``) for the equivalent stored-inverse behavior.
-    ram_economy : bool, optional
+    gradient_per_direction : bool, optional
         Only of interest if the gradient and/or Hessian of the log marginal likelihood is/are used for the training.
         If True, components of the derivative of the log marginal likelihood are
         calculated sequentially, leading to a slow-down
         but much less RAM usage. If the derivative of the kernel (and noise function) with
         respect to the hyperparameters (kernel_function_grad) is
-        going to be provided, it has to be tailored: for ``ram_economy=True`` it should be
+        going to be provided, it has to be tailored: for ``gradient_per_direction=True`` it should be
         of the form f(x, hyperparameters, direction)
         and return a 2d numpy array of shape len(x1) x len(x2).
-        If ``ram_economy=False``, the function should be of the form f(x, hyperparameters)
+        If ``gradient_per_direction=False``, the function should be of the form f(x, hyperparameters)
         and return a numpy array of shape
         H x len(x1) x len(x2), where H is the number of hyperparameters.
         CAUTION: This array will be stored and is very large.
@@ -783,7 +812,14 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
         Stochastic-Lanczos logdet (sparse modes):
 
         - "random_logdet_lanczos_degree" : int; default = 20
-        - "random_logdet_error_rtol" : float; default = 0.01
+        - "random_logdet_error_rtol" : float; default = 0.01 — target error relative to
+          |log|K+V||. Sampling stops once it is reached or at
+          "random_logdet_max_num_samples", whichever comes first. The log marginal
+          likelihood contains -1/2 log|K+V|, so 1% means a likelihood error of about
+          0.005 * |log|K+V||.
+        - "random_logdet_error_atol" : float; default = None — target absolute error of
+          log|K+V|. If given alone it replaces the relative default; with both given, the
+          looser of the two applies.
         - "random_logdet_verbose" : True/False; default = False
         - "random_logdet_print_info" : True/False; default = False
         - "random_logdet_lanczos_compute_device" : str; default = "cpu"/"gpu"
@@ -829,6 +865,15 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
         - "sparse_preconditioner_refresh_interval" : int; default = None (no cap) —
           optional hard cap on consecutive reuses, applied on top of the drift test
           above. ``set_KV`` always force-refreshes.
+        - "sparse_preconditioner_lazy" : True/False; default = True — during training,
+          build a new preconditioner only when it is likely to be reused (see
+          "sparse_preconditioner_settle_steps"), and otherwise solve that evaluation with
+          plain MINRES. Rebuilt for every evaluation, even a good preconditioner is slower
+          than MINRES without one. False builds whenever the cached one is stale.
+        - "sparse_preconditioner_settle_steps" : int; default = 3 — consecutive training
+          evaluations, each within "sparse_preconditioner_max_matrix_drift" of the previous
+          one, required before a new preconditioner is built. Separate from the drift test
+          above, which compares K+V with the matrix the cached preconditioner was built for.
         - "sparse_preconditioner_block_size" : int — block size for block_jacobi
           and additive_schwarz partitions
         - "sparse_preconditioner_schwarz_overlap" : int — overlap layers for
@@ -861,6 +906,11 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
           the cached factor is kept until K+V has actually drifted past
           ``sparse_preconditioner_max_matrix_drift``. Reach for
           ``sparse_preconditioner_refresh_interval`` only to impose an extra hard cap.
+        - During training a preconditioner is built lazily: while the hyperparameters
+          still jump (an MCMC burn-in, or any method other than ``mcmc``, which cannot
+          reuse one), evaluations are solved with unpreconditioned MINRES and nothing is
+          built. Once ``sparse_preconditioner_settle_steps`` evaluations in a row stay
+          close, one is built and reused for as long as the drift test allows.
           ``sparse_krylov_warm_start`` is a separate opt-in and is honored only for
           ``train(method='mcmc')``, whose steps are small enough for the previous solution
           to be a good starting guess; the other methods sample non-locally, where a warm
@@ -919,7 +969,7 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
             gp2Scale_batch_size=10000,
             gp2Scale_distribution="blockwise",
             linalg_mode=None,
-            ram_economy=False,
+            gradient_per_direction=False,
             cost_function=None,
             logging=False,
             args=None
@@ -940,7 +990,7 @@ class fvGPOptimizer(GPOptimizerBase, fvGP):
                          gp2Scale_batch_size=gp2Scale_batch_size,
                          gp2Scale_distribution=gp2Scale_distribution,
                          linalg_mode=linalg_mode,
-                         ram_economy=ram_economy,
+                         gradient_per_direction=gradient_per_direction,
                          cost_function=cost_function,
                          logging=logging,
                          multi_task=True,

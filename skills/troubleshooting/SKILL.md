@@ -1,14 +1,14 @@
 ---
 name: troubleshooting
 description: Use when a gpCAM script crashes or misbehaves — Cholesky/non-positive-definite errors, singular covariance, hyperparameter bounds mismatches, NaNs, kernel signature errors, Dask hangs, pickling failures, or an ask/tell loop that keeps picking the same point. Maps the actual error text to the cause and the fix.
-gpcam_version: "8.5.x"
-fvgp_version: "4.8.8"
-last_verified: "2026-08-12 (gpCAM 03bc99c)"
+gpcam_version: "8.6.x"
+fvgp_version: "4.9.0"
+last_verified: "2026-10-14 (fvgp 4.9.0)"
 ---
 
 # Skill: Troubleshooting gpCAM
 
-*Verified against gpCAM 8.5.x / fvgp 4.8.8 — last checked 2026-08-12 (gpCAM `03bc99c`).*
+*Verified against gpCAM 8.6.x / fvgp 4.9.0 — last checked 2026-10-14.*
 
 A decision tree from the error you actually saw to the thing that is actually wrong.
 The audience is a scientist who does not want to learn GP internals to get unstuck.
@@ -387,9 +387,13 @@ An overconfident model can have excellent RMSE.
 
 ### Results change between runs
 
-`method="global"` uses `differential_evolution`, which is stochastic. Seed
-`np.random.seed(...)`, raise `max_iter`, or use `method="mcmc"` for a posterior over
-hyperparameters rather than a point estimate. Large run-to-run swings usually mean the
+The default trainer draws its four extra starting points at random (fvgp 4.9:
+`method='local'` with `n_restarts=5`), and `method="global"` uses `differential_evolution`;
+both use NumPy's global generator, so seed `np.random.seed(...)` for repeatable fits.
+`method="mcmc"` takes `mcmc_seed=...` instead, and gives a posterior over hyperparameters
+rather than a point estimate (in `gpo.mcmc_info`). If fits differ in *quality*, not just in
+the last digits, a single local run is landing in different basins: keep the restarts
+(`n_restarts=1` disables them) or raise `n_restarts`. Large run-to-run swings usually mean the
 likelihood surface is flat or multi-modal — often too little data for the number of
 hyperparameters.
 

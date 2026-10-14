@@ -1,14 +1,14 @@
 ---
 name: experiment-designer
 description: Use for end-to-end autonomous experiment design with gpCAM. Translates a scientist's description of their measurement into a complete, runnable gpCAM script — useful for replacing raster scans with adaptive sampling, peak-finding, or parameter optimization.
-gpcam_version: "8.5.x"
-fvgp_version: "4.8.8"
-last_verified: "2026-08-12 (gpCAM 03bc99c)"
+gpcam_version: "8.6.x"
+fvgp_version: "4.9.0"
+last_verified: "2026-10-14 (fvgp 4.9.0)"
 ---
 
 # Skill: gpCAM Experiment Designer
 
-*Verified against gpCAM 8.5.x / fvgp 4.8.8 — last checked 2026-08-12 (gpCAM `03bc99c`).*
+*Verified against gpCAM 8.6.x / fvgp 4.9.0 — last checked 2026-10-14.*
 
 Design complete autonomous experiment scripts using gpCAM. You translate a scientist's description of their measurement into a runnable Python script.
 
@@ -60,7 +60,7 @@ Based on their answers, decide:
 | **Acquisition function** | **Do not pick this one on your own — read the `acquisition-functions` skill and confirm the choice with the scientist.** It's the argument that decides where the instrument actually goes, and several built-ins have gpCAM-specific behavior that surprises people (plain EI is maximization-only, and on gpCAM ≤ 8.4.2 it degenerates to pure exploration; `ask(n>1)` silently overrides string acquisitions). Starting points, all subject to confirmation: `'variance'` for exploration/mapping; `'ucb'` for maximization (`beta` fixed at 3.0 — write a callable to tune it); `'lcb'` for **minimization**; `'noisy expected improvement'` when measurements are noisy, or `'knowledge gradient'` for lookahead that keeps exploring when EI stalls — both also work multi-task; `'gradient'` or a radical-gradient callable to map where the signal changes; a custom callable for multi-objective or constraints. Do **not** default to `'expected improvement'`. |
 | **Prior mean** | Default is a **constant equal to `mean(y_data)`** — not zero. Away from data the posterior reverts to that constant. Override with `prior_mean_function=` only if they have a physical model. See `prior-mean-functions` skill. |
 | **Noise model** | Use `noise_variances` if noise is known and uniform. Use `noise_function` if noise varies. See `noise-functions` skill. |
-| **Training strategy** | `method='global'` for first training, `method='local'` for re-training during the loop. Other options: `"mcmc"` (Bayesian — returns posterior samples over hyperparameters), `"adam"` (stochastic-gradient, fast, works well for high-dimensional hyperparameter vectors like deep kernels), `"hgdl"` (distributed local+global hybrid — needs a `dask_client`). Since fvgp 4.8.8, in-loop `local` re-training cannot make the model worse: `train(accept_only_if_improved=True)` is the default and rolls back to the incumbent hyperparameters with a warning when the optimizer returns a lower marginal likelihood. Expect that warning occasionally in a long loop — it means that round of training found nothing, not that the loop is broken. |
+| **Training strategy** | The default, `gpo.train(hyperparameter_bounds=...)`, is the right first training: since fvgp 4.9 it runs `method='local'` (L-BFGS-B) from `n_restarts=5` starting points and keeps the best — measured as accurate on held-out data as MCMC or a global search, 2–4× faster. A *single* local run is not safe (on an 11-hyperparameter GP, 17 of 20 stopped on a flat plateau), which is what the restarts are for. For re-training inside the loop, warm-started from the current hyperparameters, `method='local', n_restarts=1` is enough and 5× cheaper. Other options: `"mcmc"` (Bayesian — the trained hyperparameters are the posterior median after burn-in; the chain is in `gpo.mcmc_info`; it stops on its own once converged, typically after 1000–2000 steps for a few hyperparameters, and `mcmc_seed` makes it reproducible), `"global"` (differential evolution — robust but slow), `"adam"` (stochastic-gradient, fast, works well for high-dimensional hyperparameter vectors like deep kernels), `"hgdl"` (distributed local+global hybrid — needs a `dask_client`). Since fvgp 4.8.8, in-loop `local` re-training cannot make the model worse: `train(accept_only_if_improved=True)` is the default and rolls back to the incumbent hyperparameters with a warning when the optimizer returns a lower marginal likelihood. Expect that warning occasionally in a long loop — it means that round of training found nothing, not that the loop is broken. |
 | **linalg_mode** | Leave at the default (`None`) — gpCAM picks `"Chol"` automatically. For frequent posterior-covariance calls on small datasets (<5 000 points), set `linalg_mode="CholInv"` to store the inverse for a 3-10× speedup. For sparse / gp2Scale problems, see the `gp2scale-advanced` skill. |
 | **Number of initial points** | Rule of thumb: 5-10× the input dimensionality for initial random sampling. |
 | **Input scaling** | gpCAM does **not** normalize inputs internally. With mixed units (mm, °C, volts) each dimension keeps its own scale, so per-dimension length-scale bounds must be derived from that dimension's own range — which the template below does. See "Input Scaling" below. |
@@ -276,7 +276,7 @@ def run():
     )
     
     # --- Initial training ---
-    gpo.train(hyperparameter_bounds=hp_bounds, method="global", max_iter=200)
+    gpo.train(hyperparameter_bounds=hp_bounds)   # local optimization from 5 starts, keeps the best
     
     # --- Adaptive loop ---
     for i in range(N_ITERATIONS):
@@ -299,7 +299,8 @@ def run():
         
         # Re-train periodically
         if (i + 1) % RETRAIN_EVERY == 0:
-            gpo.train(hyperparameter_bounds=hp_bounds, method="local", max_iter=100)
+            # warm-started from the current hyperparameters, so one local run suffices
+            gpo.train(hyperparameter_bounds=hp_bounds, method="local", max_iter=100, n_restarts=1)
         
         print(f"Iteration {i+1}/{N_ITERATIONS}: "
               f"measured at {next_x[0]} -> {new_y:.4f}")
