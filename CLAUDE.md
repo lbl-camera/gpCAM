@@ -12,28 +12,28 @@ This file serves two audiences:
 
 You are helping scientists design autonomous experiments using gpCAM, a Gaussian Process-based Bayesian optimization toolkit. Read the appropriate skill file before generating code:
 
-- **Designing an experiment**: `skills/experiment-designer/SKILL.md`
-- **Custom kernels**: `skills/kernel-designer/SKILL.md`
-- **Acquisition functions**: `skills/acquisition-functions/SKILL.md`
-- **Prior mean functions**: `skills/prior-mean-functions/SKILL.md`
-- **Noise models**: `skills/noise-functions/SKILL.md`
-- **Cost functions (travel time)**: `skills/cost-functions/SKILL.md`
-- **Validating uncertainty / calibration**: `skills/uncertainty-calibration/SKILL.md`
-- **Debugging errors and silent misbehavior**: `skills/troubleshooting/SKILL.md`
-- **Large-scale (>10k points)**: `skills/gp2scale-advanced/SKILL.md`
-- **Multi-task/multi-output**: `skills/multi-task-advanced/SKILL.md`
-- **Constrained observations (y>0 or y∈[0,1])**: `skills/transformed-optimizers-advanced/SKILL.md`
+- **Designing an experiment**: `gpcam/skills/experiment-designer/SKILL.md`
+- **Custom kernels**: `gpcam/skills/kernel-designer/SKILL.md`
+- **Acquisition functions**: `gpcam/skills/acquisition-functions/SKILL.md`
+- **Prior mean functions**: `gpcam/skills/prior-mean-functions/SKILL.md`
+- **Noise models**: `gpcam/skills/noise-functions/SKILL.md`
+- **Cost functions (travel time)**: `gpcam/skills/cost-functions/SKILL.md`
+- **Validating uncertainty / calibration**: `gpcam/skills/uncertainty-calibration/SKILL.md`
+- **Debugging errors and silent misbehavior**: `gpcam/skills/troubleshooting/SKILL.md`
+- **Large-scale (>10k points)**: `gpcam/skills/gp2scale-advanced/SKILL.md`
+- **Multi-task/multi-output**: `gpcam/skills/multi-task-advanced/SKILL.md`
+- **Constrained observations (y>0 or y∈[0,1])**: `gpcam/skills/transformed-optimizers-advanced/SKILL.md`
 
 Each `SKILL.md` carries `gpcam_version` / `fvgp_version` / `last_verified` frontmatter.
 When you change an API these skills document, update the stamp along with the text.
 
-These skills also ship as a Claude Code plugin marketplace (`.claude-plugin/marketplace.json`, `.claude-plugin/plugin.json`), so they are available outside this repo once installed — see README.md. The manifests do **not** enumerate skills (they are auto-discovered from `skills/`), so adding or renaming a skill means touching four other places instead: the routing list above, the skills table in README.md, the table in `docs/source/claude-skills.md`, and a HISTORY.rst entry.
+These skills also ship as a Claude Code plugin marketplace (`.claude-plugin/marketplace.json`, `.claude-plugin/plugin.json`), so they are available outside this repo once installed — see README.md. They live inside the `gpcam` package so that wheels and `pip install` include them, and `pyproject.toml` advertises them through an `agent_skills` entry point (`gpcam = "gpcam.skills"`): each subfolder of `importlib.resources.files("gpcam.skills")` with a `SKILL.md` is one skill. Don't move them back to the repo root. The manifests do **not** enumerate skills (they are discovered from `gpcam/skills/`, which `plugin.json` names in its `skills` field), so adding or renaming a skill means touching four other places instead: the routing list above, the skills table in README.md, the table in `docs/source/claude-skills.md`, and a HISTORY.rst entry.
 
 ### Key principles for generated experiment scripts
 
 1. **Generate complete, runnable scripts** — not fragments
 2. **Target audience is scientists**, not GP experts — explain choices in plain language
-3. **Never pick the acquisition function silently, and never default to `"expected improvement"`.** It's the choice that decides where the instrument goes. Name your recommendation, state its one tradeoff, and confirm with the user. "Find the best conditions" is ambiguous — ask whether they want the single best point or a trustworthy map containing it. Several built-ins are maximization-only and fail silently for minimization. Read `skills/acquisition-functions/SKILL.md` first.
+3. **Never pick the acquisition function silently, and never default to `"expected improvement"`.** It's the choice that decides where the instrument goes. Name your recommendation, state its one tradeoff, and confirm with the user. "Find the best conditions" is ambiguous — ask whether they want the single best point or a trustworthy map containing it. Several built-ins are maximization-only and fail silently for minimization. Read `gpcam/skills/acquisition-functions/SKILL.md` first.
 4. **Always document the hyperparameter layout** — which index maps to what
 5. **Hyperparameter bounds must match** the total hyperparameter count across kernel + mean + noise
 6. **Default kernel is usually fine** — only suggest custom when there's a clear reason
