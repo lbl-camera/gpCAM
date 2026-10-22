@@ -84,7 +84,7 @@ Once installed, the skills activate automatically when you describe an experimen
 
 ### Other agentic platforms
 
-The skills are also compatible with any harness that reads `SKILL.md` files (e.g. [OpenClaw](https://openclaw.ai)) — clone the repo and point your assistant at the `skills/` directory. When this repo is present in your working directory, Claude Code also picks up the root `CLAUDE.md` and `skills/` directory automatically, so the marketplace install is only needed for use outside the repo.
+The skills are also compatible with any harness that reads `SKILL.md` files (e.g. [OpenClaw](https://openclaw.ai)) — point your assistant at the `gpcam/skills/` directory of a clone, or at the installed package: `pip install gpcam` ships the skills too, at `importlib.resources.files("gpcam.skills")`, and advertises them through the `agent_skills` entry point. When this repo is present in your working directory, Claude Code also picks up the root `CLAUDE.md`, which routes to those skills, so the marketplace install is only needed for use outside the repo.
 
 
 ## Credits

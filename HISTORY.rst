@@ -2,6 +2,15 @@
 History
 =======
 
+Unreleased
+----------
+
+* The Claude Code skills moved from ``skills/`` to ``gpcam/skills/``, inside the package,
+  so wheels and ``pip install`` now include them (``importlib.resources.files("gpcam.skills")``).
+  ``.claude-plugin/plugin.json`` points the marketplace plugin at the new folder.
+* New ``agent_skills`` entry point (``gpcam = "gpcam.skills"``) lets agent hosts discover the
+  skills: each subfolder of the entry point's package that contains a ``SKILL.md`` is a skill.
+
 8.6.1 — 2026-10-14
 ------------------
 

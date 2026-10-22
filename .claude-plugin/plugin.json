@@ -9,5 +9,6 @@
   "homepage": "https://gpcam.readthedocs.io",
   "repository": "https://github.com/lbl-camera/gpCAM",
   "license": "GPL-3.0",
-  "keywords": ["gaussian-process", "bayesian-optimization", "autonomous-experiments", "gpcam"]
+  "keywords": ["gaussian-process", "bayesian-optimization", "autonomous-experiments", "gpcam"],
+  "skills": "./gpcam/skills/"
 }
