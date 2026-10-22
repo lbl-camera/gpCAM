@@ -150,6 +150,11 @@ Lightfall, the ALS beamline control dashboard, uses this to load
 gpCAM's skills into its agents. Other packages may adopt the same group;
 no cross-tool standard for it exists yet.
 
+Skill names are the folder names, without a package prefix. A host that
+merges skills from several packages should namespace them by entry-point
+name (`gpcam:kernel-designer`), the way Claude Code namespaces plugin
+skills, rather than expect bare names to be unique across packages.
+
 ## Source
 
 The marketplace manifest lives at
