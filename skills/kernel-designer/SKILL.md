@@ -1,14 +1,14 @@
 ---
 name: kernel-designer
-description: Use when designing or composing custom kernel (covariance) functions for gpCAM that encode domain knowledge — smoothness, periodicity, symmetry, anisotropy, or non-Euclidean input spaces.
-gpcam_version: "8.4.x"
-fvgp_version: "4.8.x"
-last_verified: "2026-07-23 (gpCAM dadeb65); multi-task line updated for gpCAM 8.7.0 on 2026-10-28"
+description: Use when designing or composing custom kernel (covariance) functions for gpCAM — smoothness, periodicity, symmetry, anisotropy, non-stationary amplitude/length-scale kernels (`non_stat_kernel`, Gibbs), non-Euclidean inputs, or neural-network-warped deep kernels (`Network`).
+gpcam_version: "8.7.x"
+fvgp_version: "4.11.x"
+last_verified: "2026-10-28 (gpCAM 8.7.0, a21385a)"
 ---
 
 # Skill: gpCAM Kernel Designer
 
-*Verified against gpCAM 8.4.x / fvgp 4.8.x — last checked 2026-07-23 (gpCAM `dadeb65`).*
+*Verified against gpCAM 8.7.0 / fvgp 4.11.1 — last checked 2026-10-28 (gpCAM a21385a).*
 
 Design custom kernel (covariance) functions for gpCAM that encode domain knowledge about the experiment.
 
@@ -42,10 +42,9 @@ def my_kernel(x1, x2, hyperparameters):
     """
 ```
 
-- `x1` and `x2` are 2D arrays even for 1D inputs
-- The output must be an `(N1, N2)` matrix
-- The kernel must be symmetric: `k(x1, x2) = k(x2, x1).T`
-- The kernel must be positive semi-definite
+- `x1` and `x2` are 2D arrays even for 1D inputs (for `multi_task_mode="cartesian"`, `x1` and `x2` have shape `(N, D + 1)` with the task index in the last column — see `multi-task-advanced`)
+- Declare a 4th positional parameter `my_kernel(x1, x2, hyperparameters, args)` to receive `GPOptimizer(..., args=...)` (`gp_optimizer.py:113-114`; see `experiment-designer` for the full `args` dispatch table)
+- The output must be an `(N1, N2)` symmetric positive semi-definite matrix (`k(x1, x2) = k(x2, x1).T`)
 - Use vectorized numpy operations — avoid Python loops over data points
 
 ## Building Blocks
@@ -344,7 +343,7 @@ hp_bounds = np.array([[0.01, 10.0], [0.01, 10.0]] + [[-2.0, 2.0]] * N_NN)
 
 gp = GPOptimizer(x_data, y_data, init_hyperparameters=init_hps,
                  kernel_function=deep_kernel)
-gp.train(hyperparameter_bounds=hp_bounds, method="global", max_iter=100)
+gp.train(hyperparameter_bounds=hp_bounds, method="adam", max_iter=100)
 ```
 
 Sanity check that the unpacking is live — evaluate the kernel at two different NN hyperparameter draws and confirm the matrices differ:
@@ -369,31 +368,11 @@ Training notes: `method="mcmc"` or `method="adam"` scale better than `global`/`l
 
 ## Hyperparameter Coordination
 
-**Critical:** When designing a custom kernel, you must:
+Kernel hyperparameters occupy the leading slice `hps[:K]`, followed by prior-mean (`hps[K : K + M]`) and noise (`hps[K + M :]`) parameters — see `experiment-designer` ("Hyperparameter Coordination") for the canonical index convention.
 
-1. **Document the hyperparameter layout** — which index maps to what
-2. **Set matching bounds** — the `hyperparameter_bounds` array must have one row per hyperparameter
-3. **Coordinate with noise/mean functions** — all three share the same hyperparameter vector
-
-```python
-# ALWAYS include a comment block like this:
-#
-# Hyperparameter layout for my_kernel:
-# hps[0]     = signal variance          bounds: [0.001, 100]
-# hps[1]     = length scale dim 0       bounds: [0.01, range_dim0 * 10]
-# hps[2]     = length scale dim 1       bounds: [0.01, range_dim1 * 10]
-# hps[3]     = period (if periodic)     bounds: [expected_period * 0.5, expected_period * 2]
-```
-
-### Setting Initial Hyperparameters
-- **Signal variance**: start near `np.var(y_data)` or `1.0`
-- **Length scales**: start near `0.1 * range(x_dim)` — not too small (overfitting) or too large (underfitting)
-- **Period**: start near the expected period if known
-
-### Setting Bounds
-- **Signal variance**: `[0.001, 10 * np.std(y_data)]`
-- **Length scales**: `[0.01, 10 * range(x_dim)]` — lower bound prevents overfitting
-- **Period**: `[0.5 * expected, 2 * expected]` — tight if well-known
+- **Signal variance**: initialize near `np.var(y_data)` (or `1.0`), bounds `[0.001, 10 * np.var(y_data)]`
+- **Length scales**: initialize near `0.1 * range(x_dim)`, bounds `[0.01 * range(x_dim), 10 * range(x_dim)]`
+- **Period**: initialize near the expected period, bounds `[0.5 * expected, 2 * expected]`
 
 ## Common Pitfalls
 

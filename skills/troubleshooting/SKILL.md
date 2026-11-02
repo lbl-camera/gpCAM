@@ -1,14 +1,14 @@
 ---
 name: troubleshooting
 description: Use when a gpCAM script crashes or misbehaves — Cholesky/non-positive-definite errors, singular covariance, hyperparameter bounds mismatches, NaNs, kernel signature errors, Dask hangs, pickling failures, or an ask/tell loop that keeps picking the same point. Maps the actual error text to the cause and the fix.
-gpcam_version: "8.6.x"
-fvgp_version: "4.9.1"
-last_verified: "2026-10-14 (fvgp 4.9.1); multi-task note updated for gpCAM 8.7.0 on 2026-10-28"
+gpcam_version: "8.7.x"
+fvgp_version: "4.11.x"
+last_verified: "2026-10-28 (gpCAM 8.7.0, a21385a)"
 ---
 
 # Skill: Troubleshooting gpCAM
 
-*Verified against gpCAM 8.6.x / fvgp 4.9.1 — last checked 2026-10-14.*
+*Verified against gpCAM 8.7.0 / fvgp 4.11.1 — last checked 2026-10-28 (gpCAM `a21385a`).*
 
 A decision tree from the error you actually saw to the thing that is actually wrong.
 The audience is a scientist who does not want to learn GP internals to get unstuck.
@@ -110,17 +110,7 @@ assert len(gpo.hyperparameters) == len(hp_bounds), (
     f"{len(hp_bounds)} bounds rows but {len(gpo.hyperparameters)} hyperparameters")
 ```
 
-Count what each callable reads and confirm the total:
-
-| Component | Hyperparameters (default ARD kernel, D input dims) |
-|---|---|
-| Kernel | `1 + D` — `hps[0]` signal variance, `hps[1:D+1]` length scales |
-| Prior mean | however many it reads, starting at `K = 1 + D` |
-| Noise | however many it reads, starting after the mean's |
-
-**The usual root cause is a hardcoded `K = 3`**, which is correct only for `D = 2`.
-Derive it: `K = 1 + x.shape[1]`. See the `prior-mean-functions` and `noise-functions`
-skills.
+**The usual root cause is a hardcoded `K = 3`**, which is correct only for `D = 2` with the default single-task ARD kernel. Derive `K` from the input dimensionality (`K = 1 + x.shape[1]` for single-task, or `K = 1 + (D + 1)` in `"cartesian"` multi-task mode) and allocate disjoint slices in order: kernel (`0..K-1`), prior mean (`K..K+M-1`), noise (`K+M..`). See the `experiment-designer` skill ("Hyperparameter Coordination") for the canonical index table.
 
 Related and nastier: if the indices *overlap* rather than run past the end, there is
 **no error at all** — two components silently share a hyperparameter. See
@@ -163,22 +153,7 @@ Exception: No valid kernel function signature
 ```
 (or the prior-mean / noise equivalent)
 
-gpCAM dispatches on **parameter count**, via `inspect.signature`:
-
-| Callable | Without `args` | With `args` |
-|---|---|---|
-| Kernel | `f(x1, x2, hps)` | `f(x1, x2, hps, args)` |
-| Prior mean | `f(x, hps)` | `f(x, hps, args)` |
-| Noise | `f(x, hps)` | `f(x, hps, args)` |
-| Cost | `f(origin, x)` | **not supported** |
-| Acquisition | `f(x, gp_obj)` | **not supported** |
-
-Any other count raises. Note that a default value still counts as a parameter, so
-`def my_kernel(x1, x2, hps, args=None)` is a **4**-parameter kernel and will be handed
-the `args` dict.
-
-Cost and acquisition functions never receive `args` — bind their parameters with
-`functools.partial` or a closure.
+gpCAM dispatches on **parameter count** via `inspect.signature`: kernels take 3 (`f(x1, x2, hps)`) or 4 (`f(x1, x2, hps, args)`) parameters, mean and noise functions take 2 (`f(x, hps)`) or 3 (`f(x, hps, args)`), and cost (`f(origin, x)`) and custom acquisition (`f(x, gp_obj)`) functions always take 2 parameters and never receive `args` (bind extra parameters with `functools.partial`). A default value still counts toward `len(inspect.signature(f).parameters)`, so `def my_kernel(x1, x2, hps, args=None)` is dispatched as a 4-parameter kernel. See the `experiment-designer` skill ("User-function arguments (`args`)") for the canonical dispatch table.
 
 ---
 
@@ -236,7 +211,7 @@ With a transformed optimizer, pass the bounds **already transformed**
 Other acquisition strings that need attention:
 - Multi-task (`x_out is not None`) supports a **smaller set** than single-task.
   `"maximum"`, `"minimum"`, `"gradient"`, `"probability of improvement"`, and
-  `"target probability"` are single-task only.
+  `"target probability"` are single-task only, and `"total correlation"` is not available when `multi_task_mode="kronecker"`.
 - A custom callable must return a **1-D array of length `len(x)`**. Returning a scalar
   or a `(V, 1)` column raises further down in the optimizer.
 
@@ -292,19 +267,7 @@ AttributeError: Can't pickle local object 'make_cost.<locals>.cost'
 
 `GPOptimizer` instances are picklable, but **the callables you attached must pickle by
 reference**, which means they must be defined at **module level**. A closure or a
-lambda defined inside another function cannot pickle.
-
-```python
-# Breaks pickling:
-def make_cost(speed):
-    def cost(origin, x): return 1.0 + speed * np.linalg.norm(x - origin, axis=1)
-    return cost
-
-# Pickles fine:
-from functools import partial
-def cost(origin, x, speed): return 1.0 + speed * np.linalg.norm(x - origin, axis=1)
-gpo.cost_function = partial(cost, speed=2.5)
-```
+lambda defined inside another function cannot pickle — replace it with a module-level function bound via `functools.partial(cost, speed=2.5)` (see the `cost-functions` skill for a complete example).
 
 When reloading saved arrays that contain Python objects, remember
 `np.load(path, allow_pickle=True)`.
