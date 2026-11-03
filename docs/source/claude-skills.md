@@ -106,16 +106,59 @@ agentic harness that can read them — for example
    git clone https://github.com/lbl-camera/gpCAM.git
    ```
 
-2. Point your assistant at the `skills/` directory at the repo root.
+2. Point your assistant at the `gpcam/skills/` directory of the clone.
 
 When the cloned repo is present in your working directory, Claude Code
-also picks up the root `CLAUDE.md` and `skills/` directory automatically,
-so the marketplace install is only needed for use *outside* the repo.
+also picks up the root `CLAUDE.md`, which routes to those skills, so the
+marketplace install is only needed for use *outside* the repo.
+
+## Skills in the Python package
+
+The skills live inside the `gpcam` package, so `pip install gpcam` (and
+`pip install git+https://github.com/lbl-camera/gpCAM`) installs them along
+with the library — no clone needed. Find them with:
+
+```python
+from importlib.resources import files
+skills = files("gpcam.skills")   # one subfolder per skill, each with a SKILL.md
+```
+
+gpCAM also advertises them through an `agent_skills`
+[entry point](https://packaging.python.org/en/latest/specifications/entry-points/),
+so an agent host can discover the skills of every installed package
+without knowing about gpCAM in advance:
+
+```toml
+[project.entry-points."agent_skills"]
+gpcam = "gpcam.skills"
+```
+
+The contract is: **the entry point loads to a package; each subfolder of
+`importlib.resources.files(<package>)` that contains a `SKILL.md` is one
+skill**, named after its folder. A host lists them with:
+
+```python
+from importlib.metadata import entry_points
+from importlib.resources import files
+
+for ep in entry_points(group="agent_skills"):
+    root = files(ep.load())
+    skills = [d for d in root.iterdir() if d.is_dir() and (d / "SKILL.md").is_file()]
+```
+
+Lightfall, the ALS beamline control dashboard, uses this to load
+gpCAM's skills into its agents. Other packages may adopt the same group;
+no cross-tool standard for it exists yet.
+
+Skill names are the folder names, without a package prefix. A host that
+merges skills from several packages should namespace them by entry-point
+name (`gpcam:kernel-designer`), the way Claude Code namespaces plugin
+skills, rather than expect bare names to be unique across packages.
 
 ## Source
 
 The marketplace manifest lives at
-[`.claude-plugin/marketplace.json`](https://github.com/lbl-camera/gpCAM/blob/main/.claude-plugin/marketplace.json)
+[`.claude-plugin/marketplace.json`](https://github.com/lbl-camera/gpCAM/blob/master/.claude-plugin/marketplace.json)
 and the per-skill content under
-[`skills/`](https://github.com/lbl-camera/gpCAM/tree/main/skills).
+[`gpcam/skills/`](https://github.com/lbl-camera/gpCAM/tree/master/gpcam/skills).
 Contributions and new skills are welcome — open a pull request.

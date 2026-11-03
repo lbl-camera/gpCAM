@@ -58,6 +58,13 @@ docs = [
 tests = ['pytest', 'codecov', 'pytest-cov', 'imate', 'torch']
 plotting = ['matplotlib', 'plotly', 'notebook']
 
+[project.entry-points."agent_skills"]
+# Agent-skill discovery. Contract: the entry point loads to a package; each
+# subfolder of importlib.resources.files(<package>) that contains a SKILL.md is
+# one skill, named after its folder. Hosts (e.g. Lightfall) iterate
+# importlib.metadata.entry_points(group="agent_skills") to find them.
+gpcam = "gpcam.skills"
+
 [project.urls]
 Homepage = "https://gpcam.lbl.gov"
 Documentation = "https://gpcam.readthedocs.io/"
