@@ -1,14 +1,14 @@
 ---
 name: prior-mean-functions
-description: Use when encoding known physics, theoretical models, or expected trends as prior mean functions for gpCAM — useful when there's a baseline expectation the GP should regress against rather than a flat zero prior.
-gpcam_version: "8.4.x"
-fvgp_version: "4.8.x"
-last_verified: "2026-07-23 (gpCAM dadeb65)"
+description: Use when encoding known physics, theoretical models, or expected trends as prior mean functions for gpCAM — useful when there's a baseline expectation or physical model the GP should regress against rather than the default constant data-mean prior (mean(y_data)).
+gpcam_version: "8.7.x"
+fvgp_version: "4.11.x"
+last_verified: "2026-10-28 (gpCAM 8.7.0, a21385a)"
 ---
 
 # Skill: gpCAM Prior Mean Functions
 
-*Verified against gpCAM 8.4.x / fvgp 4.8.x — last checked 2026-07-23 (gpCAM `dadeb65`).*
+*Verified against gpCAM 8.7.0 / fvgp 4.11.1 — last checked 2026-10-28 (gpCAM a21385a).*
 
 Design prior mean functions that encode known physics or expected trends.
 
@@ -54,22 +54,12 @@ gpo = GPOptimizer(
 gpo.train(hyperparameter_bounds=hp_bounds)
 ```
 
-An optional third argument receives the constructor's `args` dict — declare it and
-gpCAM passes it positionally (dispatch is by parameter count, so the name is yours
-to choose):
-
-```python
-def my_mean(x, hps, args):          # GPOptimizer(..., args={"d_spacing": 3.14})
-    return np.full(len(x), args["d_spacing"] * hps[K])
-```
-
-If you also want analytic gradients, pass `prior_mean_function_grad=` returning shape
-`(len(hps), N)`. Without it gpCAM uses finite differences, which is fine but slower.
-
-**If no prior mean is provided**, gpCAM uses **the average of `y_data`** as a constant
-mean (`fvgp.GP._default_mean_function`) — not a flat zero. This matters: away from
-data the posterior reverts to `mean(y_data)`, not to zero. It is a sensible default
-for most cases.
+- **Optional `args` parameter:** Declare a 3rd positional parameter `my_mean(x, hps, args)` to receive `GPOptimizer(..., args=...)` (`gp_optimizer.py:153-154`; see `experiment-designer` for the full `args` dispatch table).
+- **Analytic gradient (`prior_mean_function_grad`):** Optional callable returning shape `(len(hps), N)` (`gp_optimizer.py:165-171`).
+- **Default prior mean:** When `prior_mean_function` is omitted, gpCAM uses `fvgp.GP._default_mean_function`, which is a constant equal to each output's average of `y_data` (`gp_optimizer.py:157-160`) — not zero.
+- **Multi-task shapes (`gp_optimizer.py:153-160`):**
+  - In `"independent"` and `"kronecker"` modes, `x` has shape `(N, D)` and `prior_mean_function` may return `(N,)` or `(N, No)`.
+  - In `multi_task_mode="cartesian"`, `x` has shape `(N, D + 1)` with the task index in the last column (`x[:, -1]`), and `prior_mean_function` returns a 1-D vector of shape `(N,)` (remember `x.shape[1]` is `D + 1`).
 
 ## When NOT to Use a Prior Mean
 
@@ -77,26 +67,9 @@ for most cases.
 - Your model might be wrong → a bad prior mean biases the GP and can hurt more than help
 - You're purely exploring → the GP will learn the mean from data
 
-## The Index Convention
+## Hyperparameter Offset (`K`)
 
-Every recipe below starts its hyperparameters at index `K`. **Derive `K`; never
-hardcode it.** With the default ARD Matérn kernel the kernel owns `hps[0]` (signal
-variance) plus one length scale per input dimension, so:
-
-```python
-K = 1 + D    # D = number of input dimensions = x.shape[1]
-```
-
-`K = 3` is only correct for a 2-D input space. In 1-D it points at a length scale;
-in 3-D it points at the wrong slot and two components silently share a
-hyperparameter. Compute `K` inside the function from `x.shape[1]`, or define it once
-as a module-level constant next to your bounds array so the two cannot drift apart.
-
-**Never use negative indices** (`hps[-1]`). The end of the vector belongs to the
-noise function under the standard layout — see the ordering rule below — so `hps[-1]`
-silently ties your prior mean to the noise amplitude.
-
-With a custom kernel, `K` is however many hyperparameters your kernel reads.
+See `experiment-designer` ("Hyperparameter Coordination") for the canonical layout (`hps[:K]` kernel, `hps[K : K + M]` prior mean, `hps[K + M :]` noise). With the single-task default ARD kernel, `K = 1 + D = 1 + x.shape[1]`; with a custom kernel, `K` is the number of parameters that kernel consumes. Never index with `hps[-1]` in a prior mean function — the trailing slice belongs to the noise function.
 
 ## Recipes
 
@@ -175,51 +148,9 @@ def bragg_mean(x, hps):
     return expected
 ```
 
-## Hyperparameter Coordination
+## Complete Worked Example (Kernel + Mean + Noise)
 
-**This is where most bugs happen.** The prior mean function receives the same
-hyperparameter vector as the kernel and noise functions, and fvGP requires the index
-ranges each callable reads to be **disjoint**. The gradient computation depends on
-it: when a hyperparameter index belongs to the mean function, its kernel derivative
-is assumed zero, and vice versa. Overlapping indices therefore produce not just a
-wrong model but wrong gradients.
-
-**The standard ordering used across all gpCAM skills is: kernel, then mean, then
-noise.**
-
-```
-[ kernel hps ][ mean hps ][ noise hps ]
-  0 .. K-1     K .. M-1     M .. end
-```
-
-You must:
-
-1. Decide which indices the mean function uses — derive `K`, don't hardcode it
-2. Add bounds for those hyperparameters
-3. Document the full layout
-
-```python
-# Example layout (2-D input, linear mean, learnable noise):
-# hps[0]     = signal variance     (kernel)
-# hps[1:3]   = length scales       (kernel, 2D input)
-# hps[3]     = intercept           (mean function)   <- K = 1 + D = 3
-# hps[4:6]   = slopes              (mean function)
-# hps[6]     = noise amplitude     (noise function)
-#
-# Total: 7 hyperparameters
-
-hp_bounds = np.array([
-    [0.001, 100.0],   # signal variance
-    [0.01, 50.0],     # length scale dim 0
-    [0.01, 50.0],     # length scale dim 1
-    [-10.0, 10.0],    # intercept
-    [-5.0, 5.0],      # slope dim 0
-    [-5.0, 5.0],      # slope dim 1
-    [0.001, 10.0],    # noise amplitude
-])
-```
-
-### Complete worked example
+Prior mean hyperparameters sit at `hps[K : K + M]` between the kernel (`hps[:K]`) and noise (`hps[K + M :]`) slices — see `experiment-designer` for the full coordination rules.
 
 ```python
 import numpy as np

@@ -1,334 +1,113 @@
 ---
 name: acquisition-functions
-description: Use when choosing or designing the acquisition function for a gpCAM experiment — deciding which built-in actually fits the scientist's goal (and confirming it with them rather than defaulting to expected improvement), or writing a custom one for exploration/exploitation balance, multi-objective targets, constrained search regions, cost-aware moves, change-mapping via gradient or radical gradient, knowledge gradient and noisy EI under observation noise, UCB/LCB, target-value, or threshold-finding criteria.
-gpcam_version: "8.4.x"
-fvgp_version: "4.8.x"
-last_verified: "2026-08-04 (gpCAM 23c886d + joint candidate-batch selection); multi-task pointer updated for gpCAM 8.7.0 on 2026-10-28"
+description: Use when choosing or writing an acquisition function for gpCAM — selecting a built-in criterion for exploration, optimization, batch, or multi-task runs, or implementing a custom callable for UCB/LCB, minimization EI, constraints, radical gradient, or threshold finding.
+gpcam_version: "8.7.x"
+fvgp_version: "4.11.x"
+last_verified: "2026-10-28 (gpCAM 8.7.0, a21385a)"
 ---
 
 # Skill: gpCAM Acquisition Functions
 
-*Verified against gpCAM 8.4.x / fvgp 4.8.x — last checked 2026-08-04 (gpCAM `23c886d` + joint candidate-batch selection).*
+*Verified against gpCAM 8.7.0 / fvgp 4.11.1 — last checked 2026-10-28 (gpCAM a21385a).*
 
 Choose — and where needed, write — the acquisition function that controls where gpCAM measures next.
 
 ## When to Use
 
-Any time an experiment script needs an acquisition function. That includes simply
-picking a built-in string, not only writing a custom callable:
-- Deciding what to pass to `ask(acquisition_function=...)`
-- Balancing exploration and exploitation
-- Multi-objective optimization
-- Constrained search (avoid forbidden regions)
-- Cost-aware acquisition (expensive moves)
-- Upper/lower confidence bounds
-- Probability of improvement
+- Deciding which built-in string or custom callable to pass to `ask(acquisition_function=...)`
+- Balancing exploration and exploitation, or switching strategies mid-run
+- Minimization, constrained search, multi-objective targets, change-mapping (`"gradient"` / `radical_gradient`), or level-set (`threshold_finder` / `"target probability"`) criteria
 
 ## Choose the Acquisition Function *With* the User
 
-**Never pick an acquisition function silently.** It is the single choice that most
-determines where the instrument actually goes, and the right answer depends on what
-the scientist wants to walk away with — which is rarely what their first sentence says.
+**Never pick an acquisition function silently.** Before generating a script:
 
-Before generating a script:
+1. **Name your recommendation and its main tradeoff** (e.g., `"variance"` gives uniform coverage across the space, whereas `"ucb"` concentrates shots near the peak).
+2. **Disambiguate "find the best conditions":** ask whether they need the single best operating point (`"ucb"`, `"noisy expected improvement"`, `"knowledge gradient"`) or a trustworthy map of the landscape (`"variance"`, `"gradient"`, `radical_gradient`), and confirm whether they are **maximizing or minimizing**.
+3. **Remember the acquisition is an `ask()` argument, not a fixed GP property** — exploring with `"variance"` for the first ~20 points before switching to `"ucb"` or `"noisy expected improvement"` is often the best design.
 
-1. **Name your recommendation and the one tradeoff it makes.** "I'd use `variance`,
-   which will give you an even-quality map but won't spend extra shots refining the
-   peak once it finds it."
-2. **Resolve the ambiguity in "find the best conditions."** That phrase covers two
-   different experiments. Ask which one:
-   - *the single best point* — they will set the instrument there and run production;
-     the rest of the space is disposable → exploitation-leaning (`ucb`, EI late)
-   - *a trustworthy map that contains the best point* — they need to see the landscape,
-     report it, or find secondary optima → exploration-leaning (`variance`, gradient
-     forms, `relative information entropy`)
-3. **Ask what they'd do with a wrong answer.** If over-exploiting a noise spike would
-   waste a shift of beam time, weight toward exploration.
-4. **Confirm before writing the loop**, and put the reasoning in a comment in the
-   generated script so the choice is revisitable.
+Do **not** default to `"expected improvement"`: it is maximization-only, anchors to a single noisy observation (`np.max(y_data)`), and in legacy gpCAM ≤ 8.4.2 degenerated to pure exploration below the incumbent.
 
-Do **not** default to `"expected improvement"`. It is the most famous acquisition
-function in the literature and the most over-applied in practice; it is also
-maximization-only and anchors to a single noisy observation — see
-[gpCAM-Specific Behavior](#gpcam-specific-behavior-you-must-know) below. And on gpCAM
-≤ 8.4.2 it degenerates to pure exploration (caveat a), so **ask which version they run
-before recommending it**.
+For per-archetype dialogue prompts ("Ask back...") and loop templates across all 9 experimental archetypes, see [references/choosing-an-acquisition-function.md](references/choosing-an-acquisition-function.md).
 
-### Decision Table — start from what they want to *learn*
+## Built-in Options & Decision Guide
 
-| They say… | Start from | Tradeoff to state out loud |
+Pass these strings to `gpo.ask(acquisition_function=...)`:
+
+| Goal / Scenario | String key (or callable) | Key behavior & tradeoffs |
 |---|---|---|
-| "map the whole space" / "replace my raster scan" | `"variance"` | even posterior confidence everywhere; won't refine the peak |
-| "find where the signal *changes*" / "find the edges, the transition" | `radical_gradient` callable (below), or `"gradient"` | targets steep regions; ignores flat regions even if unmeasured |
-| "find the single best point, I have limited time" | `"ucb"` | exploits toward the max; `beta` is fixed at 3.0 for the built-in string |
-| "find the best point, but **my measurements are noisy**" | `"noisy expected improvement"` | the correct EI under noise; costs more per evaluation than `"ucb"` |
-| "it keeps re-measuring the same spot" / "EI has gone flat" | `"knowledge gradient"` | lookahead — values a point by how much it would improve your best *decision*, so it keeps exploring where EI has stalled; the most expensive built-in |
-| "find where the signal crosses X" | `threshold_finder` callable (below) | concentrates on one level set; the rest of the space stays coarse |
-| "find conditions where output ≈ X" | `"target probability"` + `args={'a':lo,'b':hi}` | same — a band, not a global map |
-| "**minimize** this" | `"lcb"`, or a custom EI-for-minimization | **not** EI, PI, KG, NEI, or `"ucb"` — all are hardcoded for maximization |
-| "give me N points per round" (batch) | `"total correlation"` (or `"relative information entropy"`) | the only two that score a *set*, so the only two that can pick a batch jointly — see caveat (e) |
-| multi-task / spectra — *exploring* | `"relative information entropy set"` or `"variance"` | — |
-| multi-task / spectra — *optimizing* | `"knowledge gradient"` or `"noisy expected improvement"` | all three act on the task-summed objective, but KG/NEI use the exact cross-task covariance where plain EI assumes independent tasks — see caveat (d) |
-| "I already know roughly where the peak is, refine it" | `"expected improvement"` if noise is low, `"noisy expected improvement"` if not | greedy; plain EI assumes the incumbent is known exactly |
-| "I don't know yet" | `"variance"` for the first ~20 points, then revisit | you can change the acquisition between `ask()` calls — it is not fixed for the run |
+| Pure exploration / replace raster scan | `"variance"` | Uniform posterior confidence everywhere; won't refine peaks |
+| Maximize (low noise, fast) | `"ucb"` | `mean + 3.0 * std`; reliable general-purpose maximizer (`beta=3.0` fixed — use a callable to tune `beta`) |
+| **Minimize** | `"lcb"` (or `expected_improvement_minimize`) | `-(mean - 3.0 * std)`; **never** use EI, PI, UCB, KG, or NEI for minimization |
+| Maximize under **observation noise** | `"noisy expected improvement"` | Integrates over the incumbent posterior (`nei_samples`, `nei_reference_set_size`, `nei_seed` via `args`); slower than `"ucb"` |
+| Maximize when greedy EI/UCB stalls | `"knowledge gradient"` | One-step lookahead expected gain in `max posterior_mean` (`kg_reference_set_size`, `kg_seed` via `args`); heaviest built-in |
+| Late local refinement (low noise) | `"expected improvement"` | Maximization-only; anchors to `np.max(y_data)` (single-task) or `_incumbent_task_sum` (multi-task) |
+| Risk-averse maximization | `"probability of improvement"` | Maximization-only; greedier than EI and stalls easily |
+| Map steep transitions / edges | `"gradient"` or `radical_gradient` callable | `"gradient"` scores `‖∇m(x)‖ · σ(x)` (sharpest ridge); `radical_gradient` uses `√‖∇m(x)‖ · σ(x)` to spread across multiple transitions |
+| Find where output ∈ `[a, b]` | `"target probability"` | Requires `args={"a": lo, "b": hi}` on `GPOptimizer(...)` or `gpo.ask(..., args=...)` |
+| Find level set `f(x) = threshold` | `threshold_finder` callable | Concentrates on one contour; alternate with `"variance"` if a full map is also needed |
+| Batch (`n > 1` points jointly) | `"total correlation"` or `"relative information entropy"` | The only two built-ins that score a **set** jointly (forces `vectorized=False`; `"total correlation"` unavailable in `"kronecker"` mode) |
+| Multi-task exploration | `"relative information entropy set"` or `"variance"` | Vectorized exploration across `x_out` tasks |
+| Multi-task maximization (`Σ_t f(x, t)`) | `"knowledge gradient"` or `"noisy expected improvement"` | Uses exact cross-task covariance (`_scalarized_blocks`), whereas multi-task `"expected improvement"` assumes independent tasks |
+| Pure exploitation (no uncertainty) | `"maximum"` / `"minimum"` | Posterior mean only (`σ` ignored) — almost always stalls at one point |
 
-That last row is worth saying to the scientist explicitly: **the acquisition function
-is an argument to `ask()`, not a property of the GP.** A common good design is to
-explore first and switch to an exploitative acquisition once the posterior is
-informative.
+To compare any built-in or custom acquisition on a grid before running the loop:
+```python
+scores = gpo.evaluate_acquisition_function(x_grid, acquisition_function="ucb")
+```
+(`evaluate_acquisition_function` flips the internal minimization sign back at `gp_optimizer_base.py:301` so higher scores mean higher priority.)
 
-For worked examples of each archetype — how the scientist phrases it, what to ask back,
-and the resulting loop — see
-[references/choosing-an-acquisition-function.md](references/choosing-an-acquisition-function.md).
+### Set-valued batch acquisitions (`"total correlation"` vs `"relative information entropy"`)
+
+`"total correlation"` and `"relative information entropy"` are the only built-ins that score a **whole candidate set** with a single number rather than scoring each point independently:
+- **`"total correlation"`** measures the KL divergence between the joint distribution over existing data + candidates and the factored distribution with data-to-candidate and candidate-to-candidate correlations removed. Negated for maximization, it penalizes both redundancy with existing data **and** mutual redundancy among candidates in the batch. (Not available when `multi_task_mode="kronecker"`, `gp_optimizer_base.py:443-445`.)
+- **`"relative information entropy"`** measures the KL divergence between the prior and posterior at the candidates alone, preferring unexplored regions without explicitly penalizing candidate-to-candidate proximity.
+
+## gpCAM-Specific Behavior You Must Know
+
+**(a) Legacy gpCAM ≤ 8.4.2 EI bug (fixed in #55 / gpCAM ≥ 8.5).**
+In `surrogate_model.py:409-412`, `_expected_improvement` standardizes `z = imp / (std + 1e-9)` before evaluating `imp * norm.cdf(z) + std * norm.pdf(z)`. In gpCAM ≤ 8.4.2, `imp` was clipped to 0 *before* dividing by `std`, collapsing EI to `0.3989 · σ(x)` wherever `mean < y_best`. If a user is on an older install, check with:
+```python
+ei  = gpo.evaluate_acquisition_function(x_grid, acquisition_function="expected improvement")
+var = gpo.evaluate_acquisition_function(x_grid, acquisition_function="variance")
+below = gpo.posterior_mean(x_grid)["m(x)"] < np.max(gpo.y_data)
+print(np.unique(np.round(ei[below] / var[below], 6)))  # [0.398942] on <=8.4.2; spread below 0.398942 on >=8.5
+```
+
+**(b) EI, PI, UCB, KG, and NEI are all maximization-only.**
+Single-task EI/PI hardcode `last_best = np.max(gp.y_data)` (`surrogate_model.py:306, 313`), multi-task EI maximizes the task sum (`_incumbent_task_sum`, `surrogate_model.py:415-427`), and KG/NEI take `np.max(mu_ref)` (`surrogate_model.py:462, 513`). For minimization, use `"lcb"` or `expected_improvement_minimize` below.
+
+**(c) Single-task plain EI/PI anchor to a noisy observation.**
+`np.max(gpo.y_data)` is the largest raw reading, not the posterior mean, so on noisy data plain EI over-exploits noise spikes. Prefer `"noisy expected improvement"` (or `"knowledge gradient"`), which integrates over the posterior at the observed reference points (`surrogate_model.py:495-520`).
+
+**(d) Multi-task plain EI assumes uncorrelated tasks.**
+When `x_out` is set (`surrogate_model.py:375-389, 415-427`), multi-task `"expected improvement"` scalarizes to the task-summed objective `g(x) = Σ_t f(x, t)` using `_incumbent_task_sum` (the maximum task-summed **posterior mean** at the observed inputs, so missing `NaN` task entries in `"cartesian"` mode do not poison EI) and `std = sqrt(Σ_t Var[f(x, t)])`. That spread drops cross-task covariance, so it is exact only when tasks are independent. `"knowledge gradient"` and `"noisy expected improvement"` scalarize the same `Σ_t f(x, t)` objective using the full cross-task covariance via `_scalarized_blocks` (`surrogate_model.py:430-452`).
+
+**(e) Batch (`n > 1`) behavior depends on `input_set` type.**
+- With a continuous `np.ndarray` bounds `input_set`, `n > 1`, `method != "hgdl"`, and a string acquisition other than `"total correlation"` or `"relative information entropy"`, `gp_optimizer_base.py:583-594` warns and overrides the string to `"total correlation"` (or `"relative information entropy"` when `multi_task_mode == "kronecker"`). To get `n > 1` local optima of a point-wise acquisition over bounds, pass a callable with `method="hgdl"` and a `dask_client`.
+- With a discrete **candidate list** and `n > 1`, `"total correlation"` and `"relative information entropy"` select the batch jointly via greedy forward selection (`gp_optimizer_base.py:618-625`), returning a single scalar score in `"f_a(x)"`. All other strings and custom callables are scored point-by-point and truncated to the top `n` (`gp_optimizer_base.py:626-636`), which warns and can pick clustered duplicates.
+
+**(f) `"ucb"` and `"lcb"` fix `beta = 3.0`** (`surrogate_model.py:291, 295, 366, 372`). Write the 5-line callable below to change `beta`.
+
+**(g) KG and NEI cost O((N_ref + V)²) per call.**
+Keep `kg_reference_set_size` / `nei_reference_set_size` modest (default `100`) and pass via `GPOptimizer(..., args=...)` or `gpo.ask(..., args=...)`:
+```python
+gpo.ask(bounds, acquisition_function="noisy expected improvement",
+        args={"nei_samples": 128, "nei_reference_set_size": 100, "nei_seed": 0})
+```
 
 ## Acquisition Function Contract
 
 ```python
 def my_acquisition(x, gp_optimizer):
     """
-    Parameters
-    ----------
-    x : np.ndarray, shape (V, D)
-        Candidate points to evaluate.
-    gp_optimizer : GPOptimizer
-        The GP model. Use its posterior_mean() and posterior_covariance() methods.
-    
-    Returns
-    -------
-    scores : np.ndarray, shape (V,)
-        Score for each candidate. HIGHER = more desirable (function is MAXIMIZED).
+    x : np.ndarray, shape (V, D) — candidate points to evaluate.
+    gp_optimizer : GPOptimizer — use posterior_mean() and posterior_covariance().
+    Returns: scores : np.ndarray, shape (V,) — HIGHER = more desirable (MAXIMIZED).
     """
 ```
 
-**Key rule:** The acquisition function is **maximized**. Return higher values for points you want to measure.
-
-### Reading the GP's data inside an acquisition function
-
-`gpo.y_data` and `gpo.x_data` are public properties and are the right thing to use
-for an incumbent value (`y_best`). They return the data **in the GP's own modeling
-space**, which is the same space `posterior_mean()` returns — so the two are always
-directly comparable.
-
-`get_data()` returns the same arrays in a dict along with hyperparameters and
-metadata. Use `get_data()` for reporting and inspection; use the `x_data` / `y_data`
-properties inside acquisition functions, where you want the cheap attribute access
-and guaranteed space-consistency.
-
-> **With a transformed optimizer** (`LogGPOptimizer`, `LogitGPOptimizer`), `gpo.y_data`
-> holds the *transformed* observations — `log(y)` or `logit(y)` — matching
-> `posterior_mean()`. Every recipe below therefore stays internally consistent with no
-> changes. What you must **not** do is mix spaces: `get_data()["original y data"]`
-> is on the original scale and comparing it against `posterior_mean()` is a silent
-> units bug. Any **absolute constant** you hardcode — a threshold, a target value, a
-> forbidden output level — is also in latent space and must be transformed
-> (`np.log(threshold)`, `scipy.special.logit(threshold)`). See the
-> `transformed-optimizers-advanced` skill.
-
-## Built-in Options
-
-Pass these as strings to `gpo.ask(acquisition_function=...)`:
-
-| Name | String key | Best for | Avoid when |
-|------|-----------|----------|------------|
-| Variance | `"variance"` | Pure exploration / mapping | They need the peak refined, not the map |
-| Expected Improvement | `"expected improvement"` | Late refinement of a known maximum, low noise, sequential, single-task | Minimizing; noisy data; batch (`n>1`); correlated multi-task (caveat d); **any run on gpCAM ≤ 8.4.2** (caveat a) |
-| Probability of Improvement | `"probability of improvement"` | Risk-averse maximization | Minimizing; it is even greedier than EI and stalls easily |
-| Upper Confidence Bound | `"ucb"` | Maximization; the most reliable general-purpose optimizer here | Minimizing; you need `beta ≠ 3.0` (write the callable — caveat f) |
-| Lower Confidence Bound | `"lcb"` | Minimization | You need `beta ≠ 3.0` (write the callable) |
-| Predicted Maximum | `"maximum"` | Pure exploitation — mean only, no uncertainty | Almost always: with no uncertainty term it re-measures the same point forever |
-| Predicted Minimum | `"minimum"` | Pure exploitation for minimization | Same |
-| Gradient | `"gradient"` | Seek steepest regions of the posterior mean | Signal is flat but interesting; you want uniform coverage |
-| Target Probability | `"target probability"` | Find points with output near a target value | `args={'a':…, 'b':…}` not set — it raises |
-| Relative Information Entropy | `"relative information entropy"` | Information-theoretic exploration; scores a **set** | Speed matters — forces `vectorized=False` |
-| RIE Set | `"relative information entropy set"` | Batch acquisition; multi-task exploration | — |
-| Total Correlation | `"total correlation"` | Batch acquisition; scores a **set** | Speed matters — forces `vectorized=False` |
-| Knowledge Gradient | `"knowledge gradient"` | Maximization; lookahead, one-step-optimal, robust to noise; keeps exploring when EI stalls | Minimizing; large datasets or tight acquisition budgets — it loops per candidate over a joint posterior |
-| Noisy Expected Improvement | `"noisy expected improvement"` | Maximization on noisy measurements — the right EI when the incumbent isn't known exactly | Minimizing; noiseless data (plain EI is cheaper); tight compute budgets |
-
-### The two set-valued acquisitions, and how they differ
-
-`"total correlation"` and `"relative information entropy"` are the only built-ins that
-score a **whole set** with a single number rather than scoring each point on its own.
-That is what lets them judge a batch, and it is why they are the answer when a scientist
-asks "which `M` experiments should I run together". Both are KL divergences, but between
-different pairs of distributions, so they answer different questions.
-
-**`"total correlation"`** is the divergence between the joint distribution over the
-existing data together with the candidates, and that same distribution with the
-data-to-candidate cross-covariance removed and the candidates made mutually independent.
-So it measures how much statistical dependence is present: how redundant the candidates
-are with what has already been measured, and with each other. gpCAM negates it, so
-maximizing the acquisition *minimizes* dependence and prefers points that are novel
-relative to the existing data **and** mutually distinct.
-
-**`"relative information entropy"`** is the divergence between the prior and the
-posterior at the candidate points alone. It measures how much the data already collected
-has changed the belief there. Negated the same way, maximizing it prefers points where
-prior and posterior still agree — locations the data has not reached.
-
-Which to recommend: for "which measurements should I take *together*", `"total
-correlation"` is the more direct criterion, because it explicitly penalizes
-candidate-to-candidate correlation. `"relative information entropy"` also spreads points
-out, but only as a side effect of them all lying in unexplored regions, so it will
-tolerate neighbors that are individually uninformed yet redundant with one another.
-
-To sanity-check any built-in or custom acquisition on a grid of candidates without calling `ask()`:
-```python
-scores = gpo.evaluate_acquisition_function(x_grid, acquisition_function="ucb")
-```
-
-Plotting these scores over a 1-D or 2-D grid next to the posterior mean is the fastest
-way to show a scientist *why* one acquisition sends the instrument somewhere different
-from another. Do this when they're unsure which to pick.
-
-## gpCAM-Specific Behavior You Must Know
-
-These are properties of gpCAM's implementations, not of the textbook definitions. Tell
-the scientist about any that apply to their choice — several will otherwise silently do
-something other than what they were told.
-
-**(a) EI degenerated to pure exploration in gpCAM ≤ 8.4.2 — check which version they run.**
-Fixed by [#55](https://github.com/lbl-camera/gpCAM/issues/55); `surrogate_model.py` now
-standardizes first and needs no clip at all (the `np.maximum` is only a guard against
-floating-point cancellation when `σ` is at or below the epsilon), in the shared
-`_expected_improvement` helper:
-
-```python
-z = imp / (std + 1e-9)
-return np.maximum(imp * norm.cdf(z) + std * norm.pdf(z), 0.)
-```
-
-The old code clipped `imp` to 0 *first* and only then divided by `σ`, so at every
-candidate whose posterior mean sat **below** the incumbent the score collapsed to the
-constant `σ · φ(0) = 0.3989 · σ` — the `"variance"` acquisition up to a positive factor.
-Until the posterior mean somewhere exceeded the best observed value, EI was pure
-exploration. This matters because **8.3.9 is still the stable line and 8.4.2 the latest
-release**, so most scientists you talk to are running the broken version. If they are,
-tell them plainly that their EI run was exploration, and recommend upgrading or using
-`"knowledge gradient"` / `"noisy expected improvement"` (never affected).
-
-Check which behavior their install has, in four lines:
-
-```python
-ei  = gpo.evaluate_acquisition_function(x_grid, acquisition_function="expected improvement")
-var = gpo.evaluate_acquisition_function(x_grid, acquisition_function="variance")
-below = gpo.posterior_mean(x_grid)["m(x)"] < np.max(gpo.y_data)
-print(np.unique(np.round(ei[below] / var[below], 6)))
-# one value == [0.398942] -> affected build; a spread of values below 0.398942 -> fixed
-```
-
-(The public `gpo.evaluate_acquisition_function` returns the higher-is-better score —
-it flips the internal sign back at `gp_optimizer_base.py:297`. Don't negate it again.)
-
-Note this fixes only the *degeneration*. Caveats (b) and (c) below — maximization-only,
-and anchoring to a noisy observation — are properties of plain EI and still apply.
-
-**(b) EI, PI, KG, and NEI are all maximization-only.** `last_best = np.max(gpo.y_data)`
-is hardcoded for single-task EI/PI (`surrogate_model.py:251, 258`), multi-task EI takes
-the max over the task-summed observations, and KG/NEI take `np.max(mu_ref)` over the
-reference set. If the scientist is minimizing, every one of
-them produces meaningless behavior with no error. Use `"lcb"` or the
-`expected_improvement_minimize` callable below.
-
-**(c) Plain EI/PI anchor to a noisy observation.** `np.max(y_data)` is the largest
-*measured* value, not the posterior mean at that location, so on noisy data EI
-over-exploits around a noise spike. **This is what `"noisy expected improvement"` is
-for** — it integrates over the posterior of the incumbent instead of treating it as
-known. Prefer NEI (or `"knowledge gradient"`) on noisy measurements; reach for `"ucb"`
-only if you also need the cheaper evaluation.
-
-**(d) Multi-task plain EI assumes the tasks are independent.** The `x_out` branch
-(`surrogate_model.py:312-321`) scalarizes to the task-summed objective
-`g(x) = Σ_t f(x, t)`, and since #55 it does so coherently: the incumbent is the best
-task-*summed* observation (`_observed_task_sums`) and the spread is
-`sqrt(Σ_t Var[f(x,t)])`. That last step drops the cross-task covariance, so the spread
-is right only if the tasks are uncorrelated — usually they are not, which is the whole
-reason to fit a multi-task GP. `"knowledge gradient"` and `"noisy expected improvement"`
-scalarize the same objective but take the exact cross-task covariance from
-`_scalarized_blocks`, at O((N·T)²) cost per evaluation. So for correlated tasks prefer
-KG/NEI; plain multi-task EI is the cheap approximation, not the accurate one.
-
-In gpCAM ≤ 8.4.2 this branch was worse than approximate — it *summed the standard
-deviations* (not the variances) and compared the task-sum against `np.max(gpo.y_data)`,
-a single `(point, task)` entry of the product-space vector. On that build, do not
-recommend plain multi-task EI at all.
-
-**(e) Batch behavior depends on whether you passed bounds or candidates.**
-
-With an `np.ndarray` `input_set`, `n > 1`, `method != "hgdl"`, and a string acquisition,
-`gpcam/gp_optimizer_base.py:528-536` replaces whatever was requested with
-`"total correlation"` (a warning is emitted). Batch EI is not EI — and neither is batch
-KG or batch NEI. Either use a genuinely batch-aware acquisition, or pass a callable and
-`method="hgdl"` with a Dask client.
-
-With a **candidate list** and `n > 1` the split is different, and it is the one that
-decides whether a batch is any good. `"total correlation"` and `"relative information
-entropy"` score a whole set with one number, so gpCAM selects the batch jointly by
-greedy forward selection and `'f_a(x)'` comes back as a **single value for the set**.
-Every other acquisition — including any callable, which gpCAM cannot introspect — is
-scored one point at a time, `n` truncates the sorted list, and `ask()` warns that the
-points are not mutually optimal. Take that warning seriously: nothing stops the highest
-individual scorers from sitting on top of each other, so a point-wise top-`n` from a
-dense candidate pool is very often several copies of the same experiment. If the
-scientist wants "the `M` most valuable experiments to run together", that is the
-set-valued path, not the point-wise one.
-
-**(f) `"ucb"` and `"lcb"` hardcode `beta = 3.0`** (`surrogate_model.py:232, 236`). The
-strings expose no tuning. To change the exploration/exploitation balance you must pass
-the callable form below.
-
-**(g) KG and NEI are the expensive ones.** Both build a joint posterior over the
-reference set plus candidates on every evaluation, and KG loops in Python over
-candidates. On a large dataset or a tight acquisition budget this dominates the loop.
-Keep `kg_reference_set_size` / `nei_reference_set_size` modest (default 100, which
-subsamples the data), and use `method="global"` — the `"local"` finite-difference
-optimizer is weak on their flat score surfaces, exactly as with plain EI.
-
-### Knowledge gradient and noisy expected improvement
-
-Both are optimization acquisitions (find the maximum) that reason about the posterior
-of the underlying **function** rather than the raw noisy observations. They are the
-right choice over plain `"expected improvement"` when measurements are noisy, and
-they work for both single-task and multi-task GPs.
-
-```python
-# Single-task
-gpo.ask(bounds, acquisition_function="knowledge gradient")
-gpo.ask(bounds, acquisition_function="noisy expected improvement")
-
-# Multi-task — both act on the task-summed objective sum_t f(x, t),
-# matching the built-in multi-task "expected improvement" / "ucb"
-gpo.ask(bounds, x_out=np.array([0, 1, 2]),
-        acquisition_function="knowledge gradient")
-```
-
-- **Knowledge gradient (KG)** — the expected increase in the maximum of the posterior
-  *mean* after a hypothetical measurement at the candidate (KGCP scheme: the reference
-  set is the data points plus the candidate). It is a one-step-optimal, lookahead
-  criterion: it values a measurement by how much it is expected to improve your best
-  decision, so it keeps exploring even when simple EI has gone to zero. KG is ~0 on
-  top of existing data and largest where a measurement would most raise the achievable
-  maximum.
-- **Noisy expected improvement (NEI)** — expected improvement averaged over the
-  posterior of the incumbent (the best value so far). Plain EI treats the incumbent as
-  known exactly, which is wrong under observation noise; NEI integrates over it
-  (Monte-Carlo over posterior samples of the objective at the observed points, with
-  common random numbers so the score is smooth for the optimizer).
-
-Both accept optional tuning through the constructor `args` dict:
-
-```python
-gpo = GPOptimizer(x_data, y_data, args={
-    "kg_reference_set_size": 100,   # cap on reference points (subsampled if larger)
-    "kg_seed": 0,                   # seed for the reference-set subsample
-    "nei_samples": 128,             # Monte-Carlo incumbent samples for NEI
-    "nei_reference_set_size": 100,
-    "nei_seed": 0,                  # seed -> common random numbers, smooth objective
-})
-```
-
-Cost note: both are substantially heavier than `"variance"` or `"ucb"` — see caveat (g)
-above for what to do about it.
+- **Reading GP data:** Use `gpo.x_data` and `gpo.y_data` inside custom acquisitions (not `get_data()["original y data"]`). For `LogGPOptimizer` and `LogitGPOptimizer`, `gpo.y_data` is already in latent (`log` or `logit`) space matching `posterior_mean()`; any hardcoded threshold or target constant must also be transformed into latent space (`np.log(threshold)` or `scipy.special.logit((threshold - lo) / (hi - lo))` — see `transformed-optimizers-advanced`).
 
 ## Custom Acquisition Recipes
 
@@ -535,19 +314,14 @@ result = gpo.ask(
 | `method="global"\|"local"\|"hgdl"\|"hgdlAsync"` | Inner optimizer that searches for the argmax of the acquisition over `input_set`. `hgdl` requires `dask_client=`; `hgdlAsync` starts a background search and returns an `opt_obj` you can poll or `kill_client()`. |
 | `dask_client=client` | Distribute the inner optimization across Dask workers. |
 | `batch_size=B` | When candidates are a list, evaluate them in chunks of `B` on the cluster. |
+| `args={...}` | Updates `gpo.args` before evaluating the acquisition (`gp_optimizer_base.py:373, 536-537, 559`) — used by `"target probability"` (`{'a': lo, 'b': hi}`) and KG/NEI tuning keys. |
 | `max_iter`, `pop_size`, `info=True` | Inner optimizer controls. |
 
 `input_set` can be continuous bounds (`np.array([[lo,hi], ...])`), a list of candidate points (discrete finite set), or a list of arbitrary objects (non-Euclidean — strings, graphs — provided your kernel handles them).
 
-## Hyperparameter Coordination
+## Hyperparameter & `args` Coordination
 
-Acquisition functions don't add hyperparameters — they read the GP state via `gpo.posterior_mean()` and `gpo.posterior_covariance()`. However:
-
-- `gpo.y_data` reflects every `tell()` immediately, so `y_best` is current without extra bookkeeping. It is in the GP's modeling space (see the note at the top of this skill).
-- Acquisition functions receive no `args` dict — unlike kernel/mean/noise callables, the signature is exactly `f(x, gp_optimizer)`. Bind extra parameters with a closure or `functools.partial`.
-- The GP must be trained before acquisition makes sense — always call `train()` first
-- For `variance_only=True`: faster, returns just diagonal variances (usually what you want)
-- For full covariance: use `variance_only=False` but this is O(V²) memory
+Acquisition functions don't add hyperparameters — they read the trained GP state via `gpo.posterior_mean(x)` and `gpo.posterior_covariance(x, variance_only=True)` (prefer `variance_only=True` to avoid O(V²) covariance matrices). Custom acquisition callables always have the 2-argument signature `f(x, gp_optimizer)`; bind extra parameters with `functools.partial` or read `gp_optimizer.args` (see the `experiment-designer` skill for the full `args` dispatch table).
 
 ## Common Pitfalls
 

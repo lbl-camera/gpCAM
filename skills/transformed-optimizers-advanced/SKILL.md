@@ -1,16 +1,16 @@
 ---
 name: transformed-optimizers-advanced
-description: Use when observations are constrained — strictly positive (intensities, rates, concentrations) or bounded in [0, 1] (fractions, probabilities). LogGPOptimizer and LogitGPOptimizer fit a GP on transformed observations and push the posterior back through the inverse link, so predictions and credible intervals stay inside the constrained range. Includes how to get raw posterior samples for histograms.
-gpcam_version: "8.4.x"
-fvgp_version: "4.8.x"
-last_verified: "2026-07-23 (gpCAM dadeb65)"
+description: Use when observations are constrained — strictly positive (intensities, rates, concentrations) or bounded in [a, b] (fractions, probabilities, yields). LogGPOptimizer and LogitGPOptimizer fit a GP on transformed observations and push the posterior back through the inverse link, so predictions and credible intervals stay inside the constrained range. Includes how to get raw posterior samples for histograms.
+gpcam_version: "8.7.x"
+fvgp_version: "4.11.x"
+last_verified: "2026-10-28 (gpCAM 8.7.0, a21385a)"
 ---
 
 # Skill: Transformed-Output GP Optimizers
 
-*Verified against gpCAM 8.4.x / fvgp 4.8.x — last checked 2026-07-23 (gpCAM `dadeb65`).*
+*Verified against gpCAM 8.7.0 / fvgp 4.11.1 — last checked 2026-10-28 (gpCAM `a21385a`).*
 
-Use this skill when measurements are guaranteed positive (`y > 0`) or bounded (`y ∈ [0, 1]`). A plain GP doesn't know about these constraints and will happily predict negative intensities or probabilities outside `[0, 1]`. The transformed optimizers fit the GP in an unconstrained "link" space (log or logit) and push the Gaussian posterior back through the inverse link via `evaluate_posterior(x)`, so the original-scale predictions and credible intervals are guaranteed to respect the constraint.
+Use this skill when measurements are guaranteed positive (`y > 0`) or bounded (`y ∈ [a, b]`, default `[0, 1]`). A plain GP doesn't know about these constraints and will happily predict negative intensities or values outside `[a, b]`. The transformed optimizers fit the GP in an unconstrained "link" space (log or logit) and push the Gaussian posterior back through the inverse link via `evaluate_posterior(x)`, so the original-scale predictions and credible intervals are guaranteed to respect the constraint.
 
 ## When to use which
 
@@ -99,7 +99,7 @@ Distributions are: Gaussian for plain `GPOptimizer`, lognormal for `LogGPOptimiz
 
 Two cases that need care:
 
-- **`"target probability"`**: pass already-transformed bounds. For `LogGPOptimizer`, use `args={"a": np.log(a), "b": np.log(b)}`. For `LogitGPOptimizer`, use `args={"a": scipy.special.logit(a), "b": scipy.special.logit(b)}`.
+- **`"target probability"`**: pass already-transformed bounds (via `GPOptimizer(..., args=...)` or `gpo.ask(..., args=...)`). For `LogGPOptimizer`, use `args={"a": np.log(a), "b": np.log(b)}`. For `LogitGPOptimizer` with `range=(lower, upper)`, first rescale `a_norm = (a - lower) / (upper - lower)` and `b_norm = (b - lower) / (upper - lower)`, then pass `args={"a": scipy.special.logit(a_norm), "b": scipy.special.logit(b_norm)}`.
 - **`"expected improvement"` / `"probability of improvement"`**: these compare against the best observed transformed value, which is also the best original value, so semantics carry over. The score *magnitude* differs from a plain GP fit but the *ranking* is consistent.
 
 ### Writing custom acquisition functions against a transformed optimizer
@@ -158,8 +158,8 @@ When you provide `noise_variances` (observation noise) at construction or via `t
 
 ## Pickling
 
-`LogGPOptimizer` and `LogitGPOptimizer` pickle the same way as `GPOptimizer`. `LogitGPOptimizer`'s extra attributes (`eps`, `n_samples`) survive the round-trip.
+`LogGPOptimizer` and `LogitGPOptimizer` pickle the same way as `GPOptimizer`. `LogitGPOptimizer`'s extra attributes (`eps`, `n_samples`, `range`) survive the round-trip.
 
 ## Example notebook
 
-See [`examples/GPOptimizer_LogAndLogit.ipynb`](../../examples/GPOptimizer_LogAndLogit.ipynb) for a side-by-side visual tour — latent-space GP, back-transformed band, plain-GP comparison that violates the constraint, and posterior-sample histograms (lognormal vs. logistic-normal).
+See [`GPOptimizer_LogAndLogit.ipynb`](../../examples/GPOptimizer_LogAndLogit.ipynb) for a side-by-side visual tour — latent-space GP, back-transformed band, plain-GP comparison that violates the constraint, and posterior-sample histograms (lognormal vs. logistic-normal).

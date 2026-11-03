@@ -28,12 +28,10 @@ measurement?"*
 
 **Why not plain EI by default.** Its EI anchors to `np.max(y_data)` — the largest
 *noisy observation*, not the posterior mean — so on noisy data it locks onto a spike;
-this is exactly what NEI was added to fix. And on gpCAM ≤ 8.4.2 there is a second,
-bigger reason: until the posterior mean somewhere exceeded that incumbent, EI was
-algebraically `0.3989 · σ(x)` over the whole sub-incumbent region — pure exploration,
-identical in ranking to `"variance"` there. Fixed in
-[#55](https://github.com/lbl-camera/gpCAM/issues/55), so check the version before
-ruling EI in or out on those grounds.
+this is exactly what NEI was added to fix. (In legacy gpCAM ≤ 8.4.2, plain EI also
+clipped `imp` before dividing by `σ`, collapsing to `0.3989 · σ(x)` wherever the
+posterior mean sat below the incumbent — fixed in
+[#55](https://github.com/lbl-camera/gpCAM/issues/55).)
 
 ```python
 # Explore first, then exploit — a good default for peak finding.
@@ -41,9 +39,9 @@ for i in range(N_ITERATIONS):
     acq = "variance" if i < 20 else "ucb"
     next_x = gpo.ask(input_set=parameter_bounds, acquisition_function=acq)["x"]
     y, nv = measure(next_x)
-    gpo.tell(next_x, np.array([y]), noise_variances=np.array([nv]), append=True)
+    gpo.tell(next_x, np.array([y]), noise_variances=np.array([nv]))
     if (i + 1) % RETRAIN_EVERY == 0:
-        gpo.train(hyperparameter_bounds=hp_bounds, method="local", max_iter=100)
+        gpo.train(hyperparameter_bounds=hp_bounds, method="local", max_iter=100, n_restarts=1)
 ```
 
 ---
@@ -106,11 +104,12 @@ on the same data.
 
 ```python
 def threshold_finder(x, gpo):
-    threshold = 0.5  # EDIT
+    threshold = 0.5  # EDIT — in the GP's modeling space
     mean = gpo.posterior_mean(x)["m(x)"]
     std = np.sqrt(np.maximum(
         gpo.posterior_covariance(x, variance_only=True)["v(x)"], 1e-10))
-    return std / (np.abs(mean - threshold) + 0.01)
+    eps = 0.01 * np.std(gpo.y_data) + 1e-12  # scale-aware softening
+    return std / (np.abs(mean - threshold) + eps)
 
 next_x = gpo.ask(input_set=parameter_bounds,
                  acquisition_function=threshold_finder)["x"]
@@ -126,14 +125,12 @@ want a usable map, alternate this with `"variance"`.
 Common in sample synthesis and alignment: not a maximum, a specification.
 
 ```python
-gpo = GPOptimizer(x_data, y_data, args={"a": 0.95, "b": 1.05})  # target band
 next_x = gpo.ask(input_set=parameter_bounds,
-                 acquisition_function="target probability")["x"]
+                 acquisition_function="target probability",
+                 args={"a": 0.95, "b": 1.05})["x"]  # or pass args={...} to GPOptimizer(...)
 ```
 
-`args` must carry `'a'` (lower) and `'b'` (upper) or the call raises. For
-`LogGPOptimizer` / `LogitGPOptimizer`, pass the bounds already transformed —
-`np.log(0.95)`, `np.log(1.05)`.
+`args` must carry `'a'` (lower) and `'b'` (upper) — passed to `GPOptimizer(..., args=...)` or `gpo.ask(..., args=...)` — or the call raises. For `LogGPOptimizer` / `LogitGPOptimizer`, pass the bounds in latent space (`np.log(a)` for `LogGPOptimizer`; `scipy.special.logit((a - lo) / (hi - lo))` for `LogitGPOptimizer` with `range=(lo, hi)`).
 
 ---
 
@@ -177,25 +174,28 @@ next_x = result["x"]        # shape (5, D)
 ```
 
 **Critical caveat.** With an array `input_set`, `n > 1`, `method != "hgdl"`, and a
-*string* acquisition, gpCAM replaces whatever was requested with `"total correlation"`
-and emits a warning (`gp_optimizer_base.py:517-525`). So `ask(n=5,
-acquisition_function="expected improvement")` does not run EI. Either ask for a
-batch-aware acquisition deliberately, or pass a callable with `method="hgdl"` and a
-Dask client:
+*string* acquisition other than `"total correlation"` or `"relative information entropy"`,
+gpCAM replaces whatever was requested with `"total correlation"` (or `"relative information
+entropy"` when `multi_task_mode="kronecker"`) and emits a warning
+(`gp_optimizer_base.py:583-594`). So `ask(n=5, acquisition_function="expected improvement")`
+does not run EI. Either ask for a batch-aware acquisition deliberately, or pass a callable
+with `method="hgdl"` and a Dask client:
 
 ```python
 from distributed import Client
-client = Client()
-result = gpo.ask(input_set=parameter_bounds, n=5,
-                 acquisition_function=my_callable,
-                 method="hgdl", dask_client=client)
+
+if __name__ == "__main__":
+    client = Client()
+    result = gpo.ask(input_set=parameter_bounds, n=5,
+                     acquisition_function=my_callable,
+                     method="hgdl", dask_client=client)
 ```
 
 ---
 
 ## 8. Multi-task — "each measurement returns a spectrum"
 
-Use `GPOptimizer` with `y_data` of shape (V, No) and a `multi_task_mode` (see the
+Use `GPOptimizer` with `y_data` of shape `(V, No)` and a `multi_task_mode` (see the
 `multi-task-advanced` skill), and `x_out` to pick outputs.
 
 **Ask back:** *"Are you mapping all the channels, or optimizing something derived from
@@ -204,12 +204,13 @@ them?"*
 - Mapping / exploring → `"relative information entropy set"` or `"variance"`
 - Optimizing → `"knowledge gradient"` or `"noisy expected improvement"`
 
-**Do not recommend plain EI here.** The `x_out` branch (`surrogate_model.py:319`) sums
-the posterior mean across tasks and sums the standard deviations across tasks, then
-compares that sum against `np.max(gpo.y_data)` of a scalar. Summed std is not the std
-of the sum — that needs the cross-task covariance — so the result is not expected
-improvement of anything. KG and NEI scalarize the same task-summed objective
-`g(x) = Σ_t f(x, t)` but build the joint posterior properly (`_scalarized_blocks`).
+**Why KG or NEI over plain multi-task EI.** The `x_out` branch (`surrogate_model.py:375-389`)
+scalarizes to the task-summed objective `g(x) = Σ_t f(x, t)` using the best task-summed
+posterior mean at the observed inputs (`_incumbent_task_sum`, `surrogate_model.py:415-427`)
+and `std = sqrt(Σ_t Var[f(x, t)])`. That spread drops the cross-task covariance, so plain
+multi-task EI is accurate only when tasks are uncorrelated. KG and NEI scalarize the same
+task-summed objective `g(x) = Σ_t f(x, t)` using the exact cross-task covariance
+(`_scalarized_blocks`, `surrogate_model.py:430-452`).
 
 ```python
 # Exploring all channels
@@ -237,7 +238,7 @@ argument. `evaluate_acquisition_function` divides the acquisition by the cost fu
 so an expensive move must earn its score.
 
 ```python
-def my_cost(origin, x, arguments=None):
+def my_cost(origin, x):
     """Minutes to move from `origin` to each row of `x`. Must be > 0."""
     return 1.0 + 4.0 * np.abs(x[:, 0] - origin[0])
 
@@ -248,7 +249,7 @@ next_x = gpo.ask(input_set=parameter_bounds,
 ```
 
 `position` must be passed to `ask()` — `evaluate_acquisition_function` only applies the
-cost when `origin is not None` (`surrogate_model.py:196`), so omitting it silently
+cost when `origin is not None` (`surrogate_model.py:264-265`), so omitting it silently
 disables cost-awareness. See the `cost-functions` skill for the full contract and for
 fitting cost parameters from observed timings.
 
