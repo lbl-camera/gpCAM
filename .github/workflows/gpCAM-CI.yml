@@ -70,8 +70,11 @@ jobs:
           password: ${{ secrets.PYPI_API_TOKEN }}
           verbose: true
 
+      # The skills live in the package (gpcam/skills/); zip from gpcam/ so the
+      # archive keeps the skills/<name>/SKILL.md layout of earlier releases.
       - name: Package skills
-        run: zip -r dist/gpcam-skills.zip skills
+        working-directory: gpcam
+        run: zip -r ../dist/gpcam-skills.zip skills -x 'skills/__init__.py' '*/__pycache__/*'
 
       - name: Github Release
         uses: fnkr/github-action-ghr@v1
