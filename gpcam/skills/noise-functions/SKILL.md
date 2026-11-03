@@ -1,14 +1,14 @@
 ---
 name: noise-functions
 description: Use when modeling position-dependent, heteroscedastic, or otherwise structured noise in gpCAM — e.g., detector characteristics, count-rate-dependent variance, or non-uniform measurement uncertainty.
-gpcam_version: "8.4.x"
-fvgp_version: "4.8.x"
-last_verified: "2026-07-23 (gpCAM dadeb65)"
+gpcam_version: "8.7.x"
+fvgp_version: "4.11.x"
+last_verified: "2026-10-28 (gpCAM 8.7.0, a21385a)"
 ---
 
 # Skill: gpCAM Noise Functions
 
-*Verified against gpCAM 8.4.x / fvgp 4.8.x — last checked 2026-07-23 (gpCAM `dadeb65`).*
+*Verified against gpCAM 8.7.0 / fvgp 4.11.1 — last checked 2026-10-28 (gpCAM a21385a).*
 
 Design custom noise models for experiments with non-uniform or structured noise.
 
@@ -34,50 +34,31 @@ def my_noise(x, hyperparameters):
     
     Returns
     -------
-    noise : np.ndarray
-        Either shape (N,) for diagonal noise (independent per point),
-        or shape (N, N) for full noise covariance matrix.
+    noise : np.ndarray, shape (N,)
+        1-D array of strictly positive noise variances (one per point).
+        (Returning a 2-D (N, N) noise covariance matrix is deprecated via FutureWarning.)
     """
 ```
 
-An optional third argument receives the constructor's `args` dict — gpCAM dispatches
-on parameter count, so declaring it is what turns it on:
-
-```python
-def my_noise(x, hps, args):      # GPOptimizer(..., args={"bounds": ...})
-    ...
-```
-
-Pass it with `noise_function=my_noise`. For analytic gradients, also pass
-`noise_function_grad=`.
+- **Optional `args` parameter:** Declare a 3rd positional parameter `my_noise(x, hps, args)` to receive `GPOptimizer(..., args=...)` (`gp_optimizer.py:179-180`; see `experiment-designer` for the full `args` dispatch table).
+- **Analytic gradient (`noise_function_grad`):** Optional callable `f(x, hyperparameters)` (or `f(x, hyperparameters, args)`) returning a 2-D array of shape `(len(hyperparameters), N)` of partial derivatives of the noise variances (`0.0` for kernel/mean hyperparameter rows; or with `gradient_per_direction=True`, `f(x, hyperparameters, direction)` returning shape `(N,)`, `gp_optimizer.py:188-202`).
+- **Multi-task shapes (`gp_optimizer.py:100-102, 181-182`):**
+  - `noise_variances` array: shape `(V,)` for single-task, `"independent"`, and `"kronecker"` modes; shape `(V, No)` for `multi_task_mode="cartesian"` (with `np.nan` wherever `y_data` is `np.nan`).
+  - `noise_function(x, hps)`: in `"independent"` and `"kronecker"` modes `x` has shape `(N, D)`; in `"cartesian"` mode `x` has shape `(N, D + 1)` with the task index in the last column (`x[:, -1]`), and the function returns a 1-D vector of length `N`.
 
 ## When to Use What
 
 | Scenario | Approach |
 |----------|----------|
 | Known, uniform noise | Use `noise_variances=np.full(N, sigma**2)` — no noise function needed |
-| Known per-point noise | Use `noise_variances=my_array` — no noise function needed |
+| Known per-point noise | Use `noise_variances=my_array` (`(N,)` or `(N, No)` in `"cartesian"` mode) |
 | Unknown uniform noise | Use a noise function with a learnable hyperparameter |
 | Position-dependent noise | Use a noise function that depends on `x` |
 | No noise info at all | Don't provide either — gpCAM defaults to `(0.01 * mean|y|)²` |
 
-## The Index Convention
+## Hyperparameter Offset (`K`)
 
-Every recipe below starts its hyperparameters at index `K`. **Derive `K`; never
-hardcode it.** With the default ARD Matérn kernel the kernel owns `hps[0]` (signal
-variance) plus one length scale per input dimension:
-
-```python
-K = 1 + D    # D = number of input dimensions = x.shape[1]
-```
-
-`K = 3` is only correct for a 2-D input space. In 1-D it points at a length scale;
-in 3-D the noise function returns a squared length scale as a variance while training
-optimizes one parameter that two components are reading. All of that is silent.
-
-The standard ordering across gpCAM skills is **kernel, then mean, then noise** — so
-if you also use a custom prior mean, the noise indices start after the mean's, and
-`K` grows accordingly. See the `prior-mean-functions` skill.
+See `experiment-designer` ("Hyperparameter Coordination") for the canonical layout (`hps[:K]` kernel, `hps[K : K + M]` prior mean, `hps[K + M :]` noise). With the single-task default ARD kernel and no custom prior mean, `K = 1 + D = 1 + x.shape[1]`; with a custom kernel or prior mean, start noise indices at `K + M` (and under `multi_task_mode="cartesian"`, remember `x.shape[1]` is `D + 1`).
 
 ## Recipes
 
@@ -203,33 +184,10 @@ def two_detector_noise(x, hps):
     return noise
 ```
 
-## Hyperparameter Coordination
+## Choosing Noise Bounds
 
-Noise function hyperparameters come from the **same vector** as kernel and mean
-hyperparameters, and the index ranges must be **disjoint** — fvGP assumes a
-hyperparameter belonging to the noise function has zero kernel derivative, so an
-overlap corrupts the training gradients as well as the model.
+Noise hyperparameters occupy the trailing slice `hps[K + M :]` of the shared hyperparameter vector (see `experiment-designer` for the full layout and disjoint-slice rules).
 
-Standard ordering: **kernel, then mean, then noise.** Noise is last, which is exactly
-why a prior mean function must never read `hps[-1]`.
-
-```python
-# Example layout (2-D input, default kernel, no custom mean):
-# hps[0]     = signal variance     (kernel)
-# hps[1:3]   = length scales       (kernel)
-# hps[3]     = noise std dev       (noise function) ← K = 1 + D = 3
-#
-# Total: 4 hyperparameters
-
-hp_bounds = np.array([
-    [0.001, 100.0],  # signal variance
-    [0.01, 50.0],    # length scale dim 0
-    [0.01, 50.0],    # length scale dim 1
-    [0.001, 10.0],   # noise std dev
-])
-```
-
-### Choosing Noise Bounds
 - **Lower bound**: Never 0 — use `0.001` minimum (prevents singular matrices)
 - **Upper bound**: `10 * std(y_data)` — noise shouldn't be larger than the signal
 - **Initial value**: `0.01 * mean(|y_data|)` (gpCAM's own default)
@@ -254,4 +212,4 @@ gpo = GPOptimizer(x_data, y_data, noise_function=learnable_noise)
 4. **Zero noise**: Causes singular matrix errors. Always ensure noise > 0.
 5. **Providing both**: Don't pass `noise_variances` AND `noise_function` — pick one.
 6. **Forgetting bounds**: The noise hyperparameter needs bounds in the `hyperparameter_bounds` array.
-7. **Wrong shape**: Return shape `(N,)` for independent noise, `(N, N)` for correlated.
+7. **Wrong shape**: Return a 1-D vector of shape `(N,)` from `noise_function` (matrix-valued `(N, N)` noise is deprecated via `FutureWarning`).

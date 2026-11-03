@@ -1,14 +1,14 @@
 ---
 name: cost-functions
 description: Use when modeling the real expense of moving between gpCAM measurement points — motor travel time, settling, directional costs, sample damage, beam time, or zone-based penalties.
-gpcam_version: "8.4.x"
-fvgp_version: "4.8.x"
-last_verified: "2026-07-23 (gpCAM dadeb65)"
+gpcam_version: "8.7.x"
+fvgp_version: "4.11.x"
+last_verified: "2026-10-28 (gpCAM 8.7.0, a21385a)"
 ---
 
 # Skill: gpCAM Cost Functions
 
-*Verified against gpCAM 8.4.x / fvgp 4.8.x — last checked 2026-07-23 (gpCAM `dadeb65`).*
+*Verified against gpCAM 8.7.0 / fvgp 4.11.1 — last checked 2026-10-28 (gpCAM a21385a).*
 
 Design cost functions that account for the real expense of moving between measurement points — motor travel time, sample damage, beam time, etc.
 
@@ -53,163 +53,63 @@ def my_cost(origin, x):
 ```
 
 **Key rules:**
-- Cost must be **positive** (> 0) — zero cost causes division by zero
-- Cost is used as a **divisor** — higher cost = lower effective acquisition score
-- The function receives a batch of candidate points, not a single point
-- **The cost function does NOT receive the `args` dict.** Unlike kernel / prior mean /
-  noise callables, there is no arity-based dispatch here — the call site is literally
-  `cost_function(origin, x)`. A signature like `my_cost(origin, x, arguments=None)`
-  will run without error but `arguments` is always `None`. To parameterize a cost
-  function, use a closure or `functools.partial` (see below).
-- **`cost_function` only takes effect when `origin` is not None**, i.e. when you call
-  `ask(..., position=current_position)`. Without `position=`, the cost is ignored
-  entirely and the acquisition is used unmodified. This is the single most common
-  reason a cost function "does nothing".
+- Cost must be **strictly positive** (`> 0`) and return a 1-D array of shape `(V,)` — it is used as a divisor (`surrogate_model.py:265`), so zero cost causes division by zero. Always include a positive base offset (e.g., measurement overhead time).
+- **Pass `position=current_position` to `ask()`:** gpCAM only evaluates `cost_function(origin, x)` when `origin is not None` (`surrogate_model.py:264`). Omitting `position=` in `ask()` silently disables the cost function.
+- **No `args` dict or trainable hyperparameters:** `cost_function` is always called with 2 arguments `cost_function(origin, x)` and is not optimized during `train()`. Parameterize it with `functools.partial` (which survives `pickle.dumps(gpo)` for checkpointing; see the `experiment-designer` skill for the full `args` dispatch table).
 
 ## Recipes
 
-### L2 (Euclidean) Distance Cost
-Simple travel time proportional to straight-line distance:
+### Euclidean / Anisotropic Travel Cost (with `functools.partial`)
 ```python
-def l2_cost(origin, x):
-    """Cost proportional to Euclidean distance."""
-    offset = 1.0   # minimum cost (prevents div-by-zero, represents measurement time)
-    speed = 1.0     # cost per unit distance
-    distance = np.linalg.norm(x - origin, axis=1)
-    return offset + speed * distance
-```
+from functools import partial
+import numpy as np
 
-### L1 (Manhattan) Distance Cost
-For stage systems that move one axis at a time:
-```python
-def l1_cost(origin, x):
-    """Cost proportional to Manhattan distance (axis-by-axis motion)."""
-    offset = 1.0
-    speed = 1.0
-    distance = np.sum(np.abs(x - origin), axis=1)
-    return offset + speed * distance
-```
-
-### Anisotropic Cost
-Different axes have different speeds. Since the cost function receives no `args`,
-bind the speeds with a factory:
-```python
-def make_anisotropic_cost(speeds, offset=1.0):
+def travel_cost(origin, x, offset=1.0, weights=1.0):
     """
-    Returns a two-argument cost function with per-axis speeds captured.
-    speeds : array of shape (D,) — cost per unit distance along each axis.
+    Base overhead `offset` (> 0) plus weighted Euclidean travel time.
+    Pass `weights` as a scalar or shape-(D,) per-axis array via functools.partial.
     """
-    speeds = np.asarray(speeds, dtype=float)
+    diff = (x - origin) * np.asarray(weights, dtype=float)
+    return offset + np.linalg.norm(diff, axis=1)
 
-    def anisotropic_cost(origin, x):
-        return offset + np.sum(np.abs(x - origin) * speeds, axis=1)
-    return anisotropic_cost
+my_cost = partial(travel_cost, offset=1.0, weights=[1.0, 3.0])
 ```
+For axis-by-axis (Manhattan) stages, replace `np.linalg.norm(diff, axis=1)` with `np.sum(np.abs(diff), axis=1)`.
 
-### Directional Cost
-Moving in one direction is cheaper (e.g., gravity-assisted, or always-increasing scans):
+### Directional, Settling, or Zone-Based Cost
+Combine asymmetric step costs, step-function settling times, or expensive-region penalties into the same positive 1-D return vector:
 ```python
-def directional_cost(origin, x):
-    """Cheaper to move in +x direction than -x."""
-    offset = 1.0
+def stage_cost(origin, x):
+    """Asymmetric axis-0 motion + long-move settling time + zone penalty."""
+    base = 1.0
     diff = x - origin
-    # Forward motion (positive) is cheap, backward is expensive
-    forward_cost = np.maximum(diff[:, 0], 0) * 1.0   # cost going forward
-    backward_cost = np.maximum(-diff[:, 0], 0) * 5.0  # 5x cost going backward
-    lateral_cost = np.sum(np.abs(diff[:, 1:]), axis=1) * 1.0
-    return offset + forward_cost + backward_cost + lateral_cost
-```
-
-### Settling Time Cost
-Fast moves need more settling time:
-```python
-def settling_cost(origin, x):
-    """
-    Short moves are fast; long moves need extra settling time.
-    Models: cost = base + travel + settling * (distance > threshold)
-    """
-    base = 1.0
-    travel_rate = 0.5
-    settle_time = 3.0
-    settle_threshold = 2.0  # distance above which settling kicks in
-    
-    distance = np.linalg.norm(x - origin, axis=1)
-    settling = np.where(distance > settle_threshold, settle_time, 0.0)
-    return base + travel_rate * distance + settling
-```
-
-### Zone-Based Cost
-Some regions of the parameter space are more expensive:
-```python
-def zone_cost(origin, x):
-    """
-    Higher cost to measure in certain zones.
-    E.g., cryogenic sample region requires cooldown.
-    """
-    base = 1.0
-    distance = np.linalg.norm(x - origin, axis=1)
-    
-    # Expensive zone: x[:, 0] > 8.0
+    axis0_cost = np.maximum(diff[:, 0], 0.0) * 1.0 + np.maximum(-diff[:, 0], 0.0) * 5.0
+    settling = np.where(np.linalg.norm(diff, axis=1) > 2.0, 3.0, 0.0)
     zone_penalty = np.where(x[:, 0] > 8.0, 10.0, 0.0)
-    
-    return base + distance + zone_penalty
+    return base + axis0_cost + settling + zone_penalty
 ```
 
-## Usage
+## Usage in the Loop
 
 ```python
 gpo = GPOptimizer(
     x_data=x_data,
     y_data=y_data,
-    cost_function=l2_cost,
-    # cost_function=make_anisotropic_cost([1.0, 3.0, 0.5]),   # parameterized variant
+    cost_function=my_cost,
 )
-```
 
-**You must pass `position=` to `ask()` for the cost to be applied:**
-
-```python
 current_position = np.array([[0.0, 0.0]])       # where the instrument is now
 
 for i in range(N_ITERATIONS):
     next_x = gpo.ask(
         input_set=parameter_bounds,
-        position=current_position,               # REQUIRED — without it cost is ignored
+        position=current_position,               # REQUIRED — sets `origin`
         acquisition_function="variance",
     )["x"]
     y = measure(next_x)
     gpo.tell(next_x, y)
     current_position = next_x                    # advance the origin
 ```
-
-Forgetting `position=` is the usual reason a cost function appears to have no effect:
-gpCAM applies the cost only when `origin is not None`, and silently skips it otherwise.
-
-## Parameterizing a Cost Function
-
-The `args` dict passed to `GPOptimizer(..., args=...)` reaches kernel, prior mean, and
-noise functions — **not** the cost function. Use a closure (as in
-`make_anisotropic_cost` above) or `functools.partial`:
-
-```python
-from functools import partial
-
-def scaled_l2_cost(origin, x, offset, speed):
-    return offset + speed * np.linalg.norm(x - origin, axis=1)
-
-gpo = GPOptimizer(x_data, y_data,
-                  cost_function=partial(scaled_l2_cost, offset=1.0, speed=2.5))
-```
-
-`partial` of a module-level function pickles by reference, so this form survives
-`pickle.dumps(gpo)` for checkpointing; a closure defined inside another function does
-not.
-
-## Cost Functions Do NOT Add Hyperparameters
-
-Unlike kernel/mean/noise functions, cost function parameters are **fixed** — they are
-not optimized during training. To tune them, refit them yourself and rebuild the
-callable.
 
 ## Calibrating a Cost Function From Observed Moves
 
@@ -238,7 +138,7 @@ keep = np.abs(rate - rate.mean()) <= 2.0 * rate.std()
                                distances[keep], costs[keep], p0=[1.0, 1.0])
 print(f"offset={offset:.3f} s, speed={speed:.3f} s per unit distance")
 
-gpo.cost_function = partial(scaled_l2_cost, offset=offset, speed=speed)
+gpo.cost_function = partial(travel_cost, offset=offset, weights=speed)
 ```
 
 Fitting on measured seconds makes the cost units meaningful, which matters because the

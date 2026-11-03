@@ -1,14 +1,14 @@
 ---
 name: experiment-designer
 description: Use for end-to-end autonomous experiment design with gpCAM. Translates a scientist's description of their measurement into a complete, runnable gpCAM script — useful for replacing raster scans with adaptive sampling, peak-finding, or parameter optimization.
-gpcam_version: "8.6.x"
-fvgp_version: "4.9.1"
-last_verified: "2026-10-14 (fvgp 4.9.1)"
+gpcam_version: "8.7.x"
+fvgp_version: "4.11.x"
+last_verified: "2026-10-28 (gpCAM 8.7.0, a21385a)"
 ---
 
 # Skill: gpCAM Experiment Designer
 
-*Verified against gpCAM 8.6.x / fvgp 4.9.1 — last checked 2026-10-14.*
+*Verified against gpCAM 8.7.0 / fvgp 4.11.1 — last checked 2026-10-28 (gpCAM a21385a).*
 
 Design complete autonomous experiment scripts using gpCAM. You translate a scientist's description of their measurement into a runnable Python script.
 
@@ -19,13 +19,6 @@ When a user wants to:
 - Replace a raster scan with adaptive sampling
 - Find optimal experimental conditions (peak finding, parameter optimization)
 - Explore a parameter space efficiently
-
-## Your Role
-
-You are helping **beamline scientists** who may not know GP math or the gpCAM API. Your job is to:
-1. Understand their experiment (what they measure, what they control, what they want to find)
-2. Generate a complete, well-commented Python script they can adapt
-3. Explain the key choices you made in plain language
 
 ## Conversation Flow
 
@@ -55,7 +48,7 @@ Based on their answers, decide:
 
 | Choice | Guidance |
 |--------|----------|
-| **Optimizer class** | Pick by the support of the observations: `GPOptimizer` for unconstrained or negative-allowed `y`; `LogGPOptimizer` if `y > 0` (intensities, rates, concentrations); `LogitGPOptimizer` if `y ∈ [0, 1]` (yields, fractions, probabilities). A plain GP on positive-only or bounded data can predict invalid values — see `transformed-optimizers-advanced` skill. |
+| **Optimizer class** | Pick by the support and dimensionality of the observations: `GPOptimizer` handles both scalar (`y_data` shape `(N,)`) and multi-output/multi-task (`y_data` shape `(N, No)`) problems via `multi_task_mode` (`"independent"` default, `"cartesian"` for joint task correlations or missing task entries, `"kronecker"` for separable product kernels — see `multi-task-advanced` skill; legacy `fvGPOptimizer` is deprecated since 8.7.0); `LogGPOptimizer` if scalar `y > 0` (intensities, rates, concentrations); `LogitGPOptimizer` if scalar `y ∈ (a, b)` (`range=(0.0, 1.0)` default — yields, fractions, bounded intervals). A plain GP on positive-only or bounded data can predict invalid values — see `transformed-optimizers-advanced` skill. |
 | **Kernel** | Default Matérn-3/2 ARD is good for most cases. Use periodic kernel if periodicity is known. Use Matérn-1/2 for rough/discontinuous data, Matérn-5/2 or SE for very smooth. See `kernel-designer` skill for custom kernels. |
 | **Acquisition function** | **Do not pick this one on your own — read the `acquisition-functions` skill and confirm the choice with the scientist.** It's the argument that decides where the instrument actually goes, and several built-ins have gpCAM-specific behavior that surprises people (plain EI is maximization-only, and on gpCAM ≤ 8.4.2 it degenerates to pure exploration; `ask(n>1)` silently overrides string acquisitions). Starting points, all subject to confirmation: `'variance'` for exploration/mapping; `'ucb'` for maximization (`beta` fixed at 3.0 — write a callable to tune it); `'lcb'` for **minimization**; `'noisy expected improvement'` when measurements are noisy, or `'knowledge gradient'` for lookahead that keeps exploring when EI stalls — both also work multi-task; `'gradient'` or a radical-gradient callable to map where the signal changes; a custom callable for multi-objective or constraints. Do **not** default to `'expected improvement'`. |
 | **Prior mean** | Default is a **constant equal to `mean(y_data)`** — not zero. Away from data the posterior reverts to that constant. Override with `prior_mean_function=` only if they have a physical model. See `prior-mean-functions` skill. |
@@ -111,7 +104,7 @@ Note `acq_func='lcb'` is the default, which **minimizes** `func` — pass
 iteration, and `break_condition=f(x_data, y_data)` returning `True` to stop early.
 
 Use it when the scientist has a simulator or instrument wrapper they can hand gpCAM as
-a Python function. For fvGP/multi-task, pass `x_out=np.array([...])` and note the
+a Python function. For multi-task `GPOptimizer` (2-D `y_data`), pass `x_out=np.array([...])` and note the
 return shape differs — see the `multi-task-advanced` skill.
 
 #### B. Full template (adaptive loop)
@@ -121,7 +114,7 @@ Output a complete Python script with this structure:
 ```python
 """
 Autonomous Experiment: [description]
-Generated for gpCAM v8.4.x
+Generated for gpCAM v8.7.x
 
 Input space: [dimensions and ranges]
 Output: [what is measured]
@@ -324,7 +317,7 @@ if __name__ == "__main__":
 4. **Hyperparameter bounds matter** — set sensible defaults based on the parameter ranges and expected signal scale.
 5. **Default kernel is usually fine** — only suggest custom kernels when there's a clear reason (known periodicity, symmetry, etc.).
 6. **The acquisition function is not a default — it's a conversation.** State your recommendation, name the one tradeoff it makes, and confirm before writing the loop. Record the reason as a comment in the script. Remind them it's an `ask()` argument, so it can change between iterations — "explore first, then exploit" is often the right design. See the `acquisition-functions` skill.
-7. **Training schedule** — train globally once at the start, then locally every N iterations. Don't train every iteration (too slow).
+7. **Training schedule** — run multi-restart local training (`gpo.train(hyperparameter_bounds=hp_bounds)`, which defaults to `method="local", n_restarts=5`) once at the start, then warm-started single-start local training (`method="local", n_restarts=1`) every N iterations. Don't train every iteration (too slow).
 8. **Initial points** — always start with random initial sampling before the adaptive loop.
 
 ## Hyperparameter Coordination
@@ -332,9 +325,9 @@ if __name__ == "__main__":
 This is critical and often the source of bugs:
 
 - The hyperparameter vector is shared across kernel, mean, and noise functions, and the index ranges each one reads **must be disjoint**. fvGP assumes a hyperparameter belonging to the mean has zero kernel derivative and vice versa, so an overlap corrupts the training gradients as well as the model.
-- **Standard ordering: kernel, then mean, then noise.** Every gpCAM skill uses this layout.
-- For the default kernel with D input dimensions: `hps[0]` = signal variance, `hps[1:D+1]` = length scales. So custom mean/noise hyperparameters start at `K = 1 + D`.
-- **Derive `K = 1 + D`; never hardcode it.** `K = 3` is correct only for 2-D input. In 1-D it aliases a length scale; in 3-D two components silently share a hyperparameter.
+- **Standard ordering: kernel (`hps[:K]`), then prior mean (`hps[K : K + M]`), then noise (`hps[K + M : K + M + L]`).** Every gpCAM skill uses this layout.
+- For the single-task (or `"kronecker"`) default kernel with `D` input dimensions: `hps[0]` = signal variance, `hps[1:D+1]` = length scales, so `K = 1 + D`. For a custom kernel, `K` is the number of parameters that kernel consumes. For multi-task default kernels, `K = 1 + (D + 1) = D + 2` under `multi_task_mode="cartesian"` (where `x` inside kernel/mean/noise callables has shape `(N, D + 1)` with the task index in the last column) and `K = No * (1 + D)` under `multi_task_mode="independent"`.
+- **Derive `K` from `D` (or `x.shape[1]`); never hardcode it.** `K = 3` is correct only for 2-D single-task input. In 1-D it aliases a length scale; in 3-D two components silently share a hyperparameter. (Under `multi_task_mode="cartesian"`, remember `x.shape[1]` inside callables is `D + 1`.)
 - **Never read `hps[-1]` in a prior mean function** — the end of the vector belongs to the noise function.
 - Assert `len(gpo.hyperparameters) == len(hp_bounds)` after construction; it catches most layout mistakes for one line.
 - **Always document the hyperparameter layout** in a comment at the top of the script
@@ -350,7 +343,7 @@ Example with custom noise:
 # Total: D + 2 hyperparameters
 
 def my_noise(x, hps):
-    K = 1 + x.shape[1]              # = D + 1; derived, not hardcoded
+    K = 1 + x.shape[1]              # = D + 1 for single-task; derived, not hardcoded
     return np.full(len(x), hps[K]**2)
 
 hp_bounds = np.array(
@@ -362,7 +355,7 @@ hp_bounds = np.array(
 
 ## Advanced Options (mention only if needed)
 
-- **Incremental data updates**: `gpo.tell(x_new, y_new, append=True)` adds points without overwriting; `append=False` replaces. Default is to replace — use `append=True` in a streaming instrument loop.
+- **Incremental data updates**: `gpo.tell(x_new, y_new)` appends new points by default (`append=True`); pass `append=False` to replace the entire dataset instead.
 - **Async training**: `opt_obj = gpo.train(..., asynchronous=True, method="hgdl", dask_client=client)` returns immediately; later call `gpo.update_hyperparameters(opt_obj)` to pull current best hyperparameters, and `gpo.stop_training(opt_obj)` to finish. Useful when training is expensive and the loop shouldn't block.
 - **Async ask**: `method="hgdlAsync"` starts a background search for the next point; the result dict contains an `opt_obj` you can `kill_client()` once you've used the suggestion.
 - **Checkpointing**: `GPOptimizer` instances are picklable — `pickle.dumps(gpo)` before a long run lets you reload state later.
@@ -371,7 +364,7 @@ hp_bounds = np.array(
 ### User-function arguments (`args`)
 
 `GPOptimizer(..., args={"a": 1.5})` plumbs a dict to **kernel, prior mean, and noise
-functions only**. Dispatch is by **parameter count** (`inspect.signature`), not by
+functions** (and `gpo.ask(..., args=...)` updates `gpo.args` before evaluating acquisitions). Dispatch for kernel, mean, and noise is by **parameter count** (`inspect.signature`), not by
 name — declare one extra positional parameter and gpCAM passes the dict; omit it and
 it doesn't. The parameter name is yours to choose.
 
@@ -381,7 +374,7 @@ it doesn't. The parameter name is yours to choose.
 | Prior mean | `f(x, hps)` | `f(x, hps, args)` |
 | Noise | `f(x, hps)` | `f(x, hps, args)` |
 | **Cost** | `f(origin, x)` | **not supported** — see below |
-| **Acquisition** | `f(x, gp_obj)` | **not supported** — see below |
+| **Acquisition** | `f(x, gp_obj)` | **not supported as 3rd param** — read `gp_obj.args` inside `f` |
 
 ```python
 def my_kernel(x1, x2, hps, args):        # 4 params -> gets args

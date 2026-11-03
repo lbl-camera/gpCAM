@@ -1,14 +1,14 @@
 ---
 name: multi-task-advanced
-description: Use for multi-output, vector-valued, or function-valued gpCAM experiments using GPOptimizer with several output columns and multi_task_mode — useful when a single measurement returns multiple correlated quantities (e.g., spectra, multi-channel detectors).
+description: Use for multi-output, vector-valued, or function-valued gpCAM experiments using GPOptimizer with several output columns and multi_task_mode (or migrating legacy fvGPOptimizer code) — useful when a single measurement returns multiple correlated quantities (e.g., spectra, multi-channel detectors).
 gpcam_version: "8.7.x"
 fvgp_version: "4.11.x"
-last_verified: "2026-10-28 (gpCAM 8.7.0)"
+last_verified: "2026-10-28 (gpCAM 8.7.0, a21385a)"
 ---
 
 # Skill: Multi-Task GPs with GPOptimizer
 
-*Verified against gpCAM 8.7.x / fvgp 4.11.x — last checked 2026-10-28.*
+*Verified against gpCAM 8.7.0 / fvgp 4.11.1 — last checked 2026-10-28 (gpCAM a21385a).*
 
 Design experiments with vector-valued or function-valued outputs using gpCAM's multi-task GP.
 
@@ -68,23 +68,8 @@ gpo.train()
 gpo = GPOptimizer(x_data, y_data, multi_task_mode="kronecker")
 gpo.train()
 
-# Cartesian with a custom kernel — supply init_hyperparameters and hp bounds.
-# The layout below matches `multi_task_kernel` in "Multi-Task Kernel Design" below:
-# D + 2 hyperparameters for D input dimensions. (The default kernel in this mode treats
-# the task index as one more input dimension — fine for tests, rarely for science.)
-gpo = GPOptimizer(
-    x_data=x_data,
-    y_data=y_data,
-    init_hyperparameters=np.ones(4) / 10.0,
-    kernel_function=multi_task_kernel,
-    multi_task_mode="cartesian",
-)
-gpo.train(hyperparameter_bounds=np.array([
-    [0.01, 100.0],  # hps[0] signal variance
-    [0.01, 10.0],   # hps[1] length scale dim 0
-    [0.01, 10.0],   # hps[2] length scale dim 1
-    [0.0, 1.0],     # hps[3] task correlation  (index D+1, D=2)
-]))
+# For multi_task_mode="cartesian" with a custom task-correlation kernel, see
+# "Multi-Task Kernel Design" below for the complete definition and bounds.
 ```
 
 ### Predictions and ask — the `x_out` argument
@@ -110,17 +95,12 @@ gpo.ask(parameter_bounds, x_out=np.array([0, 1]), n=4,
 ```
 
 **Plain `"expected improvement"` with `x_out` assumes the tasks are uncorrelated.** The
-multi-task branch of `evaluate_gp_acquisition_function` scalarizes to the task-summed
-objective and takes the spread as `sqrt(Σ_t Var[f(x,t)])`, which drops the cross-task
-covariance. Its incumbent is the best task-summed *posterior mean* at the data points
-(gpCAM ≥ 8.7; before, a missing output made every EI value NaN). It is cheap and coherent but not exact; for correlated tasks — the usual
-reason to fit a multi-task GP at all — prefer KG/NEI below.
-
-**On gpCAM ≤ 8.4.2, do not use plain `"expected improvement"` with `x_out` at all.**
-There it *summed the standard deviations* rather than the variances and compared the
-task-sum against `np.max(gpo.y_data)`, a single `(point, task)` entry of the flattened
-product-space vector — quantities that aren't comparable, with no error raised. Fixed in
-[#55](https://github.com/lbl-camera/gpCAM/issues/55).
+multi-task branch of `evaluate_gp_acquisition_function` (`surrogate_model.py:375-389, 415-427`)
+scalarizes to the task-summed objective and takes the spread as `sqrt(Σ_t Var[f(x,t)])`, which
+drops the cross-task covariance. Its incumbent is the best task-summed *posterior mean* at the
+data points (`_incumbent_task_sum`; before 8.7, a missing output made every EI value NaN, and on
+gpCAM ≤ 8.4.2 it summed standard deviations instead of variances — fixed in #55). For correlated
+tasks — the usual reason to fit a multi-task GP at all — prefer KG/NEI below.
 
 Choose by what the scientist is doing:
 
@@ -238,7 +218,7 @@ while reading a length scale as a task correlation.
 
 ## Important Notes
 
-1. **Multi-task acquisition**: Use `"relative information entropy set"` / `"relative information entropy"` / `"variance"` / `"total correlation"` for batch acquisition across tasks. For optimization, `"expected improvement"`, `"knowledge gradient"`, and `"noisy expected improvement"` all work multi-task — they act on the **task-summed** objective `sum_t f(x, t)` (`"noisy expected improvement"` is the one to reach for when measurements are noisy). Pass `x_out=...` to the `ask()` call. Custom callables are supported and often advisable when you care about a specific task or combination rather than the plain sum.
+1. **Multi-task acquisition**: Use `"relative information entropy set"` / `"relative information entropy"` / `"variance"` / `"total correlation"` for batch acquisition across tasks (`"total correlation"` is unavailable in `"kronecker"` mode). For optimization of the task-summed objective `sum_t f(x, t)`, prefer `"knowledge gradient"` or `"noisy expected improvement"`, which use the exact cross-task covariance (whereas multi-task `"expected improvement"` assumes independent tasks). Pass `x_out=...` to `ask()`, or write a custom callable if you care about a weighted combination or a single task.
 2. **Missing task observations** (`"cartesian"` only): `y_data` can have `np.nan` entries (e.g., task 1 wasn't measured at some x); the corresponding `noise_variances` entry **must also** be `np.nan`. The GP just ignores those entries — no imputation needed. `"independent"` and `"kronecker"` reject NaN.
 3. **Default kernel**: `"independent"` uses the anisotropic Matérn on the inputs; `"kronecker"` the coregionalization kernel (a Matérn on the inputs times a learned output covariance), with data-driven defaults and bounds; `"cartesian"` treats the task index as one more input dimension, which is rarely what a scientist wants — write a kernel (below). If you supply a custom `kernel_function`, you become responsible for the full `init_hyperparameters` + `hyperparameter_bounds` layout.
 4. **Deep kernel via NN warping**: For harder multi-task structure, `from gpcam.deep_kernel_network import Network` gives you an MLP you parametrize from `hps` — see the `kernel-designer` skill for the pattern.

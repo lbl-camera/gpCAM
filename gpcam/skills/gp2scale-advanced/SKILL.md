@@ -1,14 +1,14 @@
 ---
 name: gp2scale-advanced
 description: Use for large-scale gpCAM experiments (>10k points up to millions) using sparse compactly-supported kernels and Dask distributed computing for exact GP computation at scale.
-gpcam_version: "8.6.x"
-fvgp_version: "4.9.1"
-last_verified: "2026-10-14 (fvgp 4.9.1)"
+gpcam_version: "8.7.x"
+fvgp_version: "4.11.x"
+last_verified: "2026-10-28 (gpCAM 8.7.0, a21385a)"
 ---
 
 # Skill: gp2Scale — Large-Scale GPs
 
-*Verified against gpCAM 8.6.x / fvgp 4.9.1 — last checked 2026-10-14.*
+*Verified against gpCAM 8.7.0 / fvgp 4.11.1 — last checked 2026-10-28 (gpCAM a21385a).*
 
 Design experiments with tens of thousands to millions of data points using gpCAM's gp2Scale mode for exact GP computation at scale.
 
@@ -30,28 +30,34 @@ gp2Scale uses:
 ## Basic Setup
 
 ```python
+import numpy as np
 from distributed import Client
 from gpcam import GPOptimizer
 
-# Start a local Dask cluster
-client = Client()                  # uses all available cores
-client.wait_for_workers(4)         # good practice: wait for workers before constructing
+if __name__ == "__main__":
+    # Start a local Dask cluster (must be inside __main__ guard for worker spawning)
+    client = Client()                  # uses all available cores
+    client.wait_for_workers(4)         # good practice: wait for workers before constructing
 
-gpo = GPOptimizer(
-    x_data=x_data,
-    y_data=y_data,
-    gp2Scale=True,
-    dask_client=client,
-    # gp2Scale_batch_size defaults to 10000 and gp2Scale_distribution to "blockwise".
-    # Leave both alone unless profiling says otherwise — the batch size means
-    # different things under the two distributions. See "Choosing the Batch Size".
-    init_hyperparameters=np.array([0.73, 0.0014]),  # signal var, length scale
-)
+    D = x_data.shape[1]
+    init_hps = np.array([0.73] + [0.01] * D)
+    hps_bounds = np.array([[0.01, 10.0]] + [[1e-4, 0.1]] * D)
 
-# Under gp2Scale, train() runs MCMC: its stochastic log-determinant rules out the
-# gradient-based default. max_iter=25 keeps this example quick; for a real fit leave it at
-# the default and let the convergence check end the chain (from 400 steps on).
-gpo.train(hyperparameter_bounds=hps_bounds, max_iter=25, info=True)
+    gpo = GPOptimizer(
+        x_data=x_data,
+        y_data=y_data,
+        gp2Scale=True,
+        dask_client=client,
+        # gp2Scale_batch_size defaults to 10000 and gp2Scale_distribution to "blockwise".
+        # Leave both alone unless profiling says otherwise — the batch size means
+        # different things under the two distributions. See "Choosing the Batch Size".
+        init_hyperparameters=init_hps,  # signal var + D length scales
+    )
+
+    # Under gp2Scale, train() runs MCMC: its stochastic log-determinant rules out the
+    # gradient-based default. max_iter=25 keeps this example quick; for a real fit leave it at
+    # the default and let the convergence check end the chain (from 400 steps on).
+    gpo.train(hyperparameter_bounds=hps_bounds, max_iter=25, info=True)
 ```
 
 ## Choosing the Batch Size
@@ -120,15 +126,20 @@ gpo.get_gp2Scale_exec_time(time_per_worker_execution=0.05, number_of_workers=32)
 
 ## Kernel Requirement
 
-When `gp2Scale=True`, the kernel MUST produce a sparse matrix. The default switches to an anisotropic Wendland kernel automatically if no custom kernel is provided.
+When `gp2Scale=True`, the kernel MUST produce a sparse matrix. If `kernel_function=None`, gpCAM automatically uses the default compactly supported Wendland kernel (`gp_optimizer.py:126-131, 224-225`).
 
-If providing a custom kernel, it must have compact support:
+`gpcam.kernels` re-exports all `fvgp.kernels` Wendland helpers (`gpcam/kernels.py:1`, `gp_optimizer.py:128-130`):
+- `wendland_anisotropic_gp2Scale_cpu(x1, x2, hps)` — CPU Wendland kernel for `gp2Scale`
+- `wendland_anisotropic_gp2Scale_cpu_sparse(x1, x2, hps)` — builds a `scipy.sparse` block directly without materializing the dense array
+- `wendland_anisotropic_gp2Scale_gpu(x1, x2, hps)` — GPU Wendland kernel for `gp2Scale`
+- `wendland_anisotropic(x1, x2, hps)` and the distance-matrix primitive `wendland_kernel(d, l)`
+
 ```python
-from gpcam.kernels import wendland_anisotropic
+from gpcam.kernels import wendland_anisotropic_gp2Scale_cpu_sparse
 
 def my_gp2scale_kernel(x1, x2, hps):
-    """Custom kernel with compact support for gp2Scale."""
-    return wendland_anisotropic(x1, x2, hps)
+    """Custom kernel with compact support returning a sparse block for gp2Scale."""
+    return wendland_anisotropic_gp2Scale_cpu_sparse(x1, x2, hps)
 ```
 
 ## Hyperparameters for Wendland Kernel
@@ -219,13 +230,14 @@ To check convergence properly, run several chains and compare them with
 from dask_jobqueue import SLURMCluster
 from distributed import Client
 
-cluster = SLURMCluster(
-    cores=32,
-    memory="64GB",
-    walltime="01:00:00",
-)
-cluster.scale(jobs=4)  # 4 nodes × 32 cores
-client = Client(cluster)
+if __name__ == "__main__":
+    cluster = SLURMCluster(
+        cores=32,
+        memory="64GB",
+        walltime="01:00:00",
+    )
+    cluster.scale(jobs=4)  # 4 nodes × 32 cores
+    client = Client(cluster)
 ```
 
 ## Common Pitfalls

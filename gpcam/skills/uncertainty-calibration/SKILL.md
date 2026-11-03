@@ -1,14 +1,14 @@
 ---
 name: uncertainty-calibration
 description: Use to validate that a gpCAM posterior's error bars are trustworthy before publishing them or letting an autonomous loop act on them — scoring rules (NLPD, CRPS, MSLL), calibration/coverage curves, PICP and interval width, and what to do when the model is over- or under-confident.
-gpcam_version: "8.4.x"
-fvgp_version: "4.8.x"
-last_verified: "2026-07-23 (gpCAM dadeb65)"
+gpcam_version: "8.7.x"
+fvgp_version: "4.11.x"
+last_verified: "2026-10-28 (gpCAM 8.7.0, a21385a)"
 ---
 
 # Skill: Validating gpCAM Uncertainty
 
-*Verified against gpCAM 8.4.x / fvgp 4.8.x — last checked 2026-07-23 (gpCAM `dadeb65`).*
+*Verified against gpCAM 8.7.0 / fvgp 4.11.1 — last checked 2026-10-28 (gpCAM `a21385a`).*
 
 A GP's headline product is not the prediction — it is the *uncertainty on* the
 prediction. An autonomous loop acts on that uncertainty at every step: `"variance"`
@@ -46,9 +46,7 @@ If `PICP ≈ 0.95` and `NLPD` is small, the posterior is roughly trustworthy. If
 `PICP` is far from `0.95`, stop and read the rest of this skill — nothing downstream
 is reliable.
 
-**Shapes must match exactly.** `rmse`, `nlpd`, and `crps` assert
-`posterior_mean(x_test).shape == y_test.shape`. For a single-task GP, `y_test` must
-be shape `(V,)`, not `(V, 1)`.
+**Shapes must match `posterior_mean(x_test)["m(x)"].shape` (`gp_optimizer.py:615`).** `rmse`, `nlpd`, and `crps` assert `posterior_mean(x_test)["m(x)"].shape == y_test.shape`: for a single-task GP, `y_test` must be 1-D `(V,)` (not `(V, 1)`); for a multi-task GP (including `multi_task_mode="cartesian"`), `x_test` is `(V, D)` and `y_test` must be `(V, No)` across all `No = len(x_out)` tasks.
 
 ## The Metrics
 
@@ -198,7 +196,7 @@ history = []
 for i in range(N_ITERATIONS):
     ...                          # ask / measure / tell
     if (i + 1) % RETRAIN_EVERY == 0:
-        gpo.train(hyperparameter_bounds=hp_bounds, method="local")
+        gpo.train(hyperparameter_bounds=hp_bounds, method="local", n_restarts=1)
         history.append({
             "n": len(gpo.y_data),
             "rmse": gpo.rmse(holdout_x, holdout_y),
@@ -210,7 +208,7 @@ for i in range(N_ITERATIONS):
 
 Expect `rmse` and `nlpd` to fall and `picp95` to settle near 0.95. If `picp95` drifts
 steadily *down* as points accumulate, the hyperparameters are overfitting the growing
-dataset — retrain globally rather than locally, or tighten the length-scale lower
+dataset — re-run multi-restart local training (`n_restarts=5`, the `train()` default) or `method="mcmc"`, or tighten the length-scale lower
 bound.
 
 Never score against points the GP has been told; `rmse` on training data measures
@@ -229,7 +227,7 @@ Points should fall on the diagonal with scatter consistent with the error bars.
 2. **Unpacking `crps` as a scalar.** It returns `(mean, std)`.
 3. **`picp` without `mpiw`.** Coverage is trivially achievable with absurdly wide intervals; always report both, or use `interval_score`, which combines them.
 4. **Testing on adaptively-acquired points.** They are not i.i.d.; hold out a random subset before the loop starts.
-5. **Shape mismatch.** `y_test` must be `(V,)` for a single-task GP — the assertion message tells you the expected shape.
+5. **Shape mismatch.** `y_test` must match `posterior_mean(x_test)["m(x)"].shape` — `(V,)` for a single-task GP (not `(V, 1)`) and `(V, No)` for a multi-task GP.
 6. **Judging a transformed optimizer by latent-space metrics.** Report original-scale coverage via `evaluate_posterior`.
 7. **Calibrating once and never again.** Calibration drifts as the loop adds data and retrains.
 
