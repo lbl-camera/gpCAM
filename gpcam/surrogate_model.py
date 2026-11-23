@@ -648,6 +648,14 @@ def noisy_expected_improvement(x, gpo, x_out=None):
     non-negative score per row of ``x``. Common random numbers (a seeded rng) keep
     the score smooth across candidate evaluations.
 
+    The candidate is *not* independent of the incumbent: each sample
+    ``f_ref = mu_ref + L z`` of the objective at the reference points also moves
+    ``f(x)``, which given that sample is Gaussian with mean ``mu_x + w^T z`` and
+    variance ``var_x - |w|^2``, ``w = L^{-1} Cov(f_ref, f(x))``. EI is evaluated in
+    closed form under that conditional, as in Letham et al. Ignoring the
+    cross-covariance (gpCAM <= 8.7.0) gave a positive score at and near the
+    incumbent, where ``f(x)`` cannot exceed ``max f_ref`` by much.
+
     Optional ``gpo.args`` keys: ``nei_samples`` (default 128),
     ``nei_reference_set_size`` (default 100), ``nei_seed`` (default 0).
     """
@@ -656,16 +664,20 @@ def noisy_expected_improvement(x, gpo, x_out=None):
     cap = int(_acq_arg(gpo, "nei_reference_set_size", 100))
     rng = np.random.default_rng(int(_acq_arg(gpo, "nei_seed", 0)))
     x_ref = _reference_points(gpo, x_out, cap, rng)
-    mu_ref, cov_ref, mu_cand, var_cand, _cross = _scalarized_blocks(gpo, x_ref, x, x_out)
-    L = _jitter_cholesky(cov_ref)
+    mu_ref, cov_ref, mu_cand, var_cand, cross = _scalarized_blocks(gpo, x_ref, x, x_out)
+    L = _jitter_cholesky(cov_ref)                            # L L^T = cov_ref (+ jitter)
     Z = rng.standard_normal((len(mu_ref), n_samples))
     f_ref = mu_ref[:, None] + L @ Z                          # (M, K) incumbent samples
     y_star = np.max(f_ref, axis=0)                           # (K,) sampled incumbents
-    std = np.sqrt(np.maximum(var_cand, 1e-12))               # (N,)
-    d = mu_cand[:, None] - y_star[None, :]                   # (N, K)
+    # f(x) | f_ref: L is square and invertible (Cholesky, or the eigen-floor fallback)
+    W = np.linalg.solve(L, cross)                            # (M, N)
+    cond_mean = mu_cand[:, None] + W.T @ Z                   # (N, K)
+    cond_var = var_cand - np.sum(W**2, axis=0)               # (N,)
+    std = np.sqrt(np.maximum(cond_var, 1e-12))               # (N,)
+    d = cond_mean - y_star[None, :]                          # (N, K)
     gamma = d / std[:, None]
     ei = std[:, None] * (gamma * norm.cdf(gamma) + norm.pdf(gamma))
-    return np.mean(ei, axis=1)
+    return np.maximum(np.mean(ei, axis=1), 0.)
 
 
 def differential_evolution(func,

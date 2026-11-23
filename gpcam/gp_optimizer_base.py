@@ -497,8 +497,9 @@ class GPOptimizerBase(GP):
             the candidate). For multi-task GPs it acts on the task-summed objective.
             Tunable via args = {'kg_reference_set_size': int, 'kg_seed': int}.
             noisy expected improvement: expected improvement averaged over the
-            posterior of the incumbent (best observed value), which makes it robust to
-            observation noise (Letham et al. 2019). For multi-task GPs it acts on the
+            posterior of the incumbent (best observed value), jointly with the
+            candidate's correlation to it, which makes it robust to observation noise
+            (Letham et al. 2019). For multi-task GPs it acts on the
             task-summed objective. Tunable via
             args = {'nei_samples': int, 'nei_reference_set_size': int, 'nei_seed': int}.
         method : str, optional

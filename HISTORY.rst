@@ -11,6 +11,19 @@ Unreleased
 * New ``agent_skills`` entry point (``gpcam = "gpcam.skills"``) lets agent hosts discover the
   skills: each subfolder of the entry point's package that contains a ``SKILL.md`` is a skill.
 
+Bug fixes
+~~~~~~~~~
+
+* **``noisy expected improvement`` treated the candidate as independent of the incumbent.**
+  It computed the candidate–reference posterior covariance and then discarded it, averaging
+  EI with the candidate's marginal variance over incumbent samples drawn on their own. That
+  overrated points at and near the incumbent: re-measuring the best observed point scored
+  highest, when its true NEI is 0 (``f(x)`` is then one of the incumbent's terms). Each
+  incumbent sample now conditions ``f(x)``, and EI is evaluated in closed form under that
+  conditional, as in Letham et al. (2019); single- and multi-task results agree with a joint
+  Monte-Carlo of ``E[max(f(x) - max_i f(x_i), 0)]``. Scores, and so the points ``ask()``
+  picks, change.
+
 8.7.0 — 2026-10-28
 ------------------
 

@@ -283,6 +283,39 @@ def test_expected_improvement_multi_task_scalarization():
     assert not np.isclose(incumbent, naive)
 
 
+def test_noisy_expected_improvement_uses_the_incumbent_correlation():
+    """Noisy EI is E[max(f(x) - max_i f(x_i), 0)] under the *joint* posterior of the
+    candidate and the reference (data) points. gpCAM <= 8.7.0 discarded the
+    candidate-reference cross-covariance, so f(x) was treated as independent of the
+    incumbent: re-measuring the best observed point got a positive score (the true value
+    is 0, since f(x) is then one of the f(x_i)) and nearby points were overrated."""
+    from gpcam.surrogate_model import noisy_expected_improvement, _scalarized_blocks
+
+    rng = np.random.default_rng(1)
+    x_data = rng.uniform(size=(15, 1))
+    y_data = np.sin(6. * x_data[:, 0]) + 0.05 * rng.standard_normal(15)
+    gpo = GPOptimizer(x_data, y_data, init_hyperparameters=np.array([1., 0.2]),
+                      noise_variances=np.full(15, 0.05**2))
+    gpo.args = {"nei_samples": 20000}
+
+    best = x_data[np.argmax(gpo.posterior_mean(x_data)["m(x)"])]
+    cands = np.vstack([best, best + 0.02, best + 0.05])
+    nei = noisy_expected_improvement(cands, gpo)
+
+    mu_r, cov_r, mu_c, var_c, cross = _scalarized_blocks(gpo, x_data, cands, None)
+    truth = []
+    for j in range(len(cands)):
+        m = np.append(mu_r, mu_c[j])
+        C = np.block([[cov_r, cross[:, [j]]], [cross[:, [j]].T, np.array([[var_c[j]]])]])
+        s = np.random.default_rng(0).multivariate_normal(m, C, size=200000, method="eigh")
+        truth.append(np.mean(np.maximum(s[:, -1] - s[:, :-1].max(axis=1), 0.)))
+    truth = np.array(truth)
+
+    assert nei[0] < 1e-6                       # the incumbent itself cannot improve on itself
+    assert np.all(truth[1:] > 1e-4), "test needs candidates with a non-trivial NEI"
+    assert np.allclose(nei, truth, rtol=0.1, atol=1e-5)
+
+
 def test_assumed_observation_noise_matrix_valued():
     """fvgp accepts a full (N, N) noise covariance from a noise_function, not just a
     1-d vector of variances. The per-observation variances are then its diagonal --
