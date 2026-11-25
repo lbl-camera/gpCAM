@@ -1,9 +1,9 @@
 ---
 name: multi-task-advanced
 description: Use for multi-output, vector-valued, or function-valued gpCAM experiments using GPOptimizer with several output columns and multi_task_mode (or migrating legacy fvGPOptimizer code) — useful when a single measurement returns multiple correlated quantities (e.g., spectra, multi-channel detectors).
-gpcam_version: "8.7.x"
+gpcam_version: "8.8.x"
 fvgp_version: "4.11.x"
-last_verified: "2026-10-28 (gpCAM 8.7.0, a21385a)"
+last_verified: "2026-11-24 (gpCAM 8.8 development, branch greedy-batch-ask)"
 ---
 
 # Skill: Multi-Task GPs with GPOptimizer
@@ -89,7 +89,7 @@ S = gpo.posterior_covariance(x_grid, x_out=np.array([0, 3]))["S"]       # (N, N,
 # Ask for the next best input point across all tasks:
 gpo.ask(parameter_bounds, x_out=np.array([0, 1, 2, 3, 4]), n=1)
 
-# Ask for a batch of 4 points using a batch-aware acquisition:
+# Ask for a batch of 4 points, chosen together (greedily, any acquisition function):
 gpo.ask(parameter_bounds, x_out=np.array([0, 1]), n=4,
         acquisition_function="relative information entropy set", vectorized=True)
 ```
@@ -105,8 +105,8 @@ tasks — the usual reason to fit a multi-task GP at all — prefer KG/NEI below
 Choose by what the scientist is doing:
 
 - **Exploring / mapping all channels** → `"relative information entropy set"` or `"variance"`
-  (`"total correlation"` is not available for `"kronecker"`; `ask(n > 1)` uses
-  `"relative information entropy"` there)
+  (`"total correlation"` is not available for `"kronecker"`; `ask(n > 1, batch_mode="joint")`
+  uses `"relative information entropy"` there)
 - **Optimizing** → `"knowledge gradient"` or `"noisy expected improvement"`. Both act on
   the same task-summed objective `g(x) = Σ_t f(x, t)` as multi-task
   `"expected improvement"` / `"ucb"`, but build the joint posterior with the exact
@@ -218,7 +218,7 @@ while reading a length scale as a task correlation.
 
 ## Important Notes
 
-1. **Multi-task acquisition**: Use `"relative information entropy set"` / `"relative information entropy"` / `"variance"` / `"total correlation"` for batch acquisition across tasks (`"total correlation"` is unavailable in `"kronecker"` mode). For optimization of the task-summed objective `sum_t f(x, t)`, prefer `"knowledge gradient"` or `"noisy expected improvement"`, which use the exact cross-task covariance (whereas multi-task `"expected improvement"` assumes independent tasks). Pass `x_out=...` to `ask()`, or write a custom callable if you care about a weighted combination or a single task.
+1. **Multi-task acquisition**: `ask(n > 1)` batches any acquisition function greedily, in every mode (a greedy pick conditions the GP for all outputs; in `"cartesian"` mode only for those in `x_out`). For exploring all channels use `"relative information entropy set"` / `"relative information entropy"` / `"variance"` / `"total correlation"` (`"total correlation"` is unavailable in `"kronecker"` mode). For optimization of the task-summed objective `sum_t f(x, t)`, prefer `"knowledge gradient"` or `"noisy expected improvement"`, which use the exact cross-task covariance (whereas multi-task `"expected improvement"` assumes independent tasks). Pass `x_out=...` to `ask()`, or write a custom callable if you care about a weighted combination or a single task.
 2. **Missing task observations** (`"cartesian"` only): `y_data` can have `np.nan` entries (e.g., task 1 wasn't measured at some x); the corresponding `noise_variances` entry **must also** be `np.nan`. The GP just ignores those entries — no imputation needed. `"independent"` and `"kronecker"` reject NaN.
 3. **Default kernel**: `"independent"` uses the anisotropic Matérn on the inputs; `"kronecker"` the coregionalization kernel (a Matérn on the inputs times a learned output covariance), with data-driven defaults and bounds; `"cartesian"` treats the task index as one more input dimension, which is rarely what a scientist wants — write a kernel (below). If you supply a custom `kernel_function`, you become responsible for the full `init_hyperparameters` + `hyperparameter_bounds` layout.
 4. **Deep kernel via NN warping**: For harder multi-task structure, `from gpcam.deep_kernel_network import Network` gives you an MLP you parametrize from `hps` — see the `kernel-designer` skill for the pattern.

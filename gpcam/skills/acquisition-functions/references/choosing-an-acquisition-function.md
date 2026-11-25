@@ -161,35 +161,39 @@ maximizing. Cleaner, but remember to flip the sign back when reporting results.
 
 ## 7. Batch — "give me 5 points per round, my detector takes them in parallel"
 
-**Ask back:** *"Do the 5 points need to be jointly informative, or is 5 independent
-suggestions fine?"*
+**Ask back:** *"What should the 5 points do — find the best conditions, or map the
+space?"* The batch is chosen under that goal's acquisition function, so the choice is the
+same as for one point (sections 1–6); batching itself needs nothing special.
 
-Jointly informative is the reason batch acquisition exists — 5 copies of the same greedy
-suggestion is worthless.
+Since gpCAM 8.8, `ask(n > 1)` chooses the points together, greedily: the best point, then
+the best given that one is pending, and so on. 5 copies of the same suggestion cannot
+happen. With `"noisy expected improvement"` the batch is exact sequential-greedy q-NEI;
+other acquisition functions condition on each pick through a pseudo-observation.
 
 ```python
 result = gpo.ask(input_set=parameter_bounds, n=5,
-                 acquisition_function="total correlation")
-next_x = result["x"]        # shape (5, D)
+                 acquisition_function="noisy expected improvement")
+next_x = result["x"]        # shape (5, D), in the order picked
 ```
 
-**Critical caveat.** With an array `input_set`, `n > 1`, `method != "hgdl"`, and a
-*string* acquisition other than `"total correlation"` or `"relative information entropy"`,
-gpCAM replaces whatever was requested with `"total correlation"` (or `"relative information
-entropy"` when `multi_task_mode="kronecker"`) and emits a warning
-(`gp_optimizer_base.py:583-594`). So `ask(n=5, acquisition_function="expected improvement")`
-does not run EI. Either ask for a batch-aware acquisition deliberately, or pass a callable
-with `method="hgdl"` and a Dask client:
+**Mixed batches.** Some exploitation, some exploration in one round: ask for the second
+batch with the first one pending, so it plans around it.
 
 ```python
-from distributed import Client
-
-if __name__ == "__main__":
-    client = Client()
-    result = gpo.ask(input_set=parameter_bounds, n=5,
-                     acquisition_function=my_callable,
-                     method="hgdl", dask_client=client)
+exploit = gpo.ask(parameter_bounds, n=3, acquisition_function="noisy expected improvement")["x"]
+explore = gpo.ask(parameter_bounds, n=2, acquisition_function="variance", x_pending=exploit)["x"]
+next_x = np.vstack([exploit, explore])
 ```
+
+The same `x_pending=` keeps an asynchronous loop from re-proposing points whose
+measurements are still running.
+
+**gpCAM ≤ 8.7** handled `n > 1` differently: over bounds it silently replaced any string
+acquisition function by `"total correlation"`, so `ask(n=5, acquisition_function="expected
+improvement")` did not run EI. For that set-valued behavior now, pass
+`batch_mode="joint"` with `"total correlation"` or `"relative information entropy"`;
+for hgdl's distinct local optima, `batch_mode="independent", method="hgdl"` and a Dask
+client.
 
 ---
 

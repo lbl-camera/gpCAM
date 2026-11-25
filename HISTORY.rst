@@ -11,6 +11,65 @@ Unreleased
 * New ``agent_skills`` entry point (``gpcam = "gpcam.skills"``) lets agent hosts discover the
   skills: each subfolder of the entry point's package that contains a ``SKILL.md`` is a skill.
 
+Behavior change: ``ask(n > 1)``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* **``ask(n > 1)`` chooses the n points together under the acquisition function it is given,**
+  greedily: find the best point, condition on it, repeat. This works for every built-in and
+  callable acquisition function, over bounds and candidate lists alike. Before, ``ask()``
+  rewrote the request: over bounds it replaced any string acquisition function by
+  ``total correlation`` optimized in n·D dimensions (so ``ask(bounds, n=5,
+  acquisition_function="ucb")`` never maximized UCB), it forced ``method='hgdl'`` for a
+  callable, and on a candidate list it returned the individually best candidates, which
+  are often near-duplicates.
+
+  - ``noisy expected improvement`` is conditioned exactly: each pick joins the reference
+    set whose sampled maximum is the incumbent. This is sequential-greedy q-NEI (Letham et
+    al. 2019), and the per-pick values in ``f_a(x)`` add up to the batch's q-NEI.
+  - Every other acquisition function is evaluated on a private copy of the GP, to which each
+    pick is added at its posterior mean ("kriging believer"): the mean stays, the variance
+    shrinks around the pick. The GP itself is not changed and nothing is retrained.
+  - ``f_a(x)`` holds one value per pick, including for ``total correlation`` and
+    ``relative information entropy`` on a candidate list (one value for the set before).
+
+* **New ``ask()`` argument ``batch_mode``** keeps the old behaviors one keyword away:
+
+  - ``batch_mode="joint"``: ``total correlation`` / ``relative information entropy`` scored
+    as a set, the n·D optimization over bounds or the set greedy over candidates, as before.
+  - ``batch_mode="independent"``: the top-n candidates, or, with ``method="hgdl"``, hgdl's
+    distinct local optima over bounds.
+
+  ``"greedy"`` is the default for n > 1. A combination that cannot work, such as
+  ``"joint"`` with ``"ucb"``, raises a ``ValueError`` instead of being rewritten. Greedy
+  batches are not available for gp2Scale GPs or with ``method='hgdlAsync'``.
+
+* **New ``ask()`` argument ``x_pending``**: points chosen but not yet measured (another
+  acquisition function's batch, measurements still running, a person's additions).
+  ``ask()`` conditions on them before its first pick, for any ``n``.
+
+Migrating: ``ask(bounds, n, acquisition_function="total correlation")`` (or ``"relative
+information entropy"``) used the n·D optimization; for the same result, add
+``batch_mode="joint"``. ``ask(bounds, n, method="hgdl")`` returned distinct local optima;
+add ``batch_mode="independent"``. Everything else now gets a batch chosen under the
+acquisition function it names. A greedy batch costs n single-point optimizations: with
+``method="hgdl"`` that is n hgdl runs, so ``ask(bounds, n=30, method="hgdl")`` without
+``batch_mode="independent"`` is about 30 times slower than before.
+
+Changes
+~~~~~~~
+
+* ``noisy expected improvement`` and ``knowledge gradient`` take their reference set from
+  the **distinct** data inputs. Subsampling data rows spent the cap on replicates and could
+  drop the best input; above the cap (``nei_reference_set_size`` / ``kg_reference_set_size``)
+  the best half by posterior mean is kept, plus a random rest.
+* ``noisy expected improvement`` samples its incumbent once per ``ask()`` call, not once per
+  evaluation of the acquisition function.
+* The ``ask()`` docstring now says which goal NEI and KG serve: NEI the best value among the
+  points measured (measuring a point again has no value), KG the best value to recommend
+  (replicating a noisy competitor does).
+* New optional ``args`` key ``batch_pseudo_noise``: the noise variance of a greedy
+  pseudo-point, for a GP built with ``noise_variances``. The default is their mean.
+
 Bug fixes
 ~~~~~~~~~
 

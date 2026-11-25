@@ -1,9 +1,9 @@
 ---
 name: cost-functions
 description: Use when modeling the real expense of moving between gpCAM measurement points — motor travel time, settling, directional costs, sample damage, beam time, or zone-based penalties.
-gpcam_version: "8.7.x"
+gpcam_version: "8.8.x"
 fvgp_version: "4.11.x"
-last_verified: "2026-10-28 (gpCAM 8.7.0, a21385a)"
+last_verified: "2026-11-24 (gpCAM 8.8 development, branch greedy-batch-ask)"
 ---
 
 # Skill: gpCAM Cost Functions
@@ -55,6 +55,7 @@ def my_cost(origin, x):
 **Key rules:**
 - Cost must be **strictly positive** (`> 0`) and return a 1-D array of shape `(V,)` — it is used as a divisor (`surrogate_model.py:265`), so zero cost causes division by zero. Always include a positive base offset (e.g., measurement overhead time).
 - **Pass `position=current_position` to `ask()`:** gpCAM only evaluates `cost_function(origin, x)` when `origin is not None` (`surrogate_model.py:264`). Omitting `position=` in `ask()` silently disables the cost function.
+- **Batches (`n > 1`) follow a path:** each greedy pick is chosen with the cost from the previous pick, not from `position` — the instrument's route through the batch. `f_a(x)` reports each pick's acquisition value divided by that cost.
 - **No `args` dict or trainable hyperparameters:** `cost_function` is always called with 2 arguments `cost_function(origin, x)` and is not optimized during `train()`. Parameterize it with `functools.partial` (which survives `pickle.dumps(gpo)` for checkpointing; see the `experiment-designer` skill for the full `args` dispatch table).
 
 ## Recipes

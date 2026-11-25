@@ -1,9 +1,9 @@
 ---
 name: troubleshooting
 description: Use when a gpCAM script crashes or misbehaves — Cholesky/non-positive-definite errors, singular covariance, hyperparameter bounds mismatches, NaNs, kernel signature errors, Dask hangs, pickling failures, or an ask/tell loop that keeps picking the same point. Maps the actual error text to the cause and the fix.
-gpcam_version: "8.7.x"
+gpcam_version: "8.8.x"
 fvgp_version: "4.11.x"
-last_verified: "2026-10-28 (gpCAM 8.7.0, a21385a)"
+last_verified: "2026-11-24 (gpCAM 8.8 development, branch greedy-batch-ask)"
 ---
 
 # Skill: Troubleshooting gpCAM
@@ -289,6 +289,28 @@ The failures that cost the most time, because nothing crashes.
    cost pins the optimizer next to `origin`. Compare magnitudes with
    `gpo.evaluate_acquisition_function(x_grid)`.
 4. **`n > len(candidates)`** on a discrete set — you get the whole set back.
+5. **A batch of `"maximum"` or `"minimum"`.** `ask(n > 1)` batches greedily by
+   conditioning on each pick, which shrinks the variance there but leaves the posterior
+   mean where it was — and these two read only the mean, so over bounds every pick is the
+   same point (`ask()` warns). Use `"ucb"` / `"lcb"` or `"noisy expected improvement"`.
+6. **Pending measurements not passed.** In an asynchronous loop, points whose
+   measurements are still running are unknown to `ask()` unless you pass them as
+   `x_pending=`; otherwise it proposes them (or their neighbors) again.
+
+### A batch script from gpCAM ≤ 8.7 returns different points
+
+`ask(bounds, n > 1)` used to replace any string acquisition function by
+`"total correlation"` optimized over `n·D` dimensions, and forced `method="hgdl"` for a
+callable; a candidate list returned the point-wise top `n`. From 8.8 the batch is chosen
+greedily under the acquisition function named. For the old behavior pass
+`batch_mode="joint"` (set-valued TC/RIE) or `batch_mode="independent"` (top-`n`, or hgdl's
+distinct optima with `method="hgdl"`). If `ask(bounds, n, method="hgdl")` got much slower,
+that is the greedy batch running hgdl once per point; `batch_mode="independent"` restores
+the single run. A `ValueError` naming `batch_mode` means the
+combination cannot work: `"joint"` needs a set-valued acquisition, `"independent"` over
+bounds needs `method="hgdl"`, and `x_pending` needs the greedy mode. Greedy batches raise
+`NotImplementedError` for gp2Scale GPs (they work on a copy of the GP, which has no Dask
+client): ask one point at a time there.
 
 ### The cost function seems to do nothing
 

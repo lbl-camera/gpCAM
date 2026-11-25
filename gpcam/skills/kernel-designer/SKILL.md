@@ -1,9 +1,9 @@
 ---
 name: kernel-designer
 description: Use when designing or composing custom kernel (covariance) functions for gpCAM — smoothness, periodicity, symmetry, anisotropy, non-stationary amplitude/length-scale kernels (`non_stat_kernel`, Gibbs), non-Euclidean inputs, or neural-network-warped deep kernels (`Network`).
-gpcam_version: "8.7.x"
+gpcam_version: "8.8.x"
 fvgp_version: "4.11.x"
-last_verified: "2026-10-28 (gpCAM 8.7.0, a21385a)"
+last_verified: "2026-11-24 (gpCAM 8.8 development, branch greedy-batch-ask)"
 ---
 
 # Skill: gpCAM Kernel Designer
@@ -273,9 +273,9 @@ gp.train(hyperparameter_bounds=np.array([[1e-3, 100.], [1e-3, 100.]]))
 # Predict on new objects:
 gp.posterior_mean(["full"])["m(x)"]
 
-# Ask which of a candidate set to measure next.
-# Keep n well below len(candidates) — asking for as many points as the set
-# contains just returns the whole set and selects nothing.
+# Ask which of a candidate set to measure next; with n > 1 the picks are chosen
+# together, greedily. Keep n well below len(candidates) — asking for as many
+# points as the set contains just returns the whole set, ordered by pick.
 candidates = ["who", "could", "it", "be", "hello", "there", "gpcam", "rules"]
 gp.ask(candidates, n=2)
 ```

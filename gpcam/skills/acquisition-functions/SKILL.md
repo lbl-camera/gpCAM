@@ -1,9 +1,9 @@
 ---
 name: acquisition-functions
 description: Use when choosing or writing an acquisition function for gpCAM — selecting a built-in criterion for exploration, optimization, batch, or multi-task runs, or implementing a custom callable for UCB/LCB, minimization EI, constraints, radical gradient, or threshold finding.
-gpcam_version: "8.7.x"
+gpcam_version: "8.8.x"
 fvgp_version: "4.11.x"
-last_verified: "2026-10-28 (gpCAM 8.7.0, a21385a)"
+last_verified: "2026-11-24 (gpCAM 8.8 development, branch greedy-batch-ask)"
 ---
 
 # Skill: gpCAM Acquisition Functions
@@ -46,7 +46,7 @@ Pass these strings to `gpo.ask(acquisition_function=...)`:
 | Map steep transitions / edges | `"gradient"` or `radical_gradient` callable | `"gradient"` scores `‖∇m(x)‖ · σ(x)` (sharpest ridge); `radical_gradient` uses `√‖∇m(x)‖ · σ(x)` to spread across multiple transitions |
 | Find where output ∈ `[a, b]` | `"target probability"` | Requires `args={"a": lo, "b": hi}` on `GPOptimizer(...)` or `gpo.ask(..., args=...)` |
 | Find level set `f(x) = threshold` | `threshold_finder` callable | Concentrates on one contour; alternate with `"variance"` if a full map is also needed |
-| Batch (`n > 1` points jointly) | `"total correlation"` or `"relative information entropy"` | The only two built-ins that score a **set** jointly (forces `vectorized=False`; `"total correlation"` unavailable in `"kronecker"` mode) |
+| Batch (`n > 1` points chosen together) | **any** of the above, with `ask(..., n=N)` | Greedy by default (8.8+): best point, condition on it, repeat — so choose the acquisition for the goal, not for batching. `"noisy expected improvement"` batches exactly (q-NEI). See caveat (e) |
 | Multi-task exploration | `"relative information entropy set"` or `"variance"` | Vectorized exploration across `x_out` tasks |
 | Multi-task maximization (`Σ_t f(x, t)`) | `"knowledge gradient"` or `"noisy expected improvement"` | Uses exact cross-task covariance (`_scalarized_blocks`), whereas multi-task `"expected improvement"` assumes independent tasks |
 | Pure exploitation (no uncertainty) | `"maximum"` / `"minimum"` | Posterior mean only (`σ` ignored) — almost always stalls at one point |
@@ -83,9 +83,12 @@ Single-task EI/PI hardcode `last_best = np.max(gp.y_data)` (`surrogate_model.py:
 **(d) Multi-task plain EI assumes uncorrelated tasks.**
 When `x_out` is set (`surrogate_model.py:375-389, 415-427`), multi-task `"expected improvement"` scalarizes to the task-summed objective `g(x) = Σ_t f(x, t)` using `_incumbent_task_sum` (the maximum task-summed **posterior mean** at the observed inputs, so missing `NaN` task entries in `"cartesian"` mode do not poison EI) and `std = sqrt(Σ_t Var[f(x, t)])`. That spread drops cross-task covariance, so it is exact only when tasks are independent. `"knowledge gradient"` and `"noisy expected improvement"` scalarize the same `Σ_t f(x, t)` objective using the full cross-task covariance via `_scalarized_blocks` (`surrogate_model.py:430-452`).
 
-**(e) Batch (`n > 1`) behavior depends on `input_set` type.**
-- With a continuous `np.ndarray` bounds `input_set`, `n > 1`, `method != "hgdl"`, and a string acquisition other than `"total correlation"` or `"relative information entropy"`, `gp_optimizer_base.py:583-594` warns and overrides the string to `"total correlation"` (or `"relative information entropy"` when `multi_task_mode == "kronecker"`). To get `n > 1` local optima of a point-wise acquisition over bounds, pass a callable with `method="hgdl"` and a `dask_client`.
-- With a discrete **candidate list** and `n > 1`, `"total correlation"` and `"relative information entropy"` select the batch jointly via greedy forward selection (`gp_optimizer_base.py:618-625`), returning a single scalar score in `"f_a(x)"`. All other strings and custom callables are scored point-by-point and truncated to the top `n` (`gp_optimizer_base.py:626-636`), which warns and can pick clustered duplicates.
+**(e) Batches (`n > 1`) are greedy (gpCAM ≥ 8.8); `batch_mode` picks another strategy.**
+- Default (`batch_mode="greedy"`), for every built-in and callable, over bounds and candidate lists: find the best point with the requested `method`, condition on it, repeat. `"noisy expected improvement"` conditions exactly — each pick joins the reference set whose sampled maximum is the incumbent (sequential-greedy q-NEI; the per-pick `f_a(x)` values add up to the batch's q-NEI). Everything else runs on a private copy of the GP with each pick added at its posterior mean ("kriging believer"): the mean is unchanged, the variance shrinks around the pick. `"maximum"` / `"minimum"` cannot spread this way (the mean does not move) and return one point repeatedly over bounds. Not for gp2Scale or `method="hgdlAsync"`. A greedy batch costs `n` single-point optimizations — `n` hgdl runs with `method="hgdl"`.
+- **Points already chosen but not yet measured** — another batch, measurements still running — go in `ask(..., x_pending=P)`; the batch plans around them. Typical use: an exploitation batch from `"noisy expected improvement"`, then an exploration batch from `"variance"` with `x_pending=` the first batch.
+- `batch_mode="joint"` (set-valued `"total correlation"` / `"relative information entropy"` only): one `n·D`-dimensional optimization over bounds, or greedy selection on the set value over a candidate list (`f_a(x)` one number for the set).
+- `batch_mode="independent"`: the individually best candidates (warns: they cluster), or `method="hgdl"`'s distinct local optima over bounds.
+- **gpCAM ≤ 8.7** rewrote `ask(bounds, n > 1)` silently: any string acquisition became `"total correlation"` over `n·D` dimensions, a callable forced `method="hgdl"`, and candidate lists were truncated to the point-wise top `n`. Old scripts that relied on it need `batch_mode="joint"` or `"independent"`.
 
 **(f) `"ucb"` and `"lcb"` fix `beta = 3.0`** (`surrogate_model.py:291, 295, 366, 372`). Write the 5-line callable below to change `beta`.
 
@@ -95,6 +98,9 @@ Keep `kg_reference_set_size` / `nei_reference_set_size` modest (default `100`) a
 gpo.ask(bounds, acquisition_function="noisy expected improvement",
         args={"nei_samples": 128, "nei_reference_set_size": 100, "nei_seed": 0})
 ```
+
+**(h) NEI and KG serve different goals — ask which one the scientist has.**
+`"noisy expected improvement"` values a measurement by how much it is expected to beat the best of the points measured, on the latent function: measuring a point again, however noisy, is worth nothing (a pending or measured point cannot beat itself). That fits "find the best condition among those we run". `"knowledge gradient"` values the expected increase of the best posterior mean — the condition you would *recommend* afterwards — so it does value replicating a noisy competitor of the incumbent. If a kernel term acts like a nugget (a design-level `τ²·1[x = x']`), NEI treats it as part of the objective.
 
 ## Acquisition Function Contract
 
@@ -308,7 +314,9 @@ result = gpo.ask(
 
 | Argument | Meaning |
 |----------|---------|
-| `n=N` | Request `N` points at once (batch). Use `"total correlation"` or `"relative information entropy"` — the two that score a set — or the batch is chosen point by point and will cluster. |
+| `n=N` | Request `N` points chosen together (greedy by default, any acquisition function; see caveat (e)). |
+| `batch_mode=` | `"greedy"` (default for `n > 1`), `"joint"` (set-valued TC/RIE scored as a set), `"independent"` (point-wise top-`n`, or hgdl's distinct optima). |
+| `x_pending=P` | Points chosen but not yet measured, shape `(P, D)` (a list for non-Euclidean inputs): the batch is conditioned on them first. Works for `n=1` too. |
 | `vectorized=True` (default) | The acquisition function is called once with all candidate points, shape `(V, D)` — required for custom callables written against the contract above. |
 | `vectorized=False` | Candidates are evaluated one at a time (list of 1-D arrays). Used for non-vectorizable acquisition or non-Euclidean inputs. |
 | `method="global"\|"local"\|"hgdl"\|"hgdlAsync"` | Inner optimizer that searches for the argmax of the acquisition over `input_set`. `hgdl` requires `dask_client=`; `hgdlAsync` starts a background search and returns an `opt_obj` you can poll or `kill_client()`. |
