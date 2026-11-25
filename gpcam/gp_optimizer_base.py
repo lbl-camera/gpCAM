@@ -372,7 +372,9 @@ class GPOptimizerBase(GP):
             info=False,
             args=None,
             dask_client=None,
-            batch_size=None):
+            batch_size=None,
+            batch_mode=None,
+            x_pending=None):
 
         """
         Given that the acquisition device is at `position`, this function `ask()`s for
@@ -396,19 +398,9 @@ class GPOptimizerBase(GP):
             that mixed discrete-continuous spaces can be considered here. The candidates will be directly
             given to the acquisition function.
 
-            With ``n > 1`` the sorted-and-truncated behavior above applies only to the
-            acquisition functions that score one point at a time. Those say nothing about
-            whether the returned points are useful *together*, and nothing stops the best
-            scorers from sitting on top of one another, so the batch is frequently a set of
-            near-duplicates; ``ask()`` warns when it returns one.
-            ``total correlation`` and ``relative information entropy`` instead score a whole
-            set with a single number, so for those ``ask()`` selects the batch jointly and
-            ``f_a(x)`` is one value describing the set rather than one value per point.
-            Choosing the genuinely best subset is combinatorial, so the batch is built by
-            greedy forward selection: take the best single candidate, then the one that best
-            complements it, and so on. This costs ``n`` passes over the candidate list, and
-            criteria of this kind are approximately submodular, for which greedy selection
-            is a standard and well-founded choice.
+            With ``n > 1``, candidate lists and bounds alike, the batch is chosen as
+            ``batch_mode`` says; by default greedily, so that the points are useful
+            *together* rather than individually best (see ``batch_mode``).
         x_out : np.ndarray, optional
             The requested outputs of a multi-task GP, all by default: output indices for
             'independent' and 'kronecker', output coordinates for 'cartesian'. Must be None for
@@ -418,9 +410,8 @@ class GPOptimizerBase(GP):
             provided this position will be taken into account
             to guarantee a cost-efficient new suggestion. The default is None.
         n : int, optional
-            The algorithm will try to return n suggestions for
-            new measurements. This is either done by method = 'hgdl', or otherwise
-            by maximizing the collective information gain (default).
+            The number of suggestions for new measurements, chosen together as
+            ``batch_mode`` says. The default is 1.
         acquisition_function : Callable | str, optional
             The acquisition function accepts as input a numpy array
             of size V x D (such that V is the number of input
@@ -496,12 +487,18 @@ class GPOptimizerBase(GP):
             mean after a fantasized measurement (KGCP scheme over the data points plus
             the candidate). For multi-task GPs it acts on the task-summed objective.
             Tunable via args = {'kg_reference_set_size': int, 'kg_seed': int}.
+            It serves the goal "the best value to *recommend* after the measurements":
+            it values replicating a noisy competitor of the incumbent.
             noisy expected improvement: expected improvement averaged over the
             posterior of the incumbent (best observed value), jointly with the
             candidate's correlation to it, which makes it robust to observation noise
             (Letham et al. 2019). For multi-task GPs it acts on the
             task-summed objective. Tunable via
             args = {'nei_samples': int, 'nei_reference_set_size': int, 'nei_seed': int}.
+            It serves the goal "the best value *among the points measured*": improvement
+            is measured on the latent function, so measuring a point again, however
+            noisy, has zero value. A kernel term that acts like a nugget is part of that
+            latent function.
         method : str, optional
             A string defining the method used to find the maximum
             of the acquisition function. Choose from `global`,
@@ -543,12 +540,63 @@ class GPOptimizerBase(GP):
         batch_size : distributed.client.Client, optional
             If a candidate set (input set) and a dask client is provided, the acquisition function evaluations
             will be executed in parallel in batches of this size.
+        batch_mode : str, optional
+            How ``n > 1`` points are chosen. One of:
+
+            - ``None`` (default): ``'greedy'`` for ``n > 1`` or when ``x_pending`` is given;
+              otherwise the single best point (``noisy expected improvement`` always runs
+              through the greedy driver, which samples its incumbent once per call).
+            - ``'greedy'``: for any acquisition function, built-in or callable, and for
+              bounds and candidate lists alike. Find the best point, condition on it as a
+              pending point, repeat. ``noisy expected improvement`` conditions exactly:
+              the pick joins the reference set whose sampled maximum is the incumbent, so
+              this is sequential-greedy q-NEI, whose per-pick values add up to the
+              batch's q-NEI and in which a repeat of a pick is worth nothing. Every other
+              acquisition function is evaluated on a private copy of the GP to which each
+              pick is added as a pseudo-observation equal to the posterior mean ("kriging
+              believer"): the posterior mean stays where it was, the variance shrinks
+              around the pick, and the next pick moves elsewhere. The hyperparameters are
+              not retrained, the GP itself is not changed, and each step uses ``method``.
+              A pseudo-point's noise is the noise function's, or, for a GP given
+              ``noise_variances``, ``args['batch_pseudo_noise']`` or else their mean.
+              ``maximum`` and ``minimum`` depend on the posterior mean only and so return
+              one point repeatedly over bounds (with a warning). A pick is removed from a
+              candidate list; with a ``cost_function`` the ``position`` moves to each pick
+              in turn. Not available for gp2Scale GPs or ``method='hgdlAsync'``.
+            - ``'joint'``: ``total correlation`` and ``relative information entropy`` only,
+              which score a whole set with one number. Over bounds, one global
+              optimization in n·D dimensions (``total correlation`` becomes
+              ``relative information entropy`` in ``'kronecker'`` mode); over a candidate
+              list, greedy forward selection on the set value, with ``f_a(x)`` one value
+              for the whole set. This was the default for bounds before gpCAM 8.8, where
+              any other acquisition function was silently replaced by
+              ``total correlation``.
+            - ``'independent'``: the points are individually best and say nothing about each
+              other, so they are often near-duplicates (``ask()`` warns). Over a candidate
+              list, the top ``n`` by acquisition value; over bounds, ``method='hgdl'``'s
+              distinct local optima (hgdl required), which may be fewer than ``n``.
+
+            ``total correlation`` and ``relative information entropy`` are both KL
+            divergences, as explained above. The greedy batches of the two differ as their
+            criteria do: ``total correlation`` penalizes redundancy with the data and the
+            earlier picks directly, ``relative information entropy`` prefers regions the
+            data has not reached.
+        x_pending : np.ndarray | list, optional
+            Points already chosen but not yet measured -- another acquisition function's
+            batch, measurements still running, a person's additions -- shape (P, D), or a
+            list for a non-Euclidean input space. The batch is conditioned on them first,
+            as on its own picks (``batch_mode='greedy'``, also for ``n=1``), so it neither
+            repeats nor crowds them. ``ask(n=k, x_pending=P)`` gives the picks that
+            follow ``P`` when ``P`` are the first picks of a longer batch.
 
         Return
         ------
         Solution : {'x': np.array(maxima), "f_a(x)" : np.array(func_evals), "opt_obj" : opt_obj}
             Found maxima of the acquisition function, the associated function values and optimization object
             that, only in case of `method` = `hgdl` can be queried for solutions.
+            For a greedy batch, ``'x'`` holds the picks in the order chosen and ``'f_a(x)'``
+            each pick's acquisition value on the GP conditioned on the picks before it
+            (for ``noisy expected improvement``, these add up to the batch's q-NEI).
         """
 
         logger.debug("ask() initiated with hyperparameters: {}", self.hyperparameters)
@@ -563,63 +611,98 @@ class GPOptimizerBase(GP):
 
         if isinstance(input_set, np.ndarray) and np.ndim(input_set) != 2:
             raise Exception("The input_set parameter has to be a 2d np.ndarray or a list.")
+        x_pending = self._check_pending(x_pending)
+        batch_mode = self._resolve_batch_mode(batch_mode, acquisition_function, input_set, n, method, x_pending)
 
-        #for user-defined acquisition functions, use "hgdl" if n>1 and no candidates
+        #if method is hgdl but no client is provided, make one
         dask_client_provided = False
-        if isinstance(input_set, np.ndarray) and n > 1 and callable(acquisition_function):
-            warnings.warn("Method set to hgdl for callable acq. func and n>1.")
-            method = "hgdl"
-            if dask_client is None:
-                warnings.warn("Initiating dask client for `hgdl`")
-                dask_client = Client()
-                dask_client_provided = True
-
-        #if method is hgdl but no client is provided, m ake one
         if dask_client is None and method == "hgdl":
             warnings.warn("Initiating dask client for `hgdl`")
             dask_client = Client()
             dask_client_provided = True
 
-        #if n>1 and Euclidean search and method!='hgdl', then global optimization of total corr or similar
-        if isinstance(input_set, np.ndarray) and n > 1 and method != "hgdl" and not callable(acquisition_function):
-            vectorized = False
+        # one set scored at once over bounds: a single n*D-dimensional global optimization
+        if batch_mode == "joint" and isinstance(input_set, np.ndarray) and n > 1:
             method = "global"
-            new_optimization_bounds = np.vstack([input_set for i in range(n)])
-            input_set = new_optimization_bounds
-            if acquisition_function != "total correlation" and acquisition_function != "relative information entropy":
+            input_set = np.vstack([input_set for i in range(n)])
+            if self.multi_task_mode == "kronecker" and acquisition_function == "total correlation":
                 # fvgp has no total correlation for Kronecker GPs (it is dense in the data)
-                acquisition_function = "relative information entropy" if self.multi_task_mode == "kronecker" \
-                    else "total correlation"
-                warnings.warn("You specified n>1 and method != 'hgdl' in ask(). The acquisition function "
-                              f"has therefore been changed to '{acquisition_function}'.")
+                acquisition_function = "relative information entropy"
+                warnings.warn("There is no total correlation for multi_task_mode='kronecker'; "
+                              "ask() uses 'relative information entropy' instead.")
 
         if acquisition_function == "total correlation" or acquisition_function == "relative information entropy":
             warnings.warn("I set vectorized=False for total corr. or rel. inf. entropy.")
             vectorized = False
 
-        maxima, func_evals, opt_obj = sm.find_acquisition_function_maxima(
-            self,
-            acquisition_function,
-            origin=position,
-            number_of_maxima_sought=n,
-            input_set=input_set,
-            input_set_dim=self.input_space_dimension,
-            optimization_method=method,
-            optimization_pop_size=pop_size,
-            optimization_max_iter=max_iter,
-            optimization_tol=tol,
-            cost_function=self.cost_function,
-            optimization_x0=x0,
-            constraints=constraints,
-            vectorized=vectorized,
-            x_out=x_out,
-            info=info,
-            dask_client=dask_client,
-            batch_size=batch_size)
+        optimizer_kwargs = dict(optimization_method=method,
+                                optimization_pop_size=pop_size,
+                                optimization_max_iter=max_iter,
+                                optimization_tol=tol,
+                                optimization_x0=x0,
+                                constraints=constraints,
+                                vectorized=vectorized,
+                                info=info,
+                                dask_client=dask_client,
+                                batch_size=batch_size)
+        if batch_mode == "greedy":
+            maxima, func_evals, opt_obj = sm.greedy_batch(
+                self, acquisition_function, n, input_set,
+                x_out=x_out, x_pending=x_pending, origin=position,
+                cost_function=self.cost_function, input_set_dim=self.input_space_dimension,
+                **optimizer_kwargs)
+        else:
+            maxima, func_evals, opt_obj = sm.find_acquisition_function_maxima(
+                self, acquisition_function,
+                origin=position, number_of_maxima_sought=n, input_set=input_set,
+                input_set_dim=self.input_space_dimension, cost_function=self.cost_function,
+                x_out=x_out, joint_set_valued=batch_mode == "joint", **optimizer_kwargs)
         if dask_client_provided: dask_client.close()
-        if n > 1: return {'x': maxima.reshape(-1, self.input_space_dimension), "f_a(x)": func_evals,
-                          "opt_obj": opt_obj}
+        if n > 1 and self.input_space_dimension is not None:
+            return {'x': np.asarray(maxima).reshape(-1, self.input_space_dimension), "f_a(x)": func_evals,
+                    "opt_obj": opt_obj}
         return {'x': np.array(maxima), "f_a(x)": np.array(func_evals), "opt_obj": opt_obj}
+
+    def _check_pending(self, x_pending):
+        """``ask()``'s pending points as the GP's input format: a (P, D) array, or a list."""
+        if x_pending is None: return None
+        if isinstance(self.x_data, list):
+            if not isinstance(x_pending, list):
+                raise ValueError("x_pending must be a list of points for a non-Euclidean input space.")
+            return x_pending
+        x_pending = np.atleast_2d(np.asarray(x_pending, dtype=float))
+        if x_pending.ndim != 2 or x_pending.shape[1] != self.input_space_dimension:
+            raise ValueError(f"x_pending must have shape (P, {self.input_space_dimension}), "
+                             f"not {x_pending.shape}.")
+        return x_pending
+
+    @staticmethod
+    def _resolve_batch_mode(batch_mode, acquisition_function, input_set, n, method, x_pending):
+        """The batch strategy ``ask()`` runs: 'greedy', 'joint', 'independent' or None (one point).
+
+        By default a batch (``n > 1``) and anything with pending points is greedy, and so is
+        ``noisy expected improvement`` for one point: the driver builds its reference sample
+        once per ``ask()`` instead of once per evaluation.
+        """
+        if batch_mode not in (None, "greedy", "joint", "independent"):
+            raise ValueError(f"batch_mode must be None, 'greedy', 'joint' or 'independent', not {batch_mode!r}.")
+        nei = isinstance(acquisition_function, str) and acquisition_function == "noisy expected improvement"
+        if batch_mode is None and (n > 1 or x_pending is not None or (nei and method != "hgdlAsync")):
+            batch_mode = "greedy"
+        if batch_mode == "greedy" and method == "hgdlAsync":
+            raise ValueError("batch_mode='greedy' runs one optimization per pick, which "
+                             "method='hgdlAsync' does not return.")
+        if x_pending is not None and batch_mode != "greedy":
+            raise ValueError("x_pending is used by batch_mode='greedy' only.")
+        if batch_mode == "joint" and (callable(acquisition_function) or
+                                      acquisition_function not in sm.SET_VALUED_ACQUISITION_FUNCTIONS):
+            raise ValueError(f"batch_mode='joint' scores a whole set at once, which only "
+                             f"{sorted(sm.SET_VALUED_ACQUISITION_FUNCTIONS)} can. Use "
+                             f"batch_mode='greedy' for any other acquisition function.")
+        if batch_mode == "independent" and isinstance(input_set, np.ndarray) and n > 1 and method != "hgdl":
+            raise ValueError("batch_mode='independent' over bounds returns hgdl's distinct local "
+                             "optima; pass method='hgdl' (and a dask_client).")
+        return batch_mode
 
     def optimize(self,
                  *,

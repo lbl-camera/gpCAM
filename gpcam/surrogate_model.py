@@ -73,7 +73,16 @@ def find_acquisition_function_maxima(gpo, acquisition_function, *,
                                      x_out=None,
                                      dask_client=None,
                                      batch_size=10,
-                                     info=False):
+                                     info=False,
+                                     joint_set_valued=True):
+    """Maximize an acquisition function over bounds or a candidate list.
+
+    With a candidate list and ``number_of_maxima_sought > 1``, a set-valued acquisition
+    (:data:`SET_VALUED_ACQUISITION_FUNCTIONS`) selects the set by
+    :func:`_greedy_batch_from_candidates` unless ``joint_set_valued=False``; everything
+    else returns the individually best candidates (with a warning). ``ask()`` builds
+    greedy batches with :func:`greedy_batch`, which calls this once per pick.
+    """
     bounds = None
     candidates = None
     if input_set is None:
@@ -100,8 +109,8 @@ def find_acquisition_function_maxima(gpo, acquisition_function, *,
     logger.debug("bounds:")
     logger.debug(bounds)
     logger.debug("====================================")
-    if candidates is not None and number_of_maxima_sought > 1 and \
-            acquisition_function in SET_VALUED_ACQUISITION_FUNCTIONS:
+    if candidates is not None and number_of_maxima_sought > 1 and joint_set_valued and \
+            not callable(acquisition_function) and acquisition_function in SET_VALUED_ACQUISITION_FUNCTIONS:
         opti, func_eval, opt_obj = _greedy_batch_from_candidates(
             func, candidates, number_of_maxima_sought, acquisition_function)
 
@@ -112,15 +121,13 @@ def find_acquisition_function_maxima(gpo, acquisition_function, *,
                 f"candidates under `{acquisition_function}`, which scores one point at a "
                 f"time. They are not mutually optimal and are often near-duplicates, since "
                 f"nothing stops the top scorers from sitting on top of each other. For a "
-                f"batch chosen to be jointly informative use "
-                f"{sorted(SET_VALUED_ACQUISITION_FUNCTIONS)}, which score a whole set.")
+                f"batch chosen together use batch_mode='greedy' (the default).")
         elif number_of_maxima_sought > 1:
             warnings.warn(
                 f"ask() is returning the {number_of_maxima_sought} individually best "
-                f"candidates under a user-supplied acquisition function. gpCAM cannot tell "
-                f"whether it scores a set or a single point, so it is applied point by "
-                f"point and the result is not mutually optimal. For a jointly informative "
-                f"batch use {sorted(SET_VALUED_ACQUISITION_FUNCTIONS)}.")
+                f"candidates under a user-supplied acquisition function, applied point by "
+                f"point, so the result is not mutually optimal. For a batch chosen together "
+                f"use batch_mode='greedy' (the default).")
         if vectorized is False:
             if dask_client is not None:
                 logger.debug("Mapping the acquisition function evaluation over dask workers in batches of size", batch_size)
@@ -177,8 +184,8 @@ def find_acquisition_function_maxima(gpo, acquisition_function, *,
         func_eval = func_eval[idx]
 
         if len(opti) < number_of_maxima_sought:
-            warnings.warn("An insufficient number of unique optima identified. " +
-                          "Try `total correlation` or the use of candidates by providing them as a list to ask(). ")
+            warnings.warn("An insufficient number of unique optima identified. For n points "
+                          "chosen together use batch_mode='greedy' (the default).")
         opti = opti[0:min(len(opti), number_of_maxima_sought)]
         func_eval = func_eval[0:min(len(func_eval), number_of_maxima_sought)]
 

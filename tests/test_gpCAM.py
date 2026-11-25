@@ -160,7 +160,7 @@ def test_acq_funcs(client):
     r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="minimum")
     r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 5, acquisition_function="gradient", method = "local", dask_client=client)
     r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="gradient", method = "local")
-    r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 5, acquisition_function="variance", method = "hgdl", dask_client=client)
+    r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 5, acquisition_function="variance", method = "hgdl", batch_mode="independent", dask_client=client)
     r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="target probability", method = "local")
     r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="knowledge gradient")
     r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="noisy expected improvement")
@@ -580,6 +580,84 @@ def test_greedy_batch_edge_cases():
         _greedy_copy(types.SimpleNamespace(gp2Scale=True))
 
 
+def test_ask_batches_greedily_by_default():
+    """ask(n > 1) keeps the acquisition function it was given -- gpCAM <= 8.7 replaced it by
+    total correlation over n*D dimensions on bounds -- and reports one value per pick."""
+    import warnings
+    gpo, candidates = _greedy_toy(noise_variances=np.full(15, 1e-3))
+    bounds = np.array([[0., 1.], [0., 1.]])
+    for acq in ("ucb", "noisy expected improvement"):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            r = gpo.ask(bounds, n=3, acquisition_function=acq, max_iter=10)
+        assert not any("changed to" in str(w.message) for w in caught)
+        assert r["x"].shape == (3, 2) and r["f_a(x)"].shape == (3,) and r["opt_obj"] is None
+        assert _closest_pair(r["x"]) > 0.02
+    # deterministic on a candidate list, for a fixed nei_seed (dev spec, test 6)
+    a = gpo.ask(candidates, n=4, acquisition_function="noisy expected improvement")
+    b = gpo.ask(candidates, n=4, acquisition_function="noisy expected improvement")
+    assert np.array_equal(a["x"], b["x"]) and np.array_equal(a["f_a(x)"], b["f_a(x)"])
+    # one NEI point goes through the driver too, with the same result as its first pick
+    one = gpo.ask(candidates, n=1, acquisition_function="noisy expected improvement")
+    assert one["x"].shape == (1, 2) and np.array_equal(one["x"][0], a["x"][0])
+
+
+def test_ask_conditions_on_pending_points():
+    """ask(k, x_pending=P) is the tail of ask(|P| + k) whose first picks were P (dev spec,
+    test 8), and x_pending works for a single point too."""
+    gpo, candidates = _greedy_toy(noise_variances=np.full(15, 1e-3))
+    for acq in ("noisy expected improvement", "expected improvement", _variance_callable):
+        full = gpo.ask(candidates, n=4, acquisition_function=acq)
+        tail = gpo.ask(candidates, n=2, acquisition_function=acq, x_pending=full["x"][:2])
+        assert np.allclose(tail["x"], full["x"][2:]), acq
+        one = gpo.ask(candidates, n=1, acquisition_function=acq, x_pending=full["x"][:3])
+        assert np.allclose(one["x"], full["x"][3:]), acq
+    one = gpo.ask(candidates, acquisition_function="variance", x_pending=[0.5, 0.5])   # one point, 1d
+    assert one["x"].shape == (1, 2)
+
+
+def _word_kernel(x1, x2, hps):
+    """A kernel on words, by their length."""
+    l1 = np.array([len(w) for w in x1], dtype=float)
+    l2 = np.array([len(w) for w in x2], dtype=float)
+    return hps[0] * np.exp(-(l1[:, None] - l2[None, :]) ** 2 / 4.)
+
+
+def test_ask_greedy_batch_on_a_non_euclidean_space():
+    """Candidates that are not vectors: the picks are the candidates themselves, and they
+    are added to the GP copy as such."""
+    words = ["a", "abcd", "abcdefgh"]
+    gpo = GPOptimizer(words, np.array([0., 1., 0.5]), init_hyperparameters=np.ones(1),
+                      noise_variances=np.full(3, 1e-2), kernel_function=_word_kernel)
+    pool = ["ab", "abc", "abcde", "abcdef", "abcdefg", "abcdefghijk"]
+    r = gpo.ask(pool, n=3, acquisition_function="variance")
+    picks = list(np.asarray(r["x"]).reshape(-1))        # (n, 1), as the top-n path returns them
+    assert len(picks) == 3 and len(set(picks)) == 3 and set(picks) <= set(pool)
+    r = gpo.ask(pool, n=2, acquisition_function="variance", x_pending=["abcdefghijk"])
+    assert "abcdefghijk" not in list(np.asarray(r["x"]).reshape(-1))
+    with pytest.raises(ValueError, match="list of points"):
+        gpo.ask(pool, n=2, acquisition_function="variance", x_pending=np.array([[1.]]))
+
+
+def test_ask_batch_mode_validation():
+    gpo, candidates = _greedy_toy()
+    bounds = np.array([[0., 1.], [0., 1.]])
+    bad = [(dict(batch_mode="together"), "batch_mode must be"),
+           (dict(batch_mode="joint", acquisition_function="ucb"), "scores a whole set"),
+           (dict(batch_mode="joint", acquisition_function=_variance_callable), "scores a whole set"),
+           (dict(batch_mode="independent", method="global"), "distinct local"),
+           (dict(batch_mode="joint", acquisition_function="total correlation", x_pending=[[.5, .5]]), "x_pending"),
+           (dict(batch_mode="greedy", method="hgdlAsync"), "hgdlAsync"),
+           (dict(x_pending=np.ones((2, 3))), "shape")]
+    for kwargs, match in bad:
+        kwargs = {"n": 2, **kwargs}
+        with pytest.raises(ValueError, match=match):
+            gpo.ask(bounds, **kwargs)
+    # 'independent' and 'joint' on a candidate list need no hgdl
+    r = gpo.ask(candidates, n=3, batch_mode="independent", acquisition_function="total correlation")
+    assert r["f_a(x)"].shape == (3,)
+
+
 def test_assumed_observation_noise_matrix_valued():
     """fvgp accepts a full (N, N) noise covariance from a noise_function, not just a
     1-d vector of variances. The per-observation variances are then its diagonal --
@@ -927,7 +1005,8 @@ def test_candidate_batch_is_jointly_optimized_for_set_valued_acquisitions():
     Ranking candidates individually and taking the top n says nothing about whether the
     batch is any good together, and the best scorers routinely land on top of each
     other. Only `total correlation` and `relative information entropy` score a whole set
-    with one number, so only they can express this.
+    with one number, so only they can express this -- with batch_mode='joint'. The default
+    greedy batch picks the same kind of spread set one point at a time.
     """
     import warnings
     from gpcam.surrogate_model import SET_VALUED_ACQUISITION_FUNCTIONS
@@ -947,7 +1026,7 @@ def test_candidate_batch_is_jointly_optimized_for_set_valued_acquisitions():
         return float(gpo.evaluate_acquisition_function(
             np.asarray(points), acquisition_function="total correlation")[0])
 
-    joint = gpo.ask(candidates, n=5, acquisition_function="total correlation")
+    joint = gpo.ask(candidates, n=5, acquisition_function="total correlation", batch_mode="joint")
     assert np.asarray(joint["x"]).shape == (5, 2)
     # one number for the batch, and it really is the batch's value
     assert np.asarray(joint["f_a(x)"]).shape == (1,)
@@ -957,20 +1036,26 @@ def test_candidate_batch_is_jointly_optimized_for_set_valued_acquisitions():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         independent = gpo.ask(candidates, n=5, acquisition_function="variance",
-                              vectorized=False)
+                              vectorized=False, batch_mode="independent")
     assert set_value(joint["x"]) > set_value(independent["x"])
     assert closest_pair(joint["x"]) > 5.0 * closest_pair(independent["x"])
 
     # both set-valued acquisitions take this path
     for acq in sorted(SET_VALUED_ACQUISITION_FUNCTIONS):
-        r = gpo.ask(candidates[:60], n=4, acquisition_function=acq)
+        r = gpo.ask(candidates[:60], n=4, acquisition_function=acq, batch_mode="joint")
         assert np.asarray(r["x"]).shape == (4, 2)
         assert np.asarray(r["f_a(x)"]).shape == (1,)
 
+    # the default greedy batch: one value per pick, and just as spread as the joint one
+    greedy = gpo.ask(candidates, n=5, acquisition_function="total correlation")
+    assert np.asarray(greedy["x"]).shape == (5, 2) and np.asarray(greedy["f_a(x)"]).shape == (5,)
+    assert closest_pair(greedy["x"]) > 5.0 * closest_pair(independent["x"])
+
 
 def test_candidate_batch_warns_when_it_cannot_be_jointly_optimized():
-    """A point-wise acquisition cannot express whether a batch is jointly good, so
-    ask() must say so rather than implying the n points were chosen together."""
+    """batch_mode='independent' ranks candidates one at a time, so ask() must say so
+    rather than implying the n points were chosen together; the default greedy batch is
+    chosen together and does not warn."""
     import warnings
     np.random.seed(1)
     x_data = np.random.rand(25, 2)
@@ -985,13 +1070,15 @@ def test_candidate_batch_warns_when_it_cannot_be_jointly_optimized():
         return [str(w.message) for w in caught]
 
     assert any("not mutually optimal" in m for m in
-               messages(n=5, acquisition_function="variance", vectorized=False))
+               messages(n=5, acquisition_function="variance", vectorized=False, batch_mode="independent"))
+    assert not any("not mutually optimal" in m for m in
+                   messages(n=5, acquisition_function="variance", vectorized=False))
 
     # a user callable cannot be introspected, so it is warned about too
     def my_acq(x, gp_obj):
         return gp_obj.posterior_covariance(x, variance_only=True)["v(x)"]
     assert any("user-supplied acquisition function" in m for m in
-               messages(n=3, acquisition_function=my_acq, vectorized=False))
+               messages(n=3, acquisition_function=my_acq, vectorized=False, batch_mode="independent"))
 
     # a single point is not a batch, so no warning either way
     assert not any("not mutually optimal" in m for m in
@@ -1007,9 +1094,12 @@ def test_candidate_batch_handles_small_pools():
     y_data = np.sin(np.linalg.norm(x_data, axis=1))
     gpo = GPOptimizer(x_data, y_data)
     candidates = [np.random.rand(2) for _ in range(3)]
-    r = gpo.ask(candidates, n=10, acquisition_function="total correlation")
+    r = gpo.ask(candidates, n=10, acquisition_function="total correlation", batch_mode="joint")
     assert np.asarray(r["x"]).shape == (3, 2)
     assert np.asarray(r["f_a(x)"]).shape == (1,)
+    r = gpo.ask(candidates, n=10, acquisition_function="total correlation")
+    assert np.asarray(r["x"]).shape == (3, 2)
+    assert np.asarray(r["f_a(x)"]).shape == (3,)
 
 
 ###########################################################################
@@ -1067,9 +1157,10 @@ def test_ask_rejects_a_non_2d_bounds_array():
         raise AssertionError("a 1-d input_set must be rejected")
 
 
-def test_ask_forces_hgdl_for_a_callable_acquisition_with_n_greater_than_one(client):
-    """A callable acquisition function cannot be evaluated jointly, so ask() rewrites
-    the method to hgdl -- with a warning, which is easy to miss inside a loop."""
+def test_ask_batches_a_callable_greedily_and_hgdl_optima_on_request(client):
+    """A callable with n>1 used to have its method rewritten to hgdl (gpCAM <= 8.7). It is
+    now batched greedily with the method asked for; hgdl's distinct local optima are what
+    batch_mode='independent' returns."""
     import warnings
     gp = _tiny_optimizer()
     bounds = np.array([[0.0, 1.0], [0.0, 1.0]])
@@ -1077,8 +1168,11 @@ def test_ask_forces_hgdl_for_a_callable_acquisition_with_n_greater_than_one(clie
         warnings.simplefilter("always")
         r = gp.ask(bounds, n=2, acquisition_function=ac_func1, method="global",
                    dask_client=client, max_iter=2)
-    assert any("hgdl" in str(w.message) for w in caught)
-    assert r["x"].shape[1] == dim
+    assert not any("hgdl" in str(w.message) for w in caught)
+    assert r["x"].shape == (2, dim) and r["f_a(x)"].shape == (2,)
+    r = gp.ask(bounds, n=2, acquisition_function=ac_func1, method="hgdl", batch_mode="independent",
+               dask_client=client, max_iter=2)
+    assert r["x"].shape[1] == dim and r["opt_obj"] is not None
 
 
 def test_cost_function_without_an_origin_warns():
@@ -1184,6 +1278,19 @@ def test_local_optimization_accepts_both_x0_shapes():
             gp, "variance", input_set=bounds, input_set_dim=dim,
             optimization_method="local", optimization_x0=x0, optimization_max_iter=3)
         assert np.ndim(opti) == 2 and np.ndim(f_a) == 1
+
+
+def test_local_optimization_falls_back_to_its_start_when_it_fails():
+    """An unsuccessful L-BFGS-B run returns the start point and its acquisition value. One
+    iteration always ends at the iteration limit, which scipy reports as a failure."""
+    from gpcam.surrogate_model import find_acquisition_function_maxima, evaluate_acquisition_function
+    gp = _tiny_optimizer()
+    x0 = np.array([0.3, 0.7])
+    opti, f_a, _ = find_acquisition_function_maxima(
+        gp, "variance", input_set=np.array([[0.0, 1.0], [0.0, 1.0]]), input_set_dim=dim,
+        optimization_method="local", optimization_x0=x0, optimization_max_iter=1)
+    assert np.array_equal(opti, x0[None, :])
+    assert np.allclose(-f_a, evaluate_acquisition_function(x0, gpo=gp, acquisition_function="variance", dim=dim))
 
 
 def test_evaluate_acquisition_function_input_shapes():
@@ -1426,13 +1533,13 @@ def test_ask_constructs_its_own_dask_client_when_hgdl_needs_one():
     assert any("Initiating dask client" in str(w.message) for w in caught)
     assert r["x"].shape[1] == dim
 
-    # and the n>1 + callable path, which forces hgdl and then needs a client too
+    # and hgdl's distinct optima for a callable batch, which need a client too
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        r = gp.ask(bounds, n=2, acquisition_function=ac_func1, method="global",
-                   max_iter=2, dask_client=None)
+        r = gp.ask(bounds, n=2, acquisition_function=ac_func1, method="hgdl",
+                   batch_mode="independent", max_iter=2, dask_client=None)
     messages = " ".join(str(w.message) for w in caught)
-    assert "Method set to hgdl" in messages and "Initiating dask client" in messages
+    assert "Initiating dask client" in messages
 
 
 def test_evaluate_acquisition_function_tolerates_an_unstackable_list():
@@ -1535,7 +1642,7 @@ def test_scalarized_blocks_follow_the_task_major_flat_layout():
 
 def test_multi_task_acquisitions_in_every_mode():
     """One score per point (or one per set) in every mode, finite, for all outputs by default
-    and for a subset; Kronecker has no total correlation, so ask(n > 1) uses RIE there."""
+    and for a subset; Kronecker has no total correlation, so a joint ask(n > 1) uses RIE there."""
     x, y, noise, xp = _multi_task_data()
     for mode in ("independent", "cartesian", "kronecker"):
         gpo = GPOptimizer(x, y, multi_task_mode=mode)
@@ -1548,9 +1655,12 @@ def test_multi_task_acquisitions_in_every_mode():
                     continue
                 r = gpo.evaluate_acquisition_function(xp, x_out=x_out, acquisition_function=acq)
                 assert r.shape in ((1,), (len(xp),)) and np.all(np.isfinite(r)), (mode, acq)
+    kron, bounds = GPOptimizer(x, y, multi_task_mode="kronecker"), np.array([[0., 1.], [0., 1.]])
     with pytest.warns(UserWarning, match="'relative information entropy'"):
-        r = GPOptimizer(x, y, multi_task_mode="kronecker").ask(np.array([[0., 1.], [0., 1.]]), n=2, max_iter=2)
+        r = kron.ask(bounds, n=2, max_iter=2, acquisition_function="total correlation", batch_mode="joint")
     assert r["x"].shape == (2, 2)
+    r = kron.ask(bounds, n=2, max_iter=2)                 # the default: a greedy variance batch
+    assert r["x"].shape == (2, 2) and r["f_a(x)"].shape == (2,)
 
 
 def test_a_two_column_y_data_scores_one_value_per_point():
