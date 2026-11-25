@@ -39,7 +39,9 @@ Behavior change: ``ask(n > 1)``
   - ``batch_mode="independent"``: the top-n candidates, or, with ``method="hgdl"``, hgdl's
     distinct local optima over bounds.
 
-  ``"greedy"`` is the default for n > 1. A combination that cannot work, such as
+  ``"greedy"`` is the default for n > 1, except for ``method="hgdl"`` over bounds, which
+  is unchanged: one hgdl run whose distinct local optima are the batch
+  (``batch_mode="greedy"`` runs hgdl once per pick instead). A combination that cannot work, such as
   ``"joint"`` with ``"ucb"``, raises a ``ValueError`` instead of being rewritten. Greedy
   batches are not available for gp2Scale GPs or with ``method='hgdlAsync'``.
 
@@ -49,11 +51,9 @@ Behavior change: ``ask(n > 1)``
 
 Migrating: ``ask(bounds, n, acquisition_function="total correlation")`` (or ``"relative
 information entropy"``) used the n·D optimization; for the same result, add
-``batch_mode="joint"``. ``ask(bounds, n, method="hgdl")`` returned distinct local optima;
-add ``batch_mode="independent"``. Everything else now gets a batch chosen under the
-acquisition function it names. A greedy batch costs n single-point optimizations: with
-``method="hgdl"`` that is n hgdl runs, so ``ask(bounds, n=30, method="hgdl")`` without
-``batch_mode="independent"`` is about 30 times slower than before.
+``batch_mode="joint"``. ``ask(bounds, n, method="hgdl")`` is unchanged. Everything else now
+gets a batch chosen under the acquisition function it names; a greedy batch costs n
+single-point optimizations.
 
 Changes
 ~~~~~~~

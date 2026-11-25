@@ -192,8 +192,8 @@ measurements are still running.
 acquisition function by `"total correlation"`, so `ask(n=5, acquisition_function="expected
 improvement")` did not run EI. For that set-valued behavior now, pass
 `batch_mode="joint"` with `"total correlation"` or `"relative information entropy"`;
-for hgdl's distinct local optima, `batch_mode="independent", method="hgdl"` and a Dask
-client.
+`method="hgdl"` with a Dask client still returns hgdl's distinct local optima from one
+run, as before.
 
 ---
 

@@ -160,7 +160,8 @@ def test_acq_funcs(client):
     r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="minimum")
     r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 5, acquisition_function="gradient", method = "local", dask_client=client)
     r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="gradient", method = "local")
-    r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 5, acquisition_function="variance", method = "hgdl", batch_mode="independent", dask_client=client)
+    r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 5, acquisition_function="variance", method = "hgdl", dask_client=client)
+    assert r["opt_obj"] is not None                       # one hgdl run, its optima the batch
     r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="target probability", method = "local")
     r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="knowledge gradient")
     r = my_gpo.ask(np.array([[0.,1.],[0.,1.],[0.,1.]]),n = 1, acquisition_function="noisy expected improvement")
@@ -648,7 +649,8 @@ def test_ask_batch_mode_validation():
            (dict(batch_mode="independent", method="global"), "distinct local"),
            (dict(batch_mode="joint", acquisition_function="total correlation", x_pending=[[.5, .5]]), "x_pending"),
            (dict(batch_mode="greedy", method="hgdlAsync"), "hgdlAsync"),
-           (dict(x_pending=np.ones((2, 3))), "shape")]
+           (dict(x_pending=np.ones((2, 3))), "shape"),
+           (dict(method="hgdl", x_pending=[[.5, .5]]), "runs hgdl once")]
     for kwargs, match in bad:
         kwargs = {"n": 2, **kwargs}
         with pytest.raises(ValueError, match=match):
@@ -1159,8 +1161,8 @@ def test_ask_rejects_a_non_2d_bounds_array():
 
 def test_ask_batches_a_callable_greedily_and_hgdl_optima_on_request(client):
     """A callable with n>1 used to have its method rewritten to hgdl (gpCAM <= 8.7). It is
-    now batched greedily with the method asked for; hgdl's distinct local optima are what
-    batch_mode='independent' returns."""
+    now batched greedily with the method asked for. method='hgdl' with n>1 is unchanged: one
+    hgdl run whose distinct local optima are the batch."""
     import warnings
     gp = _tiny_optimizer()
     bounds = np.array([[0.0, 1.0], [0.0, 1.0]])
@@ -1170,9 +1172,12 @@ def test_ask_batches_a_callable_greedily_and_hgdl_optima_on_request(client):
                    dask_client=client, max_iter=2)
     assert not any("hgdl" in str(w.message) for w in caught)
     assert r["x"].shape == (2, dim) and r["f_a(x)"].shape == (2,)
-    r = gp.ask(bounds, n=2, acquisition_function=ac_func1, method="hgdl", batch_mode="independent",
-               dask_client=client, max_iter=2)
+    r = gp.ask(bounds, n=2, acquisition_function=ac_func1, method="hgdl", dask_client=client, max_iter=2)
     assert r["x"].shape[1] == dim and r["opt_obj"] is not None
+    # greedy over hgdl only on request: one hgdl run per pick, so no single optimizer object
+    r = gp.ask(bounds, n=2, acquisition_function=ac_func1, method="hgdl", batch_mode="greedy",
+               dask_client=client, max_iter=2)
+    assert r["x"].shape == (2, dim) and r["opt_obj"] is None
 
 
 def test_cost_function_without_an_origin_warns():
@@ -1537,7 +1542,7 @@ def test_ask_constructs_its_own_dask_client_when_hgdl_needs_one():
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         r = gp.ask(bounds, n=2, acquisition_function=ac_func1, method="hgdl",
-                   batch_mode="independent", max_iter=2, dask_client=None)
+                   max_iter=2, dask_client=None)
     messages = " ".join(str(w.message) for w in caught)
     assert "Initiating dask client" in messages
 

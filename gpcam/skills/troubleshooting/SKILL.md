@@ -301,14 +301,14 @@ The failures that cost the most time, because nothing crashes.
 
 `ask(bounds, n > 1)` used to replace any string acquisition function by
 `"total correlation"` optimized over `n·D` dimensions, and forced `method="hgdl"` for a
-callable; a candidate list returned the point-wise top `n`. From 8.8 the batch is chosen
+callable; a candidate list returned the point-wise top `n`. (`method="hgdl"` itself is
+unchanged: one run, its distinct optima the batch.) From 8.8 the batch is chosen
 greedily under the acquisition function named. For the old behavior pass
 `batch_mode="joint"` (set-valued TC/RIE) or `batch_mode="independent"` (top-`n`, or hgdl's
-distinct optima with `method="hgdl"`). If `ask(bounds, n, method="hgdl")` got much slower,
-that is the greedy batch running hgdl once per point; `batch_mode="independent"` restores
-the single run. A `ValueError` naming `batch_mode` means the
+distinct optima with `method="hgdl"`). A `ValueError` naming `batch_mode` means the
 combination cannot work: `"joint"` needs a set-valued acquisition, `"independent"` over
-bounds needs `method="hgdl"`, and `x_pending` needs the greedy mode. Greedy batches raise
+bounds needs `method="hgdl"`, and `x_pending` needs the greedy mode (with `method="hgdl"` and
+`n > 1`, pass `batch_mode="greedy"` explicitly — it runs hgdl once per pick). Greedy batches raise
 `NotImplementedError` for gp2Scale GPs (they work on a copy of the GP, which has no Dask
 client): ask one point at a time there.
 

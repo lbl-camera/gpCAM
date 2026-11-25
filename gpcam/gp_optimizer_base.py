@@ -546,6 +546,9 @@ class GPOptimizerBase(GP):
             - ``None`` (default): ``'greedy'`` for ``n > 1`` or when ``x_pending`` is given;
               otherwise the single best point (``noisy expected improvement`` always runs
               through the greedy driver, which samples its incumbent once per call).
+              Except ``method='hgdl'`` over bounds with ``n > 1``: that is ``'independent'``,
+              one hgdl run whose distinct local optima are the batch, as before gpCAM 8.8.
+              ``batch_mode='greedy'`` runs hgdl once per pick instead.
             - ``'greedy'``: for any acquisition function, built-in or callable, and for
               bounds and candidate lists alike. Find the best point, condition on it as a
               pending point, repeat. ``noisy expected improvement`` conditions exactly:
@@ -682,18 +685,26 @@ class GPOptimizerBase(GP):
 
         By default a batch (``n > 1``) and anything with pending points is greedy, and so is
         ``noisy expected improvement`` for one point: the driver builds its reference sample
-        once per ``ask()`` instead of once per evaluation.
+        once per ``ask()`` instead of once per evaluation. The exception is ``method='hgdl'``
+        over bounds with ``n > 1``, which stays what it always was: one hgdl run, whose
+        distinct local optima are the batch ('independent'), not one hgdl run per pick.
         """
         if batch_mode not in (None, "greedy", "joint", "independent"):
             raise ValueError(f"batch_mode must be None, 'greedy', 'joint' or 'independent', not {batch_mode!r}.")
         nei = isinstance(acquisition_function, str) and acquisition_function == "noisy expected improvement"
-        if batch_mode is None and (n > 1 or x_pending is not None or (nei and method != "hgdlAsync")):
+        hgdl_batch = method == "hgdl" and n > 1 and isinstance(input_set, np.ndarray)
+        if batch_mode is None and hgdl_batch:
+            batch_mode = "independent"
+        elif batch_mode is None and (n > 1 or x_pending is not None or (nei and method != "hgdlAsync")):
             batch_mode = "greedy"
         if batch_mode == "greedy" and method == "hgdlAsync":
             raise ValueError("batch_mode='greedy' runs one optimization per pick, which "
                              "method='hgdlAsync' does not return.")
         if x_pending is not None and batch_mode != "greedy":
-            raise ValueError("x_pending is used by batch_mode='greedy' only.")
+            raise ValueError("x_pending is used by batch_mode='greedy' only. method='hgdl' with n > 1 "
+                             "runs hgdl once and returns its distinct optima; to condition on pending "
+                             "points, pass batch_mode='greedy', which runs hgdl once per pick."
+                             if hgdl_batch else "x_pending is used by batch_mode='greedy' only.")
         if batch_mode == "joint" and (callable(acquisition_function) or
                                       acquisition_function not in sm.SET_VALUED_ACQUISITION_FUNCTIONS):
             raise ValueError(f"batch_mode='joint' scores a whole set at once, which only "
