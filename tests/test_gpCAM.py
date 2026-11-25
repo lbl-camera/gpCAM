@@ -316,6 +316,102 @@ def test_noisy_expected_improvement_uses_the_incumbent_correlation():
     assert np.allclose(nei, truth, rtol=0.1, atol=1e-5)
 
 
+def _rbf_1d(x1, x2, hps):
+    d = np.subtract.outer(x1[:, 0], x2[:, 0])
+    return hps[0] * np.exp(-0.5 * d**2 / hps[1]**2)
+
+
+def test_noisy_expected_improvement_one_data_point():
+    """One observation y(0) = 1 with noise variance 0.25, an RBF kernel (variance 1, length
+    scale 0.3) and gpCAM's default prior mean: R = {0} and NEI(x) = E[(f(x) - f(0))^+]
+    exactly. The values are a 4e5-sample joint-posterior Monte-Carlo (dev spec, test 2);
+    gpCAM <= 8.7.0 gave 0.234 / 0.260 / 0.362 / 0.420 here."""
+    from gpcam.surrogate_model import noisy_expected_improvement
+    gpo = GPOptimizer(np.array([[0.]]), np.array([1.]), noise_variances=np.array([.25]),
+                      kernel_function=_rbf_1d, init_hyperparameters=np.array([1., .3]))
+    gpo.args = {"nei_samples": 200000}
+    nei = noisy_expected_improvement(np.array([[0.], [.1], [.3], [1.]]), gpo)
+    # 0 up to the Cholesky jitter: the conditional variance at the data point is
+    # cov * jit / (cov + jit) ~ 2e-10, which gives ~6e-6
+    assert nei[0] < 1e-4
+    assert np.allclose(nei[1:], [0.130, 0.326, 0.438], atol=0.005)
+
+
+def test_noisy_expected_improvement_far_from_the_data_is_ei_against_a_random_incumbent():
+    """With no correlation between candidate and data the conditioning is a no-op: NEI is
+    plain EI averaged over the incumbent's posterior (dev spec, test 1)."""
+    from scipy.stats import norm
+    from gpcam.surrogate_model import noisy_expected_improvement, _scalarized_blocks
+    gpo = GPOptimizer(np.array([[0.]]), np.array([1.]), noise_variances=np.array([.25]),
+                      kernel_function=_rbf_1d, init_hyperparameters=np.array([1., .05]))
+    gpo.args = {"nei_samples": 200000}
+    x = np.array([[1.]])
+    mu_r, cov_r, mu_c, var_c, cross = _scalarized_blocks(gpo, np.array([[0.]]), x, None)
+    assert abs(cross[0, 0]) < 1e-12
+    f0 = mu_r[0] + np.sqrt(cov_r[0, 0]) * np.random.default_rng(0).standard_normal(400000)
+    s = np.sqrt(var_c[0]); g = (mu_c[0] - f0) / s
+    expected = np.mean(s * (g * norm.cdf(g) + norm.pdf(g)))
+    assert np.isclose(noisy_expected_improvement(x, gpo)[0], expected, rtol=0.01)
+
+
+def _nei_toy():
+    rng = np.random.default_rng(1)
+    x = rng.uniform(size=(12, 1))
+    y = np.sin(6. * x[:, 0]) + 0.1 * rng.standard_normal(12)
+    gpo = GPOptimizer(x, y, init_hyperparameters=np.array([1., .15]), noise_variances=np.full(12, .1**2))
+    gpo.args = {"nei_samples": 100000}
+    return gpo
+
+
+def test_nei_increments_add_up_to_the_batch_qnei():
+    """Delta(b_t | b_<t) summed over a batch is qNEI(B) = E[(max f(B) - max f(R))^+] under
+    the joint posterior of f(R u B) (dev spec, test 3): pending points are reference points,
+    no fantasy outcomes involved."""
+    from gpcam.surrogate_model import (_nei_state, _nei_append, _nei_increment,
+                                       _reference_points, _scalarized_blocks)
+    gpo = _nei_toy()
+    batch = np.array([[.22], [.29], [.8]])
+    state, total = _nei_state(gpo, None), 0.
+    for b in batch:
+        total += _nei_increment(b[None, :], gpo, state, None)[0]
+        state = _nei_append(state, gpo, b[None, :], None)
+    ref = _reference_points(gpo, None, 100, np.random.default_rng(0))
+    mu, cov, _, _, _ = _scalarized_blocks(gpo, np.vstack([ref, batch]), np.zeros((0, 1)), None)
+    s = np.random.default_rng(5).multivariate_normal(mu, cov, size=400000, method="eigh")
+    qnei = np.mean(np.maximum(s[:, -3:].max(axis=1) - s[:, :-3].max(axis=1), 0.))
+    assert qnei > 1e-2, "test needs a batch with a non-trivial value"
+    assert np.isclose(total, qnei, rtol=0.03)
+
+
+def test_nei_gives_a_pending_point_no_value():
+    """A pending point is a reference point, so measuring it again cannot beat itself
+    (dev spec, test 4); the factor stays invertible even when it repeats a data point."""
+    from gpcam.surrogate_model import _nei_state, _nei_increment
+    gpo = _nei_toy()
+    p = np.array([[.29]])
+    alone = _nei_increment(p, gpo, _nei_state(gpo, None), None)[0]
+    pending = _nei_increment(p, gpo, _nei_state(gpo, None, x_pending=p), None)[0]
+    assert alone > 1e-2 and pending < 1e-5 * alone
+    repeats = _nei_state(gpo, None, x_pending=np.vstack([gpo.x_data[:2], p, p]))
+    assert np.all(np.isfinite(_nei_increment(np.array([[.1], [.5]]), gpo, repeats, None)))
+
+
+def test_nei_reference_points_are_distinct_inputs():
+    """Replicated measurements are one reference point, and a cap keeps the best input
+    (dev spec, test 5): subsampling rows spent the cap on repeats and could drop it."""
+    from gpcam.surrogate_model import _reference_points
+    x = np.repeat(np.linspace(0., 1., 30)[:, None], 4, axis=0)
+    y = np.sin(6. * x[:, 0])
+    gpo = GPOptimizer(x, y, init_hyperparameters=np.array([1., .15]), noise_variances=np.full(len(x), 1e-2))
+    ref = _reference_points(gpo, None, 100, np.random.default_rng(0))
+    assert len(ref) == 30 and len(np.unique(ref, axis=0)) == 30
+    best = np.unique(x, axis=0)[np.argmax(gpo.posterior_mean(np.unique(x, axis=0))["m(x)"])]
+    for seed in range(5):
+        capped = _reference_points(gpo, None, 7, np.random.default_rng(seed))
+        assert len(capped) == 7 and len(np.unique(capped, axis=0)) == 7
+        assert any(np.array_equal(r, best) for r in capped)
+
+
 def test_assumed_observation_noise_matrix_valued():
     """fvgp accepts a full (N, N) noise covariance from a noise_function, not just a
     1-d vector of variances. The per-observation variances are then its diagonal --

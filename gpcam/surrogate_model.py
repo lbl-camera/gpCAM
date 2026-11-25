@@ -466,18 +466,26 @@ def _acq_arg(gpo, key, default):
 
 
 def _reference_points(gpo, x_out, cap, rng):
-    """Input-space data points used as the reference/fantasy set.
+    """The distinct input points of the data: the reference set R of KG and NEI.
 
     For multi-task GPs these are the data's input points (:func:`_data_input_points`).
-    Capped (subsampled) for scalability; the subsample is stable within one ``ask()``
-    because the rng is seeded.
+    Replicated measurements are one input, not several: subsampling *rows* spent the cap
+    on repeats and could drop the best input, which lowers the incumbent. Above ``cap``
+    distinct inputs, the ``(cap + 1) // 2`` with the highest (task-summed) posterior mean
+    are kept -- the incumbent lives there -- plus a random rest; the rng is seeded, so the
+    subsample is stable within one ``ask()``.
     """
     if x_out is None:
         xr = np.asarray(gpo.x_data, dtype=float)
     else:
         xr = np.asarray(_data_input_points(gpo), dtype=float)
+    xr = np.unique(xr, axis=0)
     if len(xr) > cap:
-        xr = xr[rng.choice(len(xr), size=cap, replace=False)]
+        mu = np.asarray(gpo.posterior_mean(xr, x_out=x_out)["m(x)"]).reshape(len(xr), -1).sum(axis=1)
+        top = np.argsort(mu)[::-1][:(cap + 1) // 2]
+        rest = np.setdiff1d(np.arange(len(xr)), top)
+        rest = np.sort(rng.choice(rest, size=cap - len(top), replace=False))
+        xr = xr[np.concatenate([top, rest])]
     return xr
 
 
@@ -660,24 +668,95 @@ def noisy_expected_improvement(x, gpo, x_out=None):
     ``nei_reference_set_size`` (default 100), ``nei_seed`` (default 0).
     """
     x = np.atleast_2d(np.asarray(x, dtype=float))
+    return _nei_increment(x, gpo, _nei_state(gpo, x_out), x_out)
+
+
+def _nei_state(gpo, x_out, x_pending=None):
+    """The joint posterior sample of the objective at the reference set, for one ``ask()``.
+
+    Holds the reference points ``x`` (R, then any pending points P in order), their
+    posterior mean ``mu``, a square factor ``L`` with ``L L^T = Cov(f(R u P))``, the
+    standard normals ``Z`` (one row per point, ``nei_samples`` columns), the generator
+    that draws further rows, and ``M``, the incumbent max f(R u P) of each sample.
+
+    Rows of ``Z`` are drawn as points are added. A generator's draws are sequential, so
+    this is the same sample as drawing every row up front: the reference sample is fixed
+    within one ``ask()`` (common random numbers), and a batch built from pending points
+    ``P`` sees exactly the draws a longer batch whose first picks were ``P`` would.
+    """
     n_samples = int(_acq_arg(gpo, "nei_samples", 128))
     cap = int(_acq_arg(gpo, "nei_reference_set_size", 100))
     rng = np.random.default_rng(int(_acq_arg(gpo, "nei_seed", 0)))
     x_ref = _reference_points(gpo, x_out, cap, rng)
-    mu_ref, cov_ref, mu_cand, var_cand, cross = _scalarized_blocks(gpo, x_ref, x, x_out)
-    L = _jitter_cholesky(cov_ref)                            # L L^T = cov_ref (+ jitter)
-    Z = rng.standard_normal((len(mu_ref), n_samples))
-    f_ref = mu_ref[:, None] + L @ Z                          # (M, K) incumbent samples
-    y_star = np.max(f_ref, axis=0)                           # (K,) sampled incumbents
-    # f(x) | f_ref: L is square and invertible (Cholesky, or the eigen-floor fallback)
-    W = np.linalg.solve(L, cross)                            # (M, N)
-    cond_mean = mu_cand[:, None] + W.T @ Z                   # (N, K)
+    mu, cov, _, _, _ = _scalarized_blocks(gpo, x_ref, x_ref[:0], x_out)
+    L = _jitter_cholesky(cov)                                # L L^T = cov (+ jitter)
+    Z = rng.standard_normal((len(x_ref), n_samples))
+    state = {"x": x_ref, "mu": mu, "L": L, "Z": Z, "rng": rng,
+             "M": np.max(mu[:, None] + L @ Z, axis=0)}
+    if x_pending is not None and len(x_pending):
+        state = _nei_append(state, gpo, x_pending, x_out)
+    return state
+
+
+def _nei_append(state, gpo, x_new, x_out):
+    """Add points to the reference set of an NEI state, one at a time, exactly.
+
+    For a new point p with ``c = Cov(f(R u P), f(p))``: ``l = L^{-1} c`` and
+    ``d = sqrt(Var f(p) - |l|^2)``, so ``[[L, 0], [l^T, d]]`` factors the extended
+    covariance and ``f(p) = mu_p + l^T z + d z_p`` is its sample. Earlier rows are
+    untouched. ``L`` need only be square (the eigen-floor fallback of
+    :func:`_jitter_cholesky` qualifies), since ``l`` is a general solve. A point already
+    in the set has ``d = 0``: its sample repeats the existing one, so it cannot raise
+    the incumbent. Only the factor's diagonal entry is floored (at a 1e-10 relative
+    jitter), to keep ``L`` invertible for later solves.
+    """
+    x_new = np.atleast_2d(np.asarray(x_new, dtype=float))
+    X, mu, L, Z, M = state["x"], state["mu"], state["L"], state["Z"], state["M"]
+    for p in x_new:
+        _, _, mu_p, var_p, c = _scalarized_blocks(gpo, X, p[None, :], x_out)
+        m = len(X)
+        l = np.linalg.solve(L, c[:, 0])                      # (m,)
+        resid = var_p[0] - l @ l
+        floor = 1e-10 * max(np.mean(np.sum(L**2, axis=1)), var_p[0], 1e-300)
+        if len(Z) == m:
+            Z = np.vstack([Z, state["rng"].standard_normal((1, Z.shape[1]))])
+        f_p = mu_p[0] + l @ Z[:m] + np.sqrt(max(resid, 0.0)) * Z[m]   # (K,) samples of f(p)
+        L = np.block([[L, np.zeros((m, 1))], [l[None, :], np.array([[np.sqrt(max(resid, floor))]])]])
+        X, mu, M = np.vstack([X, p]), np.append(mu, mu_p[0]), np.maximum(M, f_p)
+    return dict(state, x=X, mu=mu, L=L, Z=Z, M=M)
+
+
+def _nei_increment(x, gpo, state, x_out):
+    """NEI's value of adding ``x`` to the reference set, Delta(x | P) = E[(f(x) - max f(R u P))^+].
+
+    Closed form per sample: given ``f(R u P) = mu + L z``, f(x) is Gaussian with mean
+    ``mu_x + w^T z`` and variance ``var_x - |w|^2``, ``w = L^{-1} Cov(f(R u P), f(x))``,
+    and EI against that sample's incumbent ``M`` is exact. With no pending points this
+    is the single-point NEI; for a batch, the increments of the greedy picks add up to
+    the batch's q-NEI (Letham et al. 2019).
+    """
+    x = np.atleast_2d(np.asarray(x, dtype=float))
+    X, L, Z, M = state["x"], state["L"], state["Z"], state["M"]
+    _, _, mu_cand, var_cand, cross = _scalarized_blocks(gpo, X, x, x_out)
+    W = np.linalg.solve(L, cross)                            # (m, N)
+    cond_mean = mu_cand[:, None] + W.T @ Z[:len(X)]          # (N, K)
     cond_var = var_cand - np.sum(W**2, axis=0)               # (N,)
     std = np.sqrt(np.maximum(cond_var, 1e-12))               # (N,)
-    d = cond_mean - y_star[None, :]                          # (N, K)
-    gamma = d / std[:, None]
+    gamma = (cond_mean - M[None, :]) / std[:, None]
     ei = std[:, None] * (gamma * norm.cdf(gamma) + norm.pdf(gamma))
     return np.maximum(np.mean(ei, axis=1), 0.)
+
+
+class _NEIIncrement:
+    """NEI against a fixed reference sample, as an acquisition callable ``f(x, gpo)``.
+
+    Module-level so that the greedy driver's acquisition pickles for Dask candidate maps.
+    """
+    def __init__(self, state, x_out):
+        self.state, self.x_out = state, x_out
+
+    def __call__(self, x, gpo):
+        return _nei_increment(x, gpo, self.state, self.x_out)
 
 
 def differential_evolution(func,
