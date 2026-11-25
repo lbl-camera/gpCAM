@@ -412,6 +412,174 @@ def test_nei_reference_points_are_distinct_inputs():
         assert any(np.array_equal(r, best) for r in capped)
 
 
+###########################################################################
+############ greedy batches: best point, condition on it, repeat ##########
+###########################################################################
+def _greedy_toy(cls=GPOptimizer, scale=1., **kwargs):
+    rng = np.random.default_rng(0)
+    x = rng.uniform(size=(15, 2))
+    y = (np.sin(4. * x[:, 0]) * np.cos(3. * x[:, 1]) + 2.) * scale
+    kwargs.setdefault("init_hyperparameters", np.array([1., .3, .3]))
+    gpo = cls(x, y, **kwargs)
+    candidates = [c for c in rng.uniform(size=(300, 2))]
+    return gpo, candidates
+
+
+def _closest_pair(points):
+    p = np.asarray(points, dtype=float)
+    return min(np.linalg.norm(a - b) for i, a in enumerate(p) for b in p[i + 1:])
+
+
+def _variance_callable(x, gpo):
+    return np.sqrt(gpo.posterior_covariance(x, variance_only=True)["v(x)"])
+
+
+def test_greedy_copy_freezes_the_data_dependent_defaults():
+    """A pseudo-point is the posterior mean, so adding one must leave the posterior mean
+    where it was -- which needs fvgp's y-dependent defaults (prior mean = mean(y_data),
+    default noise from mean|y_data|) bound to the original data on the copy. Unfrozen they
+    shift it by ~5e-3 here, in every mode."""
+    from gpcam.surrogate_model import _greedy_copy, _pseudo_noise, _add_pseudo_points
+    from gpcam import LogGPOptimizer, LogitGPOptimizer
+    rng = np.random.default_rng(0)
+    x = rng.uniform(size=(8, 2))
+    y = np.sin(3. * x[:, 0]) + 2.
+    Y = np.column_stack([y, -y])
+    gps = [GPOptimizer(x, y, noise_variances=np.full(8, 1e-3)), GPOptimizer(x, y),
+           LogGPOptimizer(x, y), LogitGPOptimizer(x, y / 4., range=(0., 1.))]
+    gps += [GPOptimizer(x, Y, multi_task_mode=m) for m in ("independent", "cartesian", "kronecker")]
+    gps += [GPOptimizer(x, Y, multi_task_mode="kronecker", noise_variances=np.full(8, 1e-3))]
+    grid, xt = rng.uniform(size=(50, 2)), np.array([[0.4, 0.6], [0.9, 0.1]])
+    for gpo in gps:
+        n_data = len(gpo.x_data)
+        before = gpo.posterior_mean(grid, x_out=gpo.x_out)["m(x)"]
+        work = _greedy_copy(gpo)
+        _add_pseudo_points(work, xt, None, _pseudo_noise(gpo))
+        assert len(gpo.x_data) == n_data and len(work.x_data) > n_data
+        assert np.allclose(work.posterior_mean(grid, x_out=gpo.x_out)["m(x)"], before, atol=1e-10, rtol=0)
+        v0 = gpo.posterior_covariance(xt, x_out=gpo.x_out, variance_only=True)["v(x)"]
+        v1 = work.posterior_covariance(xt, x_out=gpo.x_out, variance_only=True)["v(x)"]
+        assert np.all(v1 < v0)
+
+
+def test_greedy_pseudo_points_by_mode():
+    """Pseudo-values live in GP space (not pushed through Log/Logit twice); cartesian points
+    carry only the requested outputs; the pseudo-noise follows how the GP got its noise."""
+    from gpcam.surrogate_model import _greedy_copy, _pseudo_noise, _add_pseudo_points
+    from gpcam import LogGPOptimizer
+    gpo, _ = _greedy_toy(LogGPOptimizer)
+    work, xt = _greedy_copy(gpo), np.array([[0.3, 0.3]])
+    _add_pseudo_points(work, xt, None, _pseudo_noise(gpo))
+    assert np.isclose(work.y_data.reshape(-1)[-1], gpo.posterior_mean(xt)["m(x)"][0])
+
+    x = np.random.default_rng(3).uniform(size=(6, 2))
+    Y = np.column_stack([x[:, 0], x[:, 1], x.sum(axis=1)])
+    cart = GPOptimizer(x, Y, multi_task_mode="cartesian", noise_variances=np.full((6, 3), 1e-2))
+    work = _greedy_copy(cart)
+    _add_pseudo_points(work, xt, np.array([0, 2]), _pseudo_noise(cart))
+    assert len(work.x_data) == len(cart.x_data) + 2       # outputs 0 and 2, not 1
+    assert np.allclose(work.noise_variances[-2:], 1e-2)
+
+    explicit, _ = _greedy_toy(noise_variances=np.full(15, 1e-3), args={"batch_pseudo_noise": 0.5})
+    assert _pseudo_noise(explicit) == 0.5
+    assert np.isclose(_pseudo_noise(_greedy_toy(noise_variances=np.linspace(1e-3, 3e-3, 15))[0]), 2e-3)
+    assert _pseudo_noise(_greedy_toy()[0]) is None        # fvgp's default noise decides
+
+
+def test_greedy_batch_spreads_every_kind_of_acquisition():
+    """The point-wise top-n of a candidate list clusters; the greedy batch, conditioned on
+    its own picks, does not -- for built-ins, the exact NEI path and callables alike -- and
+    the user's GP is left as it was."""
+    import warnings
+    from gpcam.surrogate_model import greedy_batch, find_acquisition_function_maxima
+    gpo, candidates = _greedy_toy(noise_variances=np.full(15, 1e-3))
+    x0, y0 = gpo.x_data.copy(), gpo.y_data.copy()
+    for acq in ["variance", "ucb", "expected improvement", "knowledge gradient",
+                "noisy expected improvement", _variance_callable]:
+        x, f, opt = greedy_batch(gpo, acq, 5, candidates, input_set_dim=2)
+        assert x.shape == (5, 2) and f.shape == (5,) and opt is None
+        assert len(np.unique(x, axis=0)) == 5
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            top, _, _ = find_acquisition_function_maxima(gpo, acq, number_of_maxima_sought=5,
+                                                         input_set=candidates, input_set_dim=2)
+        assert _closest_pair(x) > 3. * _closest_pair(top), acq
+    for acq in ["variance", "ucb"]:
+        x, f, _ = greedy_batch(gpo, acq, 4, np.array([[0., 1.], [0., 1.]]), input_set_dim=2,
+                               optimization_method="global", optimization_max_iter=20)
+        assert x.shape == (4, 2) and _closest_pair(x) > 0.05
+    x, f, _ = greedy_batch(gpo, "total correlation", 3, candidates, input_set_dim=2, vectorized=False)
+    assert f.shape == (3,) and len(np.unique(x, axis=0)) == 3
+    assert np.array_equal(gpo.x_data, x0) and np.array_equal(gpo.y_data, y0)
+
+
+def test_greedy_batch_conditions_on_pending_points():
+    """x_pending enters before the first pick: a batch built after pending points P equals
+    the tail of the longer batch whose first picks were P, on the pseudo-point path and on
+    the exact NEI path (whose random draws are sequential, so they line up too)."""
+    from gpcam.surrogate_model import greedy_batch
+    gpo, candidates = _greedy_toy(noise_variances=np.full(15, 1e-3))
+    for acq in ("variance", "noisy expected improvement"):
+        full, f_full, _ = greedy_batch(gpo, acq, 5, candidates, input_set_dim=2)
+        tail, f_tail, _ = greedy_batch(gpo, acq, 3, candidates, input_set_dim=2, x_pending=full[:2])
+        assert np.allclose(tail, full[2:]) and np.allclose(f_tail, f_full[2:]), acq
+    # the best point is no longer chosen once it is pending, nor anything right next to it
+    alone, _, _ = greedy_batch(gpo, "variance", 1, candidates, input_set_dim=2)
+    x, _, _ = greedy_batch(gpo, "variance", 3, candidates, input_set_dim=2, x_pending=alone)
+    assert np.min(np.linalg.norm(x - alone, axis=1)) > 0.1
+
+
+def test_greedy_batch_in_every_multi_task_mode():
+    """Multi-task greedy batches, for all outputs and a subset, on both conditioning paths
+    (dev spec, test 9)."""
+    from gpcam.surrogate_model import greedy_batch
+    gpo, candidates = _greedy_toy()
+    x, y = gpo.x_data, gpo.y_data.reshape(-1)
+    Y = np.column_stack([y, np.cos(3. * x[:, 0])])
+    for mode in ("independent", "cartesian", "kronecker"):
+        mt = GPOptimizer(x, Y, multi_task_mode=mode)
+        for x_out in (np.array([0, 1]), np.array([1])):
+            for acq in ("variance", "noisy expected improvement"):
+                picks, f, _ = greedy_batch(mt, acq, 3, candidates[:80], input_set_dim=2, x_out=x_out)
+                assert picks.shape == (3, 2) and len(np.unique(picks, axis=0)) == 3
+                assert np.all(np.isfinite(f)), (mode, x_out, acq)
+
+
+def test_greedy_batch_with_transformed_optimizers():
+    from gpcam.surrogate_model import greedy_batch
+    from gpcam import LogGPOptimizer, LogitGPOptimizer
+    for gpo, _ in (_greedy_toy(LogGPOptimizer), _greedy_toy(LogitGPOptimizer, scale=.25, range=(0., 1.))):
+        _, candidates = _greedy_toy()
+        x, f, _ = greedy_batch(gpo, "ucb", 4, candidates, input_set_dim=2)
+        assert len(np.unique(x, axis=0)) == 4 and _closest_pair(x) > 0.05
+
+
+def test_greedy_batch_edge_cases():
+    """Small pools return the pool; `maximum` warns (pseudo-points do not move the mean);
+    the cost origin moves to each pick; gp2Scale is refused."""
+    import types
+    from gpcam.surrogate_model import greedy_batch, _greedy_copy
+    gpo, candidates = _greedy_toy()
+    x, f, _ = greedy_batch(gpo, "variance", 10, candidates[:3], input_set_dim=2)
+    assert x.shape == (3, 2) and f.shape == (3,)
+    with pytest.warns(UserWarning, match="same point"):
+        greedy_batch(gpo, "maximum", 2, np.array([[0., 1.], [0., 1.]]), input_set_dim=2,
+                     optimization_max_iter=2)
+
+    origins = []
+    def cost(origin, x):
+        origins.append(np.array(origin))
+        return np.ones(len(x))
+    start = np.array([0., 0.])
+    x, _, _ = greedy_batch(gpo, "variance", 3, candidates[:40], input_set_dim=2,
+                           origin=start, cost_function=cost)
+    seen = np.unique(np.array(origins), axis=0)
+    assert len(seen) == 3 and all(any(np.allclose(o, s) for s in seen) for o in (start, x[0], x[1]))
+
+    with pytest.raises(NotImplementedError, match="gp2Scale"):
+        _greedy_copy(types.SimpleNamespace(gp2Scale=True))
+
+
 def test_assumed_observation_noise_matrix_valued():
     """fvgp accepts a full (N, N) noise covariance from a noise_function, not just a
     1-d vector of variances. The per-observation variances are then its diagonal --

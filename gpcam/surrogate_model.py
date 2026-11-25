@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import copy
 import math
 import numpy as np
 from loguru import logger
@@ -757,6 +758,152 @@ class _NEIIncrement:
 
     def __call__(self, x, gpo):
         return _nei_increment(x, gpo, self.state, self.x_out)
+
+
+##########################################################################
+# Greedy batches: pick the best point, condition on it, repeat
+##########################################################################
+def _greedy_copy(gpo):
+    """A private copy of the GP to add pseudo-points to; the user's GP is never touched.
+
+    fvgp's default prior mean (the mean of ``y_data``) and default noise
+    (``(mean|y_data| / 100)^2``) are recomputed from the data on every append, so a
+    pseudo-point would shift them and with them the posterior everywhere -- by ~5e-3 with
+    8 data points. On the copy both are bound to a snapshot of the original data instead.
+    User-supplied mean and noise functions are left alone: they see the pseudo-points,
+    which is what conditioning on pending points means for them.
+
+    This writes fvgp internals (``prior.mean_function``, ``prior._default_mean``,
+    ``prior.m_n_params``, ``likelihood.noise_function``, ``likelihood.v_n_params``);
+    ``test_greedy_copy_freezes_the_data_dependent_defaults`` fails if they change.
+    """
+    if getattr(gpo, "gp2Scale", False):
+        raise NotImplementedError(
+            "Greedy batches are not available for gp2Scale GPs: they condition a copy of the "
+            "GP on the picks, and a copy has no Dask client. Use batch_mode='joint' or "
+            "'independent', or ask for one point at a time.")
+    work = copy.deepcopy(gpo)
+    snapshot = copy.deepcopy(work.data)
+    prior, likelihood = work.prior, work.likelihood
+    if prior._default_mean:
+        frozen = copy.copy(prior)
+        frozen.data = snapshot
+        prior.mean_function, prior._default_mean, prior.m_n_params = frozen._default_mean_function, False, 2
+    if getattr(likelihood.noise_function, "__func__", None) is type(likelihood)._default_noise_function:
+        frozen = copy.copy(likelihood)
+        frozen.data = snapshot
+        likelihood.noise_function, likelihood.v_n_params = frozen._default_noise_function, 2
+    return work
+
+
+def _pseudo_noise(gpo):
+    """The noise variance of a pseudo-point, or None where fvgp decides it.
+
+    fvgp takes noise variances in an update exactly when the GP was built with them. Then
+    a pseudo-point gets ``args['batch_pseudo_noise']``, or the mean of the data's noise
+    variances: the noise a real measurement would be expected to have. Otherwise the noise
+    function, or the frozen default, applies to it as to any data point.
+    """
+    if gpo.noise_variances is None: return None
+    explicit = _acq_arg(gpo, "batch_pseudo_noise", None)
+    if explicit is not None: return float(explicit)
+    return float(np.nanmean(np.asarray(gpo.noise_variances, dtype=float)))
+
+
+def _add_pseudo_points(work, x_new, x_out, noise):
+    """Append ``x_new`` to ``work`` with the posterior mean as its value (kriging believer).
+
+    The value is the posterior mean in GP space and goes through ``update_gp_data``, not
+    ``tell()``, so the Log/Logit transforms are not applied twice; it leaves the posterior
+    mean unchanged and shrinks the variance around the new points (a rank-n update, no
+    retraining). A multi-task point gets every output -- Kronecker needs the full grid --
+    except in 'cartesian' mode, where outputs outside ``x_out`` stay unobserved (NaN).
+    """
+    k = len(x_new)
+    mode = work.multi_task_mode
+    if mode is None:
+        y = np.asarray(work.posterior_mean(x_new)["m(x)"], dtype=float).reshape(k)
+        nv = None if noise is None else np.full(k, noise)
+    else:
+        outputs = np.arange(work.output_num)
+        y = np.asarray(work.posterior_mean(x_new, x_out=outputs)["m(x)"], dtype=float).reshape(k, len(outputs))
+        if mode == "cartesian":
+            if x_out is not None: y[:, ~np.isin(outputs, x_out)] = np.nan
+            nv = None if noise is None else np.where(np.isnan(y), np.nan, noise)
+        else:
+            nv = None if noise is None else np.full(k, noise)
+    work.update_gp_data(x_new, y, noise_variances_new=nv, append=True, rank_n_update=True)
+
+
+def _index_of(candidates, pick):
+    """Position of ``pick`` in a candidate list (the optimizer returns a copy of it)."""
+    for i, c in enumerate(candidates):
+        try:
+            if np.array_equal(np.asarray(c), np.asarray(pick)): return i
+        except Exception:  # pragma: no cover - candidates numpy cannot compare
+            continue
+    return None  # pragma: no cover - the pick always comes from the list
+
+
+def greedy_batch(gpo, acquisition_function, n, input_set, *, x_out=None, x_pending=None,
+                 origin=None, cost_function=None, input_set_dim=None, **optimizer_kwargs):
+    """Choose ``n`` points together under any acquisition function, by greedy selection.
+
+    Each step maximizes the single-point acquisition function -- over bounds with the
+    usual optimizer (``optimizer_kwargs`` are those of
+    :func:`find_acquisition_function_maxima`), or over a candidate list, from which each
+    pick is removed -- and then conditions on the pick before the next step:
+
+    * ``noisy expected improvement``: the pick joins the reference set whose sampled
+      maximum is the incumbent (:func:`_nei_append`). Exact sequential-greedy q-NEI: the
+      per-pick values add up to the batch's q-NEI, and a repeat of a pick is worth 0.
+    * everything else, callables included: the pick is added to a private copy of the GP
+      (:func:`_greedy_copy`) as a pseudo-point whose value is the posterior mean
+      (:func:`_add_pseudo_points`). The posterior mean stays, the variance shrinks around
+      the pick, and the acquisition -- evaluated on the copy -- moves on. Hyperparameters
+      are not retrained.
+
+    Points in ``x_pending`` (chosen, not yet measured) are conditioned on first. With a
+    cost function and an ``origin``, the origin moves to each pick in turn.
+
+    Returns ``(x, f_a(x), None)``: the picks in the order chosen, and each pick's
+    acquisition value (divided by the cost, as ``ask()`` reports it) on the conditioned
+    GP at the moment it was chosen. A candidate list shorter than ``n`` gives all of it.
+    """
+    candidates = list(input_set) if isinstance(input_set, list) else None
+    nei = isinstance(acquisition_function, str) and acquisition_function == "noisy expected improvement"
+    if n > 1 and candidates is None and isinstance(acquisition_function, str) and \
+            acquisition_function in ("maximum", "minimum"):
+        warnings.warn(f"`{acquisition_function}` depends on the posterior mean only, which "
+                      f"pseudo-points do not change, so every greedy step returns the same point. "
+                      f"Use `ucb`/`lcb` or `noisy expected improvement` for a batch.")
+    euclidean = isinstance(gpo.x_data, np.ndarray)
+    as_points = (lambda p: np.atleast_2d(np.asarray(p, dtype=float))) if euclidean else (lambda p: [p])
+    has_pending = x_pending is not None and len(x_pending) > 0
+    if nei:
+        work, state = gpo, _nei_state(gpo, x_out, x_pending=x_pending if has_pending else None)
+    else:
+        work, noise = _greedy_copy(gpo), _pseudo_noise(gpo)
+        if has_pending: _add_pseudo_points(work, x_pending, x_out, noise)
+    picks, values = [], []
+    for step in range(n):
+        if candidates is not None and not candidates: break
+        acq = _NEIIncrement(state, x_out) if nei else acquisition_function
+        x_t, f_t, _ = find_acquisition_function_maxima(
+            work, acq, origin=origin, number_of_maxima_sought=1,
+            input_set=candidates if candidates is not None else input_set,
+            input_set_dim=input_set_dim, cost_function=cost_function, x_out=x_out,
+            **optimizer_kwargs)
+        pick = np.asarray(x_t)[0]
+        if candidates is not None: pick = candidates.pop(_index_of(candidates, pick))
+        picks.append(pick)
+        values.append(float(np.asarray(f_t).reshape(-1)[0]))
+        logger.debug("greedy batch: pick {} of {}: {}", step + 1, n, pick)
+        if step == n - 1: break
+        if nei: state = _nei_append(state, gpo, as_points(pick), x_out)
+        else: _add_pseudo_points(work, as_points(pick), x_out, noise)
+        if cost_function is not None and origin is not None: origin = pick
+    return np.asarray(picks), np.asarray(values), None
 
 
 def differential_evolution(func,
